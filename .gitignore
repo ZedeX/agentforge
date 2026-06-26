@@ -1,0 +1,96 @@
+# =========================================
+# AgentForge .gitignore
+# =========================================
+
+# ---- Java / Maven ----
+target/
+target-*/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*.log
+replay_pid*.log
+
+# ---- Maven (mvn local repo is in ~/.m2, ignore project-local) ----
+.mvn/wrapper/maven-wrapper.jar
+dependency-reduced-pom.xml
+pom.xml.versionsBackup
+release.properties
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+
+# ---- IDE: IntelliJ IDEA ----
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ---- IDE: Eclipse / Spring STS ----
+.classpath
+.project
+.settings/
+.factorypath
+.springBeans
+.apt_generated/
+
+# ---- IDE: VS Code ----
+.vscode/
+.history/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+*.tmp
+*.bak
+*.swp
+*~
+
+# ---- Logs ----
+logs/
+*.log
+log/
+
+# ---- Secrets / Local Config ----
+*.env
+.env.local
+application-local.yml
+application-local.properties
+application-secret.yml
+secrets/
+credentials.json
+*.pem
+*.key
+
+# ---- Node.js (frontend + tooling) ----
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+.next/
+coverage/
+*.tsbuildinfo
+.npm
+.pnpm-store/
+
+# ---- Temporary / Tooling artifacts (do not commit) ----
+# Mermaid validation: chrome profile (from failed puppeteer attempt)
+docs/11-detail-flow/_mermaid-validate/.chrome-profile/
+docs/11-detail-flow/_mermaid-validate/node_modules/
+docs/11-detail-flow/_mermaid-validate/package-lock.json
+
+# ---- Temporary scratch directory (per user rule: temp files preserved, not committed) ----
+tmp/
+.temp/
+scratch/
+
+# ---- Build tooling caches ----
+.flattened-pom.xml

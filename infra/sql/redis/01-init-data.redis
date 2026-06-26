@@ -1,0 +1,115 @@
+-- =====================================================================
+-- File: 01-init-data.redis
+-- Purpose: Redis hot config initialization
+-- Source: docs/01-database/database-schema-design.md §3.4
+--         + docs/09-governance-and-deployment/governance-and-middleware.md §6.2
+-- Usage: redis-cli -h <host> -p <port> -a <password> < 01-init-data.redis
+--       or: cat 01-init-data.redis | redis-cli
+-- =====================================================================
+
+-- ----------------------------------------------------------------------
+-- 1. Hot configuration keys (governance rules)
+-- ----------------------------------------------------------------------
+
+-- Rate limit: default 10 QPS per tenant
+SET config:rate_limit:default 10
+SET config:rate_limit:tenant:default 10
+SET config:rate_limit:user:default 5
+
+-- Token water level thresholds (doc 04-memory §6.2 + governance §3.4)
+-- Safe < warning < critical < break
+SET config:token_water:safe 0.70
+SET config:token_water:warning 0.70
+SET config:token_water:critical 0.85
+SET config:token_water:break 0.95
+
+-- Task orchestration limits
+SET config:max_replan 2
+SET config:max_reflection 2
+SET config:max_steps_default 10
+SET config:max_steps_strong 15
+
+-- Cost circuit breaker ratios (governance §3.4)
+SET config:cost:task_warn_ratio 0.80
+SET config:cost:task_block_ratio 1.00
+
+-- Drift detection thresholds (governance §2.3)
+SET config:drift:task_level_threshold 0.30
+SET config:drift:system_level_threshold 0.50
+SET config:drift:auto_rollback_threshold 0.70
+
+-- Hallucination rate alert thresholds (governance §1.2.6)
+SET config:hallucination:p2_threshold 0.05
+SET config:hallucination:p1_threshold 0.10
+
+-- Memory recall parameters (doc §10.3)
+SET config:memory:recall_top_k 50
+SET config:memory:recall_ef 128
+SET config:memory:rerank_top_n 10
+SET config:memory:relevance_threshold 0.60
+SET config:memory:dedupe_threshold 0.95
+
+-- ----------------------------------------------------------------------
+-- 2. Rate limiter bucket configs (Redisson token bucket)
+-- ----------------------------------------------------------------------
+
+-- Default tenant chat rate limit bucket (10 QPS, burst 20)
+HSET config:bucket:tenant:chat:default capacity 20
+HSET config:bucket:tenant:chat:default rate 10
+HSET config:bucket:tenant:chat:default unit seconds
+
+-- Model gateway rate limit (per provider)
+HSET config:bucket:model:openai capacity 100
+HSET config:bucket:model:openai rate 50
+HSET config:bucket:model:openai unit seconds
+
+HSET config:bucket:model:anthropic capacity 100
+HSET config:bucket:model:anthropic rate 50
+HSET config:bucket:model:anthropic unit seconds
+
+HSET config:bucket:model:qwen capacity 200
+HSET config:bucket:model:qwen rate 100
+HSET config:bucket:model:qwen unit seconds
+
+-- ----------------------------------------------------------------------
+-- 3. Tool call default lock TTL configs
+-- ----------------------------------------------------------------------
+
+SET config:lock:tool_ttl_seconds 30
+SET config:lock:agent_instance_ttl_seconds 300
+SET config:lock:quota_acquire_wait_ms 2000
+
+-- ----------------------------------------------------------------------
+-- 4. Session short-term memory TTL configs (doc §3.4)
+-- ----------------------------------------------------------------------
+
+SET config:session:ctx_ttl_seconds 7200
+SET config:session:steps_ttl_seconds 7200
+SET config:session:token_water_ttl_seconds 7200
+SET config:session:draft_ttl_seconds 1800
+SET config:runtime:state_ttl_seconds 1800
+
+-- ----------------------------------------------------------------------
+-- 5. Eval sampling rates (governance §1.3)
+-- ----------------------------------------------------------------------
+
+SET config:eval:sampling:high_risk 1.00
+SET config:eval:sampling:mid_risk 0.10
+SET config:eval:sampling:low_risk 0.01
+
+-- ----------------------------------------------------------------------
+-- 6. Agent version canary release configs (governance §2.2.4)
+-- ----------------------------------------------------------------------
+
+HSET config:canary:stage_1 weight 10
+HSET config:canary:stage_1 duration_hours 24
+HSET config:canary:stage_1 rollback_success_rate_drop 0.05
+HSET config:canary:stage_1 rollback_hallucination_rise 0.02
+
+HSET config:canary:stage_2 weight 30
+HSET config:canary:stage_2 duration_hours 48
+HSET config:canary:stage_2 rollback_success_rate_drop 0.03
+HSET config:canary:stage_2 rollback_hallucination_rise 0.01
+
+HSET config:canary:stage_3 weight 100
+HSET config:canary:stage_3 promote_to_stable 1
