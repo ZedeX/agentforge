@@ -152,6 +152,55 @@ e:\git\Agent-Platform-Prototype\
 所有 plan 的异常分支必须使用 `agent-common.ErrorCode` 枚举中的错误码，包括但不限于：
 `UNAUTHENTICATED` / `RATE_LIMITED` / `CONTENT_BLOCKED` / `TOOL_NOT_FOUND` / `PARAM_INVALID` / `FORBIDDEN` / `QUOTA_EXCEEDED` / `COST_BUDGET_EXCEEDED` / `DAG_CYCLE_DETECTED` / `COMPLETENESS_FAIL` / `REPLAN_EXHAUSTED` / `HALLUCINATION_SUSPECTED` / `FACT_INCONSISTENCY` / `TIMEOUT` / `MAX_STEPS_EXCEEDED` / `CONTEXT_WINDOW_EXHAUSTED`
 
+### 3.6 TDD 提交时序
+
+> 本节由 TDD 第 2 轮审核 SEQ-02 一票否决项触发新增，避免后续新模块出现"测试与实现同 commit、无法事后拆分"的问题。
+
+#### 3.6.1 三阶段独立提交规则
+
+每个测试方法必须按 **Red → Green → Refactor** 三阶段独立 commit：
+
+| 阶段 | 动作 | commit message 格式 |
+|---|---|---|
+| Red | 先写失败的测试（运行验证失败） | `test({module}): add failing test for {feature}` |
+| Green | 写最小实现让测试通过（运行验证通过） | `feat({module}): implement {feature} to pass test` |
+| Refactor | 重构代码（提取公共方法、改善命名、消除重复） | `refactor({module}): {重构内容}` |
+
+- 若该 Task 无需重构，可跳过 Refactor 阶段，但 Red 与 Green 两个 commit 不可合并
+- 每个阶段 commit 前必须本地运行测试，确认阶段状态符合预期（Red 阶段测试失败 / Green 阶段测试通过）
+
+#### 3.6.2 禁止事项
+
+- 禁止测试与实现同 commit 提交（违反 Uncle Bob TDD 三定律第 1 条）
+- 禁止跳过 Red 阶段直接写实现
+- 禁止在 Green 阶段写超出最小实现的代码（如提前做重构、加注释、加额外功能）
+- 禁止一个 commit 同时覆盖多个测试方法的多轮红绿循环（每个测试方法独立一组 commit）
+
+#### 3.6.3 commit message 规范
+
+遵循 Conventional Commits：`type(scope): description`
+
+| 字段 | 取值 |
+|---|---|
+| type | `test` / `feat` / `refactor` / `fix` / `docs` / `chore` / `ci` |
+| scope | 模块名：`proto` / `common` / `gateway` / `session` / `orchestrator` / `planning` / `memory` / `tool` / `runtime` / `model` / `repo` / `knowledge` / `quality` / `infra` |
+| description | 简洁英文描述，动词原形开头，首字母小写 |
+
+#### 3.6.4 示例（以 agent-task-orchestrator 模块为例）
+
+```
+commit 1: test(orchestrator): add failing test for TaskStateMachine.legalTransition
+commit 2: feat(orchestrator): implement TaskStateMachine.canTransitTo
+commit 3: refactor(orchestrator): extract transition matrix to enum
+```
+
+#### 3.6.5 审核要求
+
+- 每个模块开发完成后，审核员会检查 `git log` 中该模块的 commit 序列
+- 审核员通过 `git log --oneline -- {module-path}` 查看模块提交历史，确认每个测试方法都有独立的 Red / Green commit
+- 如果发现测试与实现同 commit，视为 **SEQ-02 违规**，触发一票否决，该模块需返工重做
+- 如果发现跳过 Red 阶段（无 `test(...)` commit 直接出现 `feat(...)` commit），同样视为 SEQ-02 违规
+
 ## 4. 已完成 Plan 的执行建议
 
 ### Plan 01（agent-proto + agent-common）
