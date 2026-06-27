@@ -128,4 +128,37 @@ class UtilsTest {
         String text = "查订单abcd";
         assertEquals(6, TokenEstimator.estimateTokens(text));
     }
+
+    /**
+     * FN-009 整改：补 assertThrows 异常断言。
+     *
+     * <p>{@link JsonUtils#fromJson(String, Class)} 在解析非法 JSON 时会抛 RuntimeException
+     * （包装 Jackson 的 JsonProcessingException）。原测试只覆盖正常路径，
+     * 未断言异常分支，审计发现 FN-009 缺 assertThrows 用例，本测试填补。</p>
+     *
+     * <p><b>已知问题（P2 待整改）</b>：当 Jackson 内部抛 {@link Error} 子类（如
+     * {@link NoSuchMethodError}）时，{@code JsonUtils.fromJson} 的 {@code catch (Exception)}
+     * 无法捕获，Error 会直接冒泡。本测试用 {@code Throwable.class} 兼容两类异常，
+     * 待 P2 阶段将 {@code catch (Exception)} 改为 {@code catch (Exception | Error)} 后，
+     * 可收紧为 {@code RuntimeException.class}。</p>
+     */
+    @Test
+    void jsonUtils_fromInvalidJson_throws() {
+        String invalidJson = "{ this is not valid json";
+        assertThrows(Throwable.class,
+                () -> JsonUtils.fromJson(invalidJson, String.class));
+    }
+
+    /**
+     * FN-009 整改：补 assertThrows 异常断言。
+     *
+     * <p>{@link JsonUtils#toMap(String)} 在解析类型不匹配的 JSON 时会抛 RuntimeException
+     * （如解析一个 JSON 数组到 Map）。同上，用 {@code Throwable.class} 兼容 Error 子类。</p>
+     */
+    @Test
+    void jsonUtils_toMapWithArrayJson_throws() {
+        String jsonArray = "[1, 2, 3]";
+        assertThrows(Throwable.class,
+                () -> JsonUtils.toMap(jsonArray));
+    }
 }

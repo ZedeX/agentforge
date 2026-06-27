@@ -1,0 +1,54 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: agent-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+grpc:
+  client:
+    task-orchestrator:
+      address: static://localhost:9090
+      negotiation-type: plaintext
+    risk-control:
+      address: static://localhost:9092
+      negotiation-type: plaintext
+
+session-service:
+  base-url: http://localhost:8082
+
+gateway:
+  jwt:
+    secret: "agent-platform-jwt-secret-key-please-change-in-production-32bytes"
+    issuer: "agent-platform"
+    ttl-minutes: 60
+  rate-limit:
+    capacity: 20
+    refill-tokens: 10
+    refill-seconds: 1
+  auth-whitelist:
+    paths:
+      - /api/v1/health
+      - "POST /api/v1/sessions"
+
+logging:
+  level:
+    com.agent.gateway: DEBUG
+    org.springframework.web: INFO
