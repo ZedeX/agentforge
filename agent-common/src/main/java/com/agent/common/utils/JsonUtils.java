@@ -31,7 +31,7 @@ public final class JsonUtils {
         }
         try {
             return MAPPER.writeValueAsString(obj);
-        } catch (Exception e) {
+        } catch (Exception | Error e) {
             throw new RuntimeException("Failed to serialize object to JSON: " + e.getMessage(), e);
         }
     }
@@ -42,7 +42,7 @@ public final class JsonUtils {
         }
         try {
             return MAPPER.readValue(json, typeRef);
-        } catch (Exception e) {
+        } catch (Exception | Error e) {
             throw new RuntimeException("Failed to deserialize JSON: " + e.getMessage(), e);
         }
     }
@@ -53,7 +53,7 @@ public final class JsonUtils {
         }
         try {
             return MAPPER.readValue(json, clazz);
-        } catch (Exception e) {
+        } catch (Exception | Error e) {
             throw new RuntimeException("Failed to deserialize JSON: " + e.getMessage(), e);
         }
     }
@@ -65,7 +65,7 @@ public final class JsonUtils {
         }
         try {
             return MAPPER.readValue(json, Map.class);
-        } catch (Exception e) {
+        } catch (Exception | Error e) {
             throw new RuntimeException("Failed to convert JSON to Map: " + e.getMessage(), e);
         }
     }
