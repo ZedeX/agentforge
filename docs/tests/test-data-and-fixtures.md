@@ -1,14 +1,15 @@
 # AgentForge 智能体平台 测试数据与 Fixture
 
-> 文档版本：v1.0 | 更新日期：2026-06-27 | 文档定位：**测试数据策略 + Fixture 示例 + Testcontainers 配置**
+> 文档版本：v1.1 | 更新日期：2026-06-27 | 文档定位：**测试数据策略 + Fixture 示例 + Testcontainers 配置 + 性能/边界数据**
 >
-> 适用范围：AgentForge 平台全量测试的数据准备、Fixture 工厂、容器化测试基础设施。
+> 适用范围：AgentForge 平台全量测试的数据准备、Fixture 工厂、容器化测试基础设施、性能测试数据与边界值数据。
 >
 > 依赖文档：
 > - [test-strategy.md](test-strategy.md) — 测试策略与数据策略
 > - [01-database/database-schema-design.md](../01-database/database-schema-design.md) — 数据库表结构
 > - [infra/sql/mysql/11-seed-data.sql](../../infra/sql/mysql/11-seed-data.sql) — 生产种子数据
 > - [00-overview/tech-stack-and-architecture.md](../00-overview/tech-stack-and-architecture.md) — 中间件清单
+> - [test-plan.md](test-plan.md) §6 — Testcontainers 容器矩阵与 Fixture 工厂
 
 ---
 
@@ -402,6 +403,263 @@ public class DagFixture {
 }
 ```
 
+### 3.7 Trace Fixture（链路追踪数据，新增）
+
+```java
+// testinfra/fixture/TraceFixture.java
+public class TraceFixture {
+
+    public static TraceContext buildRootTrace() {
+        return TraceContext.newBuilder()
+            .setTraceId("trace_test_" + UUID.randomUUID().toString().replace("-", ""))
+            .setSpanId(UUID.randomUUID().toString().replace("-", "").substring(0, 16))
+            .setTenantId("tn_test_001")
+            .setUserId("u_test_001")
+            .setSampled(true)
+            .build();
+    }
+
+    public static TraceContext buildChildTrace(String parentTraceId, String parentSpanId) {
+        return TraceContext.newBuilder()
+            .setTraceId(parentTraceId)  // 子 span 继承 traceId
+            .setSpanId(UUID.randomUUID().toString().replace("-", "").substring(0, 16))
+            .setParentSpanId(parentSpanId)
+            .setSampled(true)
+            .build();
+    }
+
+    public static TraceContext buildNotSampled() {
+        return TraceContext.newBuilder()
+            .setTraceId("trace_notsampled_" + System.currentTimeMillis())
+            .setSampled(false)
+            .build();
+    }
+}
+```
+
+### 3.8 Knowledge Fixture（知识库数据，新增）
+
+```java
+// testinfra/fixture/KnowledgeFixture.java
+public class KnowledgeFixture {
+
+    public static KnowledgeBase buildSimpleKb() {
+        return KnowledgeBase.newBuilder()
+            .setKbId("kb_test_001")
+            .setTenantId("tn_test_001")
+            .setName("产品手册库")
+            .setEmbeddingModel("bge-large-zh")
+            .setVectorDim(1024)
+            .setStatus("ACTIVE")
+            .setCreatedAt(Timestamp.newBuilder().setSeconds(1690000000).build())
+            .build();
+    }
+
+    public static KnowledgeDocument buildDocument() {
+        return KnowledgeDocument.newBuilder()
+            .setDocId("doc_test_001")
+            .setKbId("kb_test_001")
+            .setTitle("产品手册 v1.0")
+            .setContent("退货政策：7 天无理由退货，需保留原包装...")
+            .setSha256("a1b2c3d4e5f6...")
+            .setStatus("INDEXED")
+            .build();
+    }
+
+    public static KnowledgeChunk buildChunk(int idx) {
+        return KnowledgeChunk.newBuilder()
+            .setChunkId("chk_test_" + String.format("%03d", idx))
+            .setDocId("doc_test_001")
+            .setContent("第 " + idx + " 段：产品功能说明...")
+            .setTokenCount(450)  // ≤512
+            .setEmbedding(ByteString.copyFrom(new float[1024]))  // 模拟向量
+            .build();
+    }
+
+    public static List<KnowledgeChunk> buildChunks(int count) {
+        return IntStream.range(0, count)
+            .mapToObj(KnowledgeFixture::buildChunk)
+            .collect(Collectors.toList());
+    }
+}
+```
+
+### 3.9 Risk Approval Fixture（R3 审批数据，新增）
+
+```java
+// testinfra/fixture/ApprovalFixture.java
+public class ApprovalFixture {
+
+    public static ToolApproval buildPendingApproval() {
+        return ToolApproval.newBuilder()
+            .setApprovalId("ap_test_001")
+            .setToolId("tl_test_003")  // R3 工具
+            .setTenantId("tn_test_003")
+            .setRequesterId("u_test_004")
+            .setStatus("PENDING")
+            .setInputSnapshot("{\"target\":\"expired_data\",\"batchSize\":1000}")
+            .setExpireAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond() + 86400).build())
+            .build();
+    }
+
+    public static ToolApproval buildApprovedApproval() {
+        return ToolApproval.newBuilder()
+            .setApprovalId("ap_test_002")
+            .setToolId("tl_test_003")
+            .setStatus("APPROVED")
+            .setMainApproverId("u_test_005")
+            .setSecondApproverId("u_test_006")
+            .setApprovedAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond() - 1800).build())  // 30min 前
+            .setExpireAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond() + 1800).build())   // 30min 后过期
+            .build();
+    }
+
+    public static ToolApproval buildExpiredApproval() {
+        return ToolApproval.newBuilder()
+            .setApprovalId("ap_test_003")
+            .setToolId("tl_test_003")
+            .setStatus("APPROVED")
+            .setMainApproverId("u_test_005")
+            .setSecondApproverId("u_test_006")
+            .setApprovedAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond() - 7200).build())  // 2h 前
+            .setExpireAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond() - 3600).build())    // 1h 前过期
+            .build();
+    }
+
+    public static ToolApproval buildPartialApproval() {
+        // 仅主审批人通过，缺副审批人
+        return ToolApproval.newBuilder()
+            .setApprovalId("ap_test_004")
+            .setToolId("tl_test_003")
+            .setStatus("PARTIALLY_APPROVED")
+            .setMainApproverId("u_test_005")
+            .setSecondApproverId("")
+            .build();
+    }
+}
+```
+
+### 3.10 Boundary Value Fixture（边界值数据，新增）
+
+> 用于测试边界条件与异常路径，覆盖 F2 复杂度分级边界、F7 Token 水位边界、F9 L4 校验阈值边界。
+
+```java
+// testinfra/fixture/BoundaryFixture.java
+public class BoundaryFixture {
+
+    // F2 复杂度分级边界（≤8=L1, 9-14=L2, >14=L3）
+    public static final int COMPLEXITY_L1_UPPER = 8;   // 边界值：刚好 L1
+    public static final int COMPLEXITY_L2_LOWER = 9;  // 边界值：刚好 L2
+    public static final int COMPLEXITY_L2_UPPER = 14; // 边界值：刚好 L2
+    public static final int COMPLEXITY_L3_LOWER = 15; // 边界值：刚好 L3
+
+    // F7 Token 水位边界（SAFE<0.70 / WARN<0.85 / CRITICAL<0.95 / CIRCUIT_BREAK>=0.95）
+    public static final double TOKEN_SAFE_UPPER = 0.699;  // 边界：刚好 SAFE
+    public static final double TOKEN_WARN_LOWER = 0.700;  // 边界：刚好 WARN
+    public static final double TOKEN_WARN_UPPER = 0.849;  // 边界：刚好 WARN
+    public static final double TOKEN_CRITICAL_LOWER = 0.850;  // 边界：刚好 CRITICAL
+    public static final double TOKEN_CRITICAL_UPPER = 0.949;  // 边界：刚好 CRITICAL
+    public static final double TOKEN_CIRCUIT_LOWER = 0.950;  // 边界：刚好 CIRCUIT_BREAK
+
+    // F9 L4 校验阈值边界（cosine_sim ≥0.75 / overall ≥0.7）
+    public static final double SIM_PASS_LOWER = 0.750;  // 边界：刚好通过
+    public static final double SIM_FAIL_UPPER = 0.749;  // 边界：刚好失败
+    public static final double AUDIT_PASS_LOWER = 0.700;  // 边界：刚好通过
+    public static final double AUDIT_FAIL_UPPER = 0.699;  // 边界：刚好失败
+
+    // F12 记忆去重阈值边界（cosine_sim ≥0.92 触发合并）
+    public static final double MEM_DEDUP_LOWER = 0.920;  // 边界：刚好合并
+    public static final double MEM_NEW_UPPER = 0.919;    // 边界：刚好新增
+
+    // F4 子任务超时边界（maxDuration=300s）
+    public static final long SUBTASK_TIMEOUT_MS = 300_000L;        // 边界：刚好超时
+    public static final long SUBTASK_NORMAL_MS = 299_999L;        // 边界：刚好正常
+
+    // F5 重规划次数边界（max_replan=2）
+    public static final int REPLAN_MAX = 2;       // 边界：最大允许
+    public static final int REPLAN_EXCEED = 3;    // 边界：超限触发人工
+}
+```
+
+### 3.11 Performance Test Data（性能测试批量数据，新增）
+
+> 用于性能基准测试与压力测试，按量级生成测试数据。
+
+```java
+// testinfra/fixture/PerformanceDataGenerator.java
+public class PerformanceDataGenerator {
+
+    /**
+     * 批量生成记忆向量（用于 Milvus 召回性能测试）
+     * @param count 记忆数量（如 100000）
+     */
+    public static List<MemoryRecord> generateMemories(int count) {
+        Random rnd = new Random(42);  // 固定种子保证可复现
+        return IntStream.range(0, count).parallel()
+            .mapToObj(i -> MemoryRecord.newBuilder()
+                .setMemoryId("mem_perf_" + String.format("%06d", i))
+                .setTenantId("tn_perf_001")
+                .setType(i % 3 == 0 ? "EPISODIC" : (i % 3 == 1 ? "SEMANTIC" : "PROCEDURAL"))
+                .setContent("性能测试记忆 #" + i)
+                .setImportanceScore(0.3 + rnd.nextDouble() * 0.6)  // 0.3~0.9
+                .setEmbedding(generateRandomVector(1024, rnd))
+                .setCreatedAt(Timestamp.newBuilder().setSeconds(1690000000L + i).build())
+                .build())
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 批量生成任务实例（用于任务编排压力测试）
+     * @param count 任务数量（如 10000）
+     */
+    public static List<TaskInstance> generateTasks(int count) {
+        String[] goals = {"查询订单", "生成报告", "发送邮件", "数据分析", "代码生成"};
+        return IntStream.range(0, count).parallel()
+            .mapToObj(i -> TaskInstance.newBuilder()
+                .setTaskId("tk_perf_" + String.format("%06d", i))
+                .setTenantId("tn_perf_001")
+                .setGoal(goals[i % goals.length] + " #" + i)
+                .setComplexity(1 + (i % 3))
+                .setStatus("PENDING")
+                .setPriority(5 + (i % 5))
+                .build())
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 批量生成知识分块（用于 RAG 召回性能测试）
+     */
+    public static List<KnowledgeChunk> generateChunks(int count) {
+        return IntStream.range(0, count).parallel()
+            .mapToObj(i -> KnowledgeChunk.newBuilder()
+                .setChunkId("chk_perf_" + String.format("%06d", i))
+                .setDocId("doc_perf_" + (i / 100))
+                .setContent("知识分块 #" + i + " 内容示例")
+                .setTokenCount(300 + (i % 200))
+                .build())
+            .collect(Collectors.toList());
+    }
+
+    private static ByteString generateRandomVector(int dim, Random rnd) {
+        FloatBuffer fb = FloatBuffer.allocate(dim);
+        for (int i = 0; i < dim; i++) fb.put(rnd.nextFloat());
+        fb.flip();
+        return ByteString.copyFrom(fb.array());
+    }
+}
+```
+
+**性能测试数据量级建议**：
+
+| 场景 | 数据量 | 度量指标 | 通过基线 |
+|---|---|---|---|
+| Milvus 向量召回 P99 延迟 | 10 万条记忆向量 | 召回 Top-5 P99 延迟 | < 100ms |
+| MySQL 任务查询分页 | 10 万条任务实例 | 分页查询 P95 延迟 | < 50ms |
+| Redis 短期记忆读写 | 1 万次/秒 | 读写吞吐量 | > 5000 QPS |
+| 并发任务提交 | 1000 并发 | 成功提交率 | > 99% |
+| RAG 混合召回 | 1 万知识分块 | 端到端召回 P95 延迟 | < 200ms |
+| Agent ReAct 循环 | 100 轮 | 单轮平均延迟 | < 2s |
+
 ---
 
 ## 4. Testcontainers 配置示例
@@ -605,6 +863,82 @@ public class ToolEngineMock {
 }
 ```
 
+### 5.3 MemoryServiceMock（记忆服务 Mock，新增）
+
+```java
+// testinfra/mock/MemoryServiceMock.java
+public class MemoryServiceMock {
+
+    public static MemoryServiceGrpc.MemoryServiceBlockingStub build() {
+        var mock = mock(MemoryServiceGrpc.MemoryServiceBlockingStub.class);
+
+        // 多路召回返回 Top-N 记忆
+        when(mock.recall(any(RecallRequest.class)))
+            .thenReturn(RecallResponse.newBuilder()
+                .addMemories(MemoryFixture.buildEpisodicMemory())
+                .addMemories(MemoryFixture.buildSemanticMemory())
+                .addMemories(MemoryFixture.buildProceduralMemory())
+                .setTotalCount(3)
+                .build());
+
+        // 写入长期记忆返回成功
+        when(mock.writeLongTerm(any(WriteRequest.class)))
+            .thenReturn(WriteResponse.newBuilder()
+                .setMemoryId("mem_mock_" + System.currentTimeMillis())
+                .setDeduplicated(false)
+                .build());
+
+        // Token 水位监测返回 SAFE
+        when(mock.checkWatermark(any()))
+            .thenReturn(WatermarkStatus.newBuilder()
+                .setLevel("SAFE")
+                .setUsage(0.65)
+                .build());
+
+        return mock;
+    }
+}
+```
+
+### 5.4 RiskControlMock（风控 Mock，新增）
+
+```java
+// testinfra/mock/RiskControlMock.java
+public class RiskControlMock {
+
+    public static RiskControlGrpc.RiskControlBlockingStub build() {
+        var mock = mock(RiskControlGrpc.RiskControlBlockingStub.class);
+
+        // 正常内容放行
+        when(mock.preCheck(argThat(req ->
+            req.getContent().contains("天气") || req.getContent().contains("订单"))))
+            .thenReturn(PreCheckResponse.newBuilder()
+                .setBlocked(false)
+                .setCategory("NORMAL")
+                .build());
+
+        // Prompt 注入拦截
+        when(mock.preCheck(argThat(req ->
+            req.getContent().contains("忽略上述指令") || req.getContent().contains("DAN"))))
+            .thenReturn(PreCheckResponse.newBuilder()
+                .setBlocked(true)
+                .setCategory("PROMPT_INJECTION")
+                .setReason("检测到越狱模板")
+                .build());
+
+        // R3 审批单创建
+        when(mock.createApproval(any()))
+            .thenReturn(ApprovalResponse.newBuilder()
+                .setApprovalId("ap_mock_001")
+                .setStatus("PENDING")
+                .setExpireAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond() + 86400).build())
+                .build());
+
+        return mock;
+    }
+}
+```
+
 ---
 
 ## 6. 自定义断言
@@ -685,6 +1019,112 @@ public class TaskStatusAssert extends AbstractAssert<TaskStatusAssert, TaskInsta
 }
 ```
 
+### 6.3 ErrorCodeAssert（错误码断言，新增）
+
+```java
+// testinfra/assertion/ErrorCodeAssert.java
+public class ErrorCodeAssert extends AbstractAssert<ErrorCodeAssert, BusinessException> {
+
+    public ErrorCodeAssert(BusinessException actual) {
+        super(actual, ErrorCodeAssert.class);
+    }
+
+    public static ErrorCodeAssert assertThatThrown(Runnable action) {
+        try {
+            action.run();
+            throw new AssertionError("Expected BusinessException but none was thrown");
+        } catch (BusinessException e) {
+            return new ErrorCodeAssert(e);
+        }
+    }
+
+    public ErrorCodeAssert hasErrorCode(ErrorCode expected) {
+        isNotNull();
+        if (actual.getErrorCode() != expected) {
+            failWithMessage("Expected error code <%s> but was <%s>",
+                expected, actual.getErrorCode());
+        }
+        return this;
+    }
+
+    public ErrorCodeAssert hasHttpStatus(int expected) {
+        isNotNull();
+        if (actual.getHttpStatus() != expected) {
+            failWithMessage("Expected HTTP status <%d> but was <%d>",
+                expected, actual.getHttpStatus());
+        }
+        return this;
+    }
+
+    public ErrorCodeAssert hasDetail(String key, Object expectedValue) {
+        isNotNull();
+        Object actualValue = actual.getDetails().get(key);
+        if (!Objects.equals(actualValue, expectedValue)) {
+            failWithMessage("Expected detail <%s>=<%s> but was <%s>",
+                key, expectedValue, actualValue);
+        }
+        return this;
+    }
+
+    public ErrorCodeAssert hasMessageContaining(String substring) {
+        isNotNull();
+        if (!actual.getMessage().contains(substring)) {
+            failWithMessage("Expected message to contain <%s> but was <%s>",
+                substring, actual.getMessage());
+        }
+        return this;
+    }
+}
+```
+
+### 6.4 MetricsAssert（指标断言，新增）
+
+```java
+// testinfra/assertion/MetricsAssert.java
+public class MetricsAssert {
+
+    private final ClickHouseQueryExecutor executor;
+
+    public MetricsAssert(ClickHouseQueryExecutor executor) {
+        this.executor = executor;
+    }
+
+    public MetricsAssert hasCounterIncremented(String metricName, String tenantId, long expectedDelta) {
+        long actual = executor.queryForLong(
+            "SELECT count() FROM agent_metrics_daily WHERE metric_name = ? AND tenant_id = ?",
+            metricName, tenantId);
+        if (actual < expectedDelta) {
+            throw new AssertionError(String.format(
+                "Expected metric <%s> for tenant <%s> to be incremented by at least <%d> but was <%d>",
+                metricName, tenantId, expectedDelta, actual));
+        }
+        return this;
+    }
+
+    public MetricsAssert hasHistogramP99Below(String metricName, long maxP99Ms) {
+        long p99 = executor.queryForLong(
+            "SELECT quantile(0.99)(value) FROM agent_metrics_daily WHERE metric_name = ?");
+        if (p99 > maxP99Ms) {
+            throw new AssertionError(String.format(
+                "Expected P99 of <%s> to be below <%dms> but was <%dms>",
+                metricName, maxP99Ms, p99));
+        }
+        return this;
+    }
+
+    public MetricsAssert hasAlertTriggered(String alertName, long expectedCount) {
+        long actual = executor.queryForLong(
+            "SELECT count() FROM alert_log WHERE alert_name = ? AND status = 'FIRED'");
+        if (actual != expectedCount) {
+            throw new AssertionError(String.format(
+                "Expected alert <%s> to be triggered <%d> times but was <%d>",
+                alertName, expectedCount, actual));
+        }
+        return this;
+    }
+}
+```
+
 ---
 
 ## 7. 测试数据清理脚本
@@ -743,3 +1183,4 @@ void cleanupRedis() {
 | 版本 | 日期 | 变更内容 | 作者 |
 |---|---|---|---|
 | v1.0 | 2026-06-27 | 初始版本，含数据策略、Fixture 示例、Testcontainers 配置、Mock 工厂、自定义断言 | AgentForge 测试团队 |
+| v1.1 | 2026-06-27 | 补强：新增 §3.7 Trace Fixture、§3.8 Knowledge Fixture、§3.9 Approval Fixture、§3.10 Boundary Value Fixture（F2/F7/F9/F12 阈值边界常量）、§3.11 Performance Test Data（批量生成与量级基线）；新增 §5.3 MemoryServiceMock、§5.4 RiskControlMock；新增 §6.3 ErrorCodeAssert、§6.4 MetricsAssert；总计 4 个新 Fixture + 2 个新 Mock + 2 个新断言 + 1 个性能数据生成器 | AgentForge 测试团队 |
