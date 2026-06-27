@@ -1,0 +1,86 @@
+syntax = "proto3";
+package agentplatform.knowledge.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.knowledge.v1";
+
+// 知识库服务（doc 02-api §8.2，端口 8098）
+service KnowledgeService {
+  // 检索（内部 gRPC）
+  rpc Retrieve(KnowledgeQuery) returns (KnowledgeResult);
+  // 文档入库（切片+向量化）
+  rpc Ingest(IngestRequest) returns (IngestResponse);
+  // 版本管理（创建/回滚/列表）
+  rpc VersionManage(VersionManageRequest) returns (VersionManageResponse);
+}
+
+message KnowledgeQuery {
+  string kb_id = 1;
+  string query = 2;
+  int32 top_k = 3;
+  string user_id = 4;              // ACL 过滤
+  repeated string roles = 5;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message KnowledgeResult {
+  repeated KnowledgeChunk chunks = 1;
+  int32 total_hits = 2;
+  int32 token_used = 3;
+}
+
+message KnowledgeChunk {
+  string chunk_id = 1;
+  string doc_id = 2;
+  string content = 3;
+  double score = 4;
+  string source = 5;               // 文件名 / URL
+  int32 page = 6;
+  map<string, string> metadata = 7;
+}
+
+message IngestRequest {
+  string kb_id = 1;
+  string doc_id = 2;
+  string file_url = 3;            // MinIO URL
+  string title = 4;
+  string acl_json = 5;            // {"roles":["cs_agent"]}
+  string chunk_strategy = 6;      // fixed | recursive | sentence
+  int32 chunk_size = 7;
+  int32 chunk_overlap = 8;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message IngestResponse {
+  string doc_id = 1;
+  int32 chunk_count = 2;
+  int32 token_count = 3;
+  string status = 4;              // success | failed | partial
+  string error_msg = 5;
+}
+
+message VersionManageRequest {
+  string action = 1;              // create | rollback | list
+  string kb_id = 2;
+  string doc_id = 3;
+  int32 target_version = 4;       // rollback 时指定
+  string reason = 5;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message VersionManageResponse {
+  string action = 1;
+  int32 current_version = 2;
+  repeated DocVersion versions = 3;
+}
+
+message DocVersion {
+  string doc_id = 1;
+  int32 version = 2;
+  int64 created_at = 3;
+  string created_by = 4;
+  string change_log = 5;
+  bool active = 6;
+}

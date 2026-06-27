@@ -1,0 +1,114 @@
+syntax = "proto3";
+package agentplatform.task.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.task.v1";
+
+// 任务编排服务（doc 02-api §6，端口 8084）
+service TaskOrchestrator {
+  // 提交任务（gateway 转发）
+  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+  // 查询任务状态
+  rpc GetTaskStatus(GetTaskStatusRequest) returns (TaskInstance);
+  // 取消任务
+  rpc CancelTask(CancelTaskRequest) returns (CancelAck);
+  // 子任务完成回调（Agent Runtime 上报）
+  rpc ReportSubtaskResult(SubtaskResult) returns (ReportAck);
+}
+
+// 提交任务请求（对应 doc 02-api §1.3 POST /api/v1/tasks）
+message SubmitTaskRequest {
+  string task_id = 1;
+  int64 tenant_id = 2;
+  string user_id = 3;
+  string session_id = 4;
+  string title = 5;
+  string goal = 6;
+  int32 priority = 7;
+  int64 cost_limit_cent = 8;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message SubmitTaskResponse {
+  string task_id = 1;
+  string status = 2;
+  int32 complexity = 3;        // 0=未评估 1=L1 2=L2 3=L3
+  int64 submitted_at = 4;      // epoch millis
+}
+
+message GetTaskStatusRequest {
+  string task_id = 1;
+  int64 tenant_id = 2;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message CancelTaskRequest {
+  string task_id = 1;
+  int64 tenant_id = 2;
+  string reason = 3;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message CancelAck {
+  string task_id = 1;
+  string status = 2;
+  int64 cancelled_at = 3;
+}
+
+message ReportAck {
+  bool accepted = 1;
+  string message = 2;
+}
+
+// 子任务结果上报（对应 doc 02-api §7.2）
+message SubtaskResult {
+  string task_id = 1;
+  string subtask_id = 2;
+  string node_id = 3;
+  string status = 4;            // success | failed | timeout
+  string output_json = 5;
+  int32 token_used = 6;
+  int64 cost_cent = 7;
+  int32 duration_ms = 8;
+  string error_code = 9;
+  string error_msg = 10;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 任务实例（字段严格对应 doc 01-database §2.1 task_instance 表）
+message TaskInstance {
+  string task_id = 1;
+  int64 tenant_id = 2;
+  string session_id = 3;
+  string user_id = 4;
+  string title = 5;
+  string goal = 6;
+  int32 complexity = 7;        // 1=L1 2=L2 3=L3
+  string status = 8;           // 任务状态机 10 状态之一
+  string task_schema = 9;      // 标准 Task Schema JSON
+  int64 dag_id = 10;
+  int64 agent_id = 11;
+  int32 priority = 12;
+  string parent_task_id = 13;
+  int32 replan_count = 14;
+  int64 cost_limit_cent = 15;
+  int64 cost_used_cent = 16;
+  int32 token_used = 17;
+  int64 started_at = 18;       // epoch millis
+  int64 finished_at = 19;
+  string error_code = 20;
+  string error_msg = 21;
+  string result_summary = 22;
+  int64 created_at = 23;
+  int64 updated_at = 24;
+}
+
+// 标准 Task Schema（doc 02-api §1.3 constraints）
+message TaskSchema {
+  string objective = 1;
+  string deliverable = 2;
+  string constraints_json = 3;
+  string resources_json = 4;
+}

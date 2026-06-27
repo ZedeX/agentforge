@@ -1,0 +1,104 @@
+syntax = "proto3";
+package agentplatform.planning.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.planning.v1";
+
+// 智能规划服务（doc 02-api §6，端口 8086）
+service PlanningService {
+  // 复杂度评估
+  rpc AssessComplexity(AssessRequest) returns (AssessResponse);
+  // 生成规划（DAG）
+  rpc Plan(PlanRequest) returns (PlanResponse);
+  // 规划自检
+  rpc ValidatePlan(ValidateRequest) returns (ValidateResponse);
+  // 重规划
+  rpc Replan(ReplanRequest) returns (PlanResponse);
+}
+
+message AssessRequest {
+  string task_id = 1;
+  string title = 2;
+  string goal = 3;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message AssessResponse {
+  int32 complexity = 1;       // 1=L1 2=L2 3=L3
+  string reason = 2;
+  repeated string suggested_ability_tags = 3;
+}
+
+message PlanRequest {
+  string task_id = 1;
+  string task_schema_json = 2;
+  bool prefer_template = 3;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message PlanResponse {
+  string dag_json = 1;        // nodes + edges 的 JSON 字符串
+  int32 dag_version = 2;
+  string source = 3;          // template | ai
+  int64 template_id = 4;
+  repeated string warnings = 5;
+}
+
+message ValidateRequest {
+  string task_id = 1;
+  string dag_json = 2;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ValidateResponse {
+  bool valid = 1;
+  repeated string errors = 2;
+  repeated string warnings = 3;
+}
+
+message ReplanRequest {
+  string task_id = 1;
+  string reason = 2;          // 触发重规划原因（如 DAG_CYCLE_DETECTED、COMPLETENESS_FAIL）
+  int32 replan_count = 3;
+  string previous_dag_json = 4;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// DAG 节点（字段对应 doc 01-database §2.3 nodes JSON 结构）
+message DagNode {
+  string node_id = 1;
+  string node_type = 2;        // subtask | decision | sync
+  string subtask_id = 3;
+  string title = 4;
+  string goal = 5;
+  int64 agent_id = 6;
+  repeated string ability_tags = 7;
+  string inputs_json = 8;
+  string outputs_json = 9;
+  int32 max_retries = 10;
+  int32 timeout_ms = 11;
+  string model_tier = 12;
+  repeated string depends_on = 13;
+  string status = 14;          // pending | running | success | failed | skipped
+}
+
+// DAG 依赖边（字段对应 doc 01-database §2.4 edges JSON 结构）
+message DagEdge {
+  string from = 1;
+  string to = 2;
+  string dep_type = 3;         // data | logic | none
+  string param_mapping_json = 4;
+}
+
+// 完整 DAG 结构
+message Dag {
+  int64 dag_id = 1;
+  string task_id = 2;
+  int32 version = 3;
+  repeated DagNode nodes = 4;
+  repeated DagEdge edges = 5;
+  string source = 6;           // template | ai
+  int64 template_id = 7;
+}

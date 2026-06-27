@@ -1,0 +1,30 @@
+syntax = "proto3";
+package agentplatform.common.v1;
+
+option java_multiple_files = true;
+option java_package = "agentplatform.common.v1";
+
+// 链路上下文，全链路透传（doc 02-api §0.3 + §3）
+message TraceContext {
+  int64 tenant_id = 1;
+  string user_id = 2;
+  string session_id = 3;
+  string task_id = 4;
+  string subtask_id = 5;
+  string trace_id = 6;
+  string span_id = 7;
+}
+
+// 统一错误响应（doc 02-api §0.4）
+message Error {
+  string code = 1;        // 错误码，如 TASK_NOT_FOUND
+  string message = 2;     // 人类可读错误信息
+  string details = 3;     // JSON 字符串，结构化详情
+}
+
+// 分页响应（doc 02-api §0.4）
+message Pagination {
+  int32 page = 1;
+  int32 size = 2;
+  int64 total = 3;
+}

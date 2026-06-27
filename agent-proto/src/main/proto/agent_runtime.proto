@@ -1,0 +1,106 @@
+syntax = "proto3";
+package agentplatform.agent_runtime.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.agent_runtime.v1";
+
+// Agent 运行时服务（doc 02-api §7，端口 8092，ADR-002 无状态）
+service AgentRuntime {
+  // 启动 Agent 实例（由 task-orchestrator 通过 RocketMQ 触发或 gRPC 触发）
+  rpc StartAgent(StartAgentRequest) returns (StartAgentResponse);
+  // 单步执行
+  rpc Step(StepRequest) returns (StepResponse);
+  // 获取状态
+  rpc GetState(GetStateRequest) returns (AgentState);
+  // 暂停
+  rpc Pause(PauseRequest) returns (PauseResponse);
+  // 恢复
+  rpc Resume(ResumeRequest) returns (ResumeResponse);
+}
+
+message StartAgentRequest {
+  string task_id = 1;
+  string subtask_id = 2;
+  string node_id = 3;
+  int64 agent_id = 4;
+  int32 agent_version = 5;
+  string inputs_json = 6;
+  int32 max_steps = 7;
+  int32 token_budget = 8;
+  int64 cost_budget_cent = 9;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message StartAgentResponse {
+  string agent_instance_id = 1;
+  string status = 2;               // STARTED | RUNNING
+  int64 started_at = 3;
+}
+
+message StepRequest {
+  string agent_instance_id = 1;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message StepResponse {
+  string agent_instance_id = 1;
+  int32 step_no = 2;
+  string phase = 3;               // think | act | observe | reflect
+  string action_type = 4;
+  string action_target = 5;
+  string input_json = 6;
+  string output_json = 7;
+  int32 token_used = 8;
+  int64 cost_cent = 9;
+  int32 duration_ms = 10;
+  string status = 11;             // success | failed | waiting_tool | waiting_human
+  bool finished = 12;
+}
+
+message GetStateRequest {
+  string agent_instance_id = 1;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// Agent 运行时状态（ADR-002：状态外置 Redis runtime:{agentInstanceId}:state）
+message AgentState {
+  string agent_instance_id = 1;
+  string task_id = 2;
+  string subtask_id = 3;
+  string node_id = 4;
+  int32 current_step = 5;
+  string current_think = 6;
+  int32 max_steps = 7;
+  int32 token_used = 8;
+  int32 token_budget = 9;
+  int64 cost_used_cent = 10;
+  int64 cost_budget_cent = 11;
+  string status = 12;             // STARTED | RUNNING | PAUSED | SUCCESS | FAILED | WAITING_HUMAN
+  int64 started_at = 13;
+  int64 updated_at = 14;
+}
+
+message PauseRequest {
+  string agent_instance_id = 1;
+  string reason = 2;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message PauseResponse {
+  string agent_instance_id = 1;
+  string status = 2;               // PAUSED
+  int64 paused_at = 3;
+}
+
+message ResumeRequest {
+  string agent_instance_id = 1;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ResumeResponse {
+  string agent_instance_id = 1;
+  string status = 2;               // RUNNING
+  int64 resumed_at = 3;
+}

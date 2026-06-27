@@ -1,0 +1,116 @@
+syntax = "proto3";
+package agentplatform.model.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.model.v1";
+
+// 模型网关服务（doc 02-api §5，端口 8094）
+service ModelGateway {
+  // 同步调用
+  rpc Chat(ChatRequest) returns (ChatResponse);
+  // 流式调用（server streaming）
+  rpc StreamChat(ChatRequest) returns (stream ChatChunk);
+  // Token 计数
+  rpc CountTokens(CountTokensRequest) returns (CountTokensResponse);
+  // 模型列表
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+}
+
+message ChatRequest {
+  string call_id = 1;
+  string task_id = 2;
+  string scene = 3;                 // intent | planning | tool_call | summary | audit
+  string tier = 4;                  // light | middle | strong
+  string preferred_model = 5;       // 可指定，否则按路由
+  repeated Message messages = 6;
+  ModelParams params = 7;
+  bool enable_prompt_cache = 8;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message Message {
+  string role = 1;                  // system | user | assistant | tool
+  string content = 2;
+  repeated ToolCall tool_calls = 3;
+  string tool_call_id = 4;
+}
+
+message ToolCall {
+  string call_id = 1;
+  string tool_id = 2;
+  string name = 3;
+  string input_json = 4;
+  string status = 5;                // pending | success | failed
+  string output_json = 6;
+}
+
+message ModelParams {
+  double temperature = 1;
+  int32 max_tokens = 2;
+  double top_p = 3;
+  repeated string stop = 4;
+  bool enable_cot = 5;              // 强制思维链
+  bool require_source = 6;         // 要求来源标注
+}
+
+message ChatResponse {
+  string call_id = 1;
+  string model = 2;                 // 实际使用的模型
+  string provider = 3;
+  string content = 4;
+  repeated ToolCall tool_calls = 5;
+  int32 input_tokens = 6;
+  int32 output_tokens = 7;
+  int64 cost_cent = 8;
+  bool cache_hit = 9;
+  int32 duration_ms = 10;
+}
+
+message ChatChunk {
+  string call_id = 1;
+  string delta = 2;
+  oneof extra {
+    ToolCall tool_call = 3;
+    FinishReason finish = 4;
+  }
+}
+
+enum FinishReason {
+  FINISH_REASON_UNSPECIFIED = 0;
+  STOP = 1;
+  LENGTH = 2;
+  TOOL_CALLS = 3;
+  CONTENT_FILTER = 4;
+}
+
+message CountTokensRequest {
+  string model = 1;
+  repeated Message messages = 2;
+}
+
+message CountTokensResponse {
+  int32 token_count = 1;
+}
+
+message ListModelsRequest {
+  string tier = 1;                   // light | middle | strong | all
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ModelInfo {
+  string model_id = 1;
+  string display_name = 2;
+  string provider = 3;
+  string tier = 4;
+  int32 max_context = 5;
+  bool supports_streaming = 6;
+  bool supports_tool_call = 7;
+  double price_input_per_1k_cent = 8;
+  double price_output_per_1k_cent = 9;
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}

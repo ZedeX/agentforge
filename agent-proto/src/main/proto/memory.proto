@@ -1,0 +1,103 @@
+syntax = "proto3";
+package agentplatform.memory.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.memory.v1";
+
+// 记忆管理服务（doc 02-api §4，端口 8088）
+service MemoryService {
+  // 写入长期记忆（任务完成后）
+  rpc WriteLongTerm(WriteLongTermRequest) returns (WriteAck);
+  // 长期记忆召回（多路融合）
+  rpc Recall(RecallRequest) returns (RecallResponse);
+  // 蒸馏触发
+  rpc TriggerDistill(DistillRequest) returns (DistillAck);
+  // 记忆查询（按 ID）
+  rpc GetMemoryById(GetMemoryByIdRequest) returns (MemoryRecord);
+}
+
+message WriteLongTermRequest {
+  int64 agent_id = 1;
+  string user_id = 2;
+  string domain = 3;
+  string memory_type = 4;      // episodic | semantic | procedural
+  string content = 5;
+  repeated string tags = 6;
+  string source_task_id = 7;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message WriteAck {
+  string memory_id = 1;
+  bool deduplicated = 2;
+  string merged_memory_id = 3;
+}
+
+message RecallRequest {
+  string session_id = 1;
+  int64 agent_id = 2;
+  string query = 3;
+  repeated string strategies = 4;   // [vector, keyword, time, tag]
+  int32 top_k = 5;
+  int32 token_budget = 6;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message RecallResponse {
+  repeated RecalledMemory memories = 1;
+  RecallMeta meta = 2;
+}
+
+message RecalledMemory {
+  string memory_id = 1;
+  string content = 2;
+  string source_type = 3;          // task | user | system
+  string source_task_id = 4;
+  double importance_score = 5;
+  double relevance_score = 6;
+  int64 created_at = 7;
+}
+
+message RecallMeta {
+  int32 total_hits = 1;
+  int32 returned = 2;
+  int32 token_used = 3;
+  string strategies_used = 4;
+}
+
+message DistillRequest {
+  int64 agent_id = 1;
+  string user_id = 2;
+  string session_id = 3;
+  int32 max_memories = 4;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message DistillAck {
+  int32 distilled_count = 1;
+  int32 merged_count = 2;
+  int32 pruned_count = 3;
+}
+
+message GetMemoryByIdRequest {
+  string memory_id = 1;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 长期记忆记录（字段对应 doc 01-database memory_long_term 表）
+message MemoryRecord {
+  string memory_id = 1;
+  int64 agent_id = 2;
+  string user_id = 3;
+  string domain = 4;
+  string memory_type = 5;
+  string content = 6;
+  repeated string tags = 7;
+  string source_task_id = 8;
+  double importance_score = 9;
+  int32 access_count = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}

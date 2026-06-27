@@ -1,0 +1,268 @@
+# AgentForge 智能体平台 用户流程（端到端）测试用例
+
+> 文档版本：v1.0 | 更新日期：2026-06-27 | 文档定位：**端到端用户旅程测试场景**
+>
+> 适用范围：AgentForge 平台从用户输入到最终输出的完整业务流程验证。
+>
+> 依赖文档：
+> - [test-strategy.md](test-strategy.md) — 测试策略与命名规范
+> - [PRD.md](../../PRD.md) §一(三) — 7 步完整执行全链路
+> - [08-flow/state-machines-and-sequences.md](../08-flow/state-machines-and-sequences.md) — 状态机与时序
+> - [11-detail-flow F1~F12](../11-detail-flow/01-access-and-planning-flow.md) — 决策节点来源
+>
+> 用例格式：`| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |`
+>
+> 旅程总数：10 个端到端用户旅程
+
+---
+
+## 旅程 1：新用户首次创建 Agent 并执行简单任务（全流程）
+
+**场景描述**：新用户首次使用平台，创建一个简单问答 Agent，发起一次对话完成任务。验证 PRD §一(三) 7 步全链路的最简形态（L1 路径）。
+
+**来源**：PRD §一(三)、doc 11-detail-flow F1/F2（L1 跳规划路径）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 1.1 | 用户 | 通过 Web 控制台注册并登录 | gateway 校验 JWT，返回登录态 | 返回 200，userId/tenantId 已生成，JWT 有效 |
+| 1.2 | 用户 | 创建新 Agent（配置名称、简单 prompt） | agent-repo 落库 agent_definition，status=draft | 返回 agentId，版本 v1，状态 draft |
+| 1.3 | 用户 | 发布 Agent | agent-repo 将 status 改为 published，版本生效 | 状态 published，可被会话引用 |
+| 1.4 | 用户 | 创建会话并发送简单问题 "今天几号？" | gateway 接入→鉴权→限流→风控→会话加载 | 会话创建，sessionId 生成，status=active |
+| 1.5 | 系统 | 意图识别判定为 L1 简单任务 | F2.D4 true 分支，跳过规划 | complexity=L1，状态 PENDING→RUNNING（跳 PLANNING） |
+| 1.6 | 系统 | Agent 运行时 ReAct 循环直出答案 | model-gateway.Chat 调用，无工具调用 | phase=THINK→直接 FINISH，产出最终答案 |
+| 1.7 | 系统 | L4-1 硬校验通过，结果落盘 | quality-service 执行 L4-1（低风险仅 L4-1） | L4-1 passed，task_step_log 写入 |
+| 1.8 | 系统 | 任务 SUCCESS，记忆沉淀 | memory-service 写入短期记忆，长期记忆按需 | 任务状态 SUCCESS，session 消息历史更新 |
+| 1.9 | 用户 | 收到同步响应 | gateway 返回 200，含答案内容 | 响应包含 messageId/content/tokenUsed，traceId 完整 |
+
+**端到端验证点**：JWT 鉴权通过 → Agent 创建发布 → L1 跳规划 → 单轮 ReAct 直出 → L4-1 通过 → 任务 SUCCESS → 记忆写入。
+
+---
+
+## 旅程 2：多轮对话中 Agent 调用工具完成任务
+
+**场景描述**：用户与 Agent 多轮对话，Agent 在第 2 轮识别需要调用工具（R1 只读）查询数据并返回结果。
+
+**来源**：doc 11-detail-flow F1/F6/F8（L2 中等任务 + R1 工具调用）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 2.1 | 用户 | 已有会话，发送"帮我查最近 7 天订单" | gateway 转发至 orchestrator | 会话复用，加载历史消息 |
+| 2.2 | 系统 | 意图识别判定 L2 中等任务 | F2.D5 true，complexity=L2 | 触发单 Agent + 工具循环模式 |
+| 2.3 | 系统 | ReAct Think 阶段识别需调用工具 | model 返回 tool_call(query_order, args={days:7}) | phase=THINK→ACT，工具召回 Top-1 |
+| 2.4 | 系统 | tool-engine 执行 R1 工具调用 | F8 R1 分支，前置校验通过，executor=general | tool_call_log 写入，返回订单数据 |
+| 2.5 | 系统 | ReAct Observe 阶段注入工具结果 | 工具结果注入上下文 | phase=OBSERVE，上下文更新 |
+| 2.6 | 系统 | ReAct Think 生成最终答案 | 基于工具结果生成汇总 | phase=FINISH，产出答案 |
+| 2.7 | 系统 | SSE 流式推送全过程 | 依次发送 token→tool_call→tool_result→done 事件 | 事件序列正确，客户端完整接收 |
+| 2.8 | 用户 | 收到流式响应，含工具调用详情 | 响应包含 toolCalls 列表 + 最终内容 | tokenUsed 统计正确，taskId 关联 |
+
+**端到端验证点**：多轮上下文保持 → L2 任务识别 → ReAct 工具调用 → R1 执行 → SSE 流式 → 工具调用审计留痕。
+
+---
+
+## 旅程 3：复杂任务自动 DAG 规划 + 并行执行 + 聚合结果
+
+**场景描述**：用户提交复杂任务"生成行业调研报告并发邮件"，系统自动 L3 定级、智能规划 DAG、并行调度子任务、聚合结果。
+
+**来源**：doc 11-detail-flow F2.D5/F3/F4（L3 + AI 规划 + 并行调度）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 3.1 | 用户 | 提交异步任务 `POST /api/v1/tasks`，goal="生成行业调研报告并发邮件" | 任务 PENDING | taskId 返回，status=PENDING |
+| 3.2 | 系统 | 意图识别判定 L3 复杂任务 | F2.D5 false，complexity=L3 | 状态 PENDING→PLANNING |
+| 3.3 | 系统 | 智能规划（无模板匹配）调用强模型生成 DAG | F3 智能分支，mode=AI | 生成 DAG 含 5 节点（搜集/分析/撰写/审校/发送） |
+| 3.4 | 系统 | 5 维度自检通过（完备性/原子性/效率/成本/容错） | F3 自检 allPass=true | 状态 PLANNING→RUNNING，dag_id 落库 v1 |
+| 3.5 | 系统 | 批次划分：节点 1/2 并行（搜集+分析），节点 3 依赖 1/2 | F4 批次划分 | 批次 1 并行投递 2 个子任务 |
+| 3.6 | 系统 | 并行执行 2 个子任务，各自 ReAct 循环 | agent-runtime 各自驱动 | 两子任务独立完成，状态同步 |
+| 3.7 | 系统 | 批次 2 串行执行节点 3（撰写报告）依赖 1/2 输出 | 参数注入上游 outputs | 节点 3 获取 1/2 结果作为输入 |
+| 3.8 | 系统 | 全部子任务完成，结果聚合 | ResultAggregator 合并 | 状态 SUBTASK_RUNNING→SUCCESS |
+| 3.9 | 系统 | L4 三级校验 + 记忆沉淀 | 高风险全三级校验 | L4 通过，长期记忆写入，审计完整 |
+| 3.10 | 用户 | 查询任务状态，确认完成 | `GET /tasks/{id}` 返回 SUCCESS | progress 全完成，tokenUsed/costUsed 统计正确 |
+
+**端到端验证点**：L3 定级 → AI 规划 DAG → 5 维度自检 → 并行批次调度 → 依赖参数注入 → 结果聚合 → L4 校验 → 记忆沉淀。
+
+---
+
+## 旅程 4：子任务失败触发增量重规划
+
+**场景描述**：L3 任务执行中某子任务连续失败，触发增量重规划，保留已完成节点，仅调整后续路径。
+
+**来源**：doc 11-detail-flow F5.D1~D5（增量重规划）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 4.1 | 用户 | 已提交 L3 任务，DAG 含 5 节点，前 2 节点成功 | 节点 1/2 success，节点 3 运行中 | 前置节点结果已落盘 |
+| 4.2 | 系统 | 节点 3 首次失败（瞬时异常），重试 | 接口级重试 3 次指数退避 | 重试失败，标记 RETRY_EXHAUSTED |
+| 4.3 | 系统 | 子任务级重试 2 次仍失败 | retry_count=2 ≥ maxRetries | 触发 `SUBTASK_RUNNING→REPLANNING` |
+| 4.4 | 系统 | Replanner 分类原因：局部失败，非根节点 | F5.D2 false，局部失败 | reason=tool_error，影响范围局部 |
+| 4.5 | 系统 | 评估增量可行性：failed_count=1, others valid | F5.D3 true | 模式=INCREMENTAL |
+| 4.6 | 系统 | 定位失败节点 + 邻域下游，清理中间状态 | DagAnalyzer.locateFailedNodes | 保留 1/2 成功结果，清除 3 的中间数据 |
+| 4.7 | 系统 | planning-service.Replan 生成补丁 DAG | 增量分支 | 补丁 DAG 替换节点 3/4/5 |
+| 4.8 | 系统 | DagMerger.merge 合并旧 DAG + 补丁 | 环检测通过 | 合并后无环，version+1（v2） |
+| 4.9 | 系统 | 状态转 SUBTASK_RUNNING，从失败批次重新推进 | REPLANNING→SUBTASK_RUNNING | 新批次投递，1/2 结果复用 |
+| 4.10 | 用户 | 查询任务，看到 dagVersion=2，重规划日志 | `GET /tasks/{id}` 返回 dagVersion=2 | task_replan_log 含 replanNo=1, mode=INCREMENTAL |
+
+**端到端验证点**：子任务重试耗尽 → 增量重规划模式选择 → 补丁 DAG 生成 → 合并无环 → 成功节点保留 → 版本递增 → 续跑。
+
+---
+
+## 旅程 5：高风险场景触发 R3 工具人工审批
+
+**场景描述**：Agent 执行中需要调用 R3 高危工具（如删除数据），触发人工审批流程，审批通过后沙箱执行。
+
+**来源**：doc 11-detail-flow F8（R3 审批）、doc 08 §2（审批状态机）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 5.1 | 用户 | 任务执行到需调用"删除过期数据"工具 | ReAct Think 产出 tool_call | 工具风险分级=R3 |
+| 5.2 | 系统 | tool-engine 查询有效审批记录 | ToolApproval.findValid 无记录 | 返回 `APPROVAL_REQUIRED` (403) |
+| 5.3 | 系统 | 任务状态转 WAITING_HUMAN | RUNNING→WAITING_HUMAN | 通知用户需审批 |
+| 5.4 | 用户 | 提交审批单（含工具 ID、入参快照） | tool_approval(status=pending, expireAt=now+24h) | 审批单创建，等待双人复核 |
+| 5.5 | 主审批人 | approve 审批单 | pending→待副审批人复核 | 主审批通过 |
+| 5.6 | 副审批人 | second_approve 审批单 | approved，限时授权 expireAt=now+1h | 双人复核完成，1 小时窗口有效 |
+| 5.7 | 系统 | 任务恢复 RUNNING，重新调用 R3 工具 | WAITING_HUMAN→RUNNING | 审批有效，前置校验第 5 步放行 |
+| 5.8 | 系统 | tool-engine 沙箱执行 R3 工具 | sandbox.borrow 容器，docker.exec，docker.rm | 一次性容器执行后销毁 |
+| 5.9 | 系统 | 结果清洗 + 审计落盘 | ResultCleaner + ToolCallAuditor | tool_call_log 含审批人、执行结果、容器 ID |
+| 5.10 | 用户 | 收到执行结果通知 | 任务继续推进 | 审计日志完整，审批链可追溯 |
+
+**端到端验证点**：R3 识别 → 审批阻塞 → 双人复核 → 限时授权 → 沙箱执行 → 容器即用即毁 → 审计完整。
+
+---
+
+## 旅程 6：Token 接近上限触发压缩
+
+**场景描述**：长对话场景中，上下文 Token 占用逐步逼近上限，系统自动触发分级压缩保障任务不中断。
+
+**来源**：doc 11-detail-flow F7（Token 水位压缩）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 6.1 | 用户 | 持续多轮对话，上下文逐渐增长 | 正常运行，Token 占用 65% | 安全水位，无压缩 |
+| 6.2 | 系统 | 第 8 轮对话后 Token 达 75% | F7 预警水位触发轻度压缩 | 裁剪工具返回冗余字段、精简思考过程 |
+| 6.3 | 系统 | 轻度压缩后 Token 降至 68% | 回到安全水位 | 压缩留痕记录前后 Token 数 |
+| 6.4 | 用户 | 继续多轮对话，Token 再次增长至 88% | F7 临界水位触发中度压缩 | 早期对话按主题摘要化、裁剪召回数量 |
+| 6.5 | 系统 | 中度压缩后 Token 降至 72% | 回到安全水位附近 | 已完成子任务详情归档 |
+| 6.6 | 用户 | 高频工具调用导致 Token 飙升至 96% | F7 熔断水位触发重度压缩 | 滑动窗口保留最近 K 轮，工具历史仅保留结论 |
+| 6.7 | 系统 | 重度压缩后 Token 降至 60% | 恢复正常运行 | 核心推理信息保留，非核心清空 |
+| 6.8 | 用户 | 任务继续执行未中断 | 任务正常完成 | 所有压缩操作全量留痕可回溯 |
+| 6.9 | 系统 | 任务完成，压缩日志归档 | memory-service 记录压缩历史 | 压缩前后 Token 对比、裁剪内容可查 |
+
+**端到端验证点**：安全→预警（轻度）→临界（中度）→熔断（重度）逐级触发 → 每次压缩后回到安全 → 任务不中断 → 全量留痕。
+
+---
+
+## 旅程 7：L4 校验失败触发 Reflexion 重试
+
+**场景描述**：子任务产出结果经 L4 校验失败，触发 Reflexion 反思重试，重试后通过或耗尽转人工。
+
+**来源**：doc 11-detail-flow F9.D1~D6（L4 校验 + Reflexion）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 7.1 | 系统 | 子任务产出结果，进入 L4 校验 | quality-service.ValidateOutput | risk=high，全三级校验 |
+| 7.2 | 系统 | L4-1 规则化硬校验通过 | JSON Schema + 来源标签 + 黑名单 | passed=true，进入 L4-2 |
+| 7.3 | 系统 | L4-2 事实一致性校验失败 | F9.D3 false，sim=0.60 < 0.75 | 返回 `FACT_INCONSISTENCY` |
+| 7.4 | 系统 | 触发 Reflexion 重试 | F9.D5 true | 注入 REFLECTION 提示，retry_count=1 |
+| 7.5 | 系统 | Agent 重新生成结果 | ReflexionEngine.retry | 基于反思提示修正输出 |
+| 7.6 | 系统 | 重新进入 L4 校验 | L4-1 pass → L4-2 pass（sim=0.82） | 事实一致性通过 |
+| 7.7 | 系统 | L4-3 终审驳回 | F9.D4 false，overall=0.65 < 0.7 | 返回 `AUDIT_REJECTED` |
+| 7.8 | 系统 | 第二次 Reflexion 重试 | retry_count=2 | 再次注入反思提示 |
+| 7.9 | 系统 | 重试后 L4-3 仍不通过 | retry_count=3 > max=2 | 抛 `MAX_RETRY_EXCEEDED` |
+| 7.10 | 系统 | 写入 Badcase，转人工审核 | BadcaseWriter + ManualReviewQueue | badcase 表有记录，category=hallucination |
+| 7.11 | 用户 | 收到人工审核通知 | 任务 WAITING_HUMAN | 审核人员收到待办，severity 由 L4-3 评分决定 |
+
+**端到端验证点**：L4-1 pass → L4-2 fail → Reflexion 重试 → L4-2 pass → L4-3 fail → 二次重试 → 耗尽 → Badcase 归集 → 人工审核。
+
+---
+
+## 旅程 8：漂移告警触发 Agent 自动暂停
+
+**场景描述**：Agent 在持续运行中行为漂移累积超阈值，系统自动检测并暂停 Agent，触发告警。
+
+**来源**：doc 11-detail-flow F11（漂移监测与纠偏）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 8.1 | 系统 | Agent 首次运行，锚定行为基准 | BaselineAnchor 写入 eval_baseline | 三类基准集已建立 |
+| 8.2 | 用户 | 持续使用 Agent 执行同类任务 | 正常运行 | 行为指标持续采集 |
+| 8.3 | 系统 | 监测到工具调用率连续 3 次上升 >20% | F11 行为漂移检测 | 返回 `BEHAVIOR_DRIFT`，记录指标 |
+| 8.4 | 系统 | 会话级轻度纠偏：注入核心约束摘要 | drift_level=session | 抵消上下文稀释 |
+| 8.5 | 系统 | 漂移持续，任务完成率连续 5 次下降 | F11 效果漂移检测 | 返回 `EFFECT_DRIFT` |
+| 8.6 | 系统 | 任务级中度纠偏：切换更严格 Prompt 模板 | drift_level=task | 校验层打回纠正 |
+| 8.7 | 系统 | 漂移仍加剧，drift_score > 0.8 | F11 系统级重度漂移 | drift_level=system |
+| 8.8 | 系统 | 自动暂停 Agent，状态变 paused | Agent 状态变更 | 触发告警通知运维与用户 |
+| 8.9 | 系统 | 自动回滚至上一稳定版本 | DriftCorrector.rollback | 切换备用兜底模型 |
+| 8.10 | 用户 | 收到 Agent 暂停告警通知 | 告警含漂移指标、根因建议 | 用户可申诉或等待修复 |
+| 8.11 | 运维 | 排查根因，修复后重新发布 | 灰度发布新版本 | AB 对比无退化后全量 |
+
+**端到端验证点**：基准锚定 → 行为漂移检测 → 会话级纠偏 → 效果漂移检测 → 任务级纠偏 → 系统级漂移 → 自动暂停 → 版本回滚 → 告警通知。
+
+---
+
+## 旅程 9：用户反馈负面触发 Badcase 归集
+
+**场景描述**：用户对 Agent 输出结果不满意，提交负面反馈，系统自动归集 Badcase 并触发优化闭环。
+
+**来源**：PRD §三(三)4、PRD §四(二)6（Badcase 归集与闭环）
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 9.1 | 用户 | 收到任务结果，发现答案不准确 | 任务已完成 SUCCESS | 结果已返回 |
+| 9.2 | 用户 | 提交负面反馈 `POST /tasks/{id}/feedback` | feedback.type=negative, rating=1 | 反馈记录写入 task_feedback 表 |
+| 9.3 | 系统 | 触发 Badcase 归集流程 | quality-service 自动分析 | 提取任务上下文、输入输出、工具调用记录 |
+| 9.4 | 系统 | Badcase 分类标注 | category=hallucination/tool_error/plan_error | 自动分类并写入 badcase 表 |
+| 9.5 | 系统 | 评估严重度 | severity=high（用户明确负面） | 推送人工审核队列 |
+| 9.6 | 质量团队 | 分析 Badcase 根因 | 标注根因（如提示词缺陷/知识缺失/工具错误） | 根因记录写入 badcase.analysis |
+| 9.7 | 质量团队 | 制定优化方案 | 更新提示词/补充知识库/修复工具 | 优化方案记录 |
+| 9.8 | 系统 | 生成回归测试用例 | 基于 Badcase 生成 `Should_Not..._When...` 骨架 | 回归测试集更新 |
+| 9.9 | 系统 | 优化后灰度发布验证 | AB 对比该场景不再复发 | 回归测试通过 |
+| 9.10 | 系统 | 幻觉率指标持续追踪 | agent_metrics_daily 更新 | 该类 Badcase 发生率下降 |
+
+**端到端验证点**：用户负面反馈 → Badcase 自动归集 → 分类标注 → 根因分析 → 优化方案 → 回归测试 → 灰度验证 → 指标追踪闭环。
+
+---
+
+## 旅程 10：Agent 版本灰度发布与回滚
+
+**场景描述**：Agent 配置更新后灰度发布，灰度期间发现效果退化，自动回滚到上一稳定版本。
+
+**来源**：PRD §五(二)4（灰度发布与回滚）、doc 01-database §6 agent_version 表
+
+| 步骤 | 角色 | 操作 | 系统响应 | 验证点 |
+|---|---|---|---|---|
+| 10.1 | 运维 | 更新 Agent prompt 并创建新版本 v2 | agent-repo 创建 v2，v1 保持 published | v2 状态 draft，v1 仍生效 |
+| 10.2 | 运维 | 设置灰度发布 10% 流量 | v2 status=canary, canary_percent=10 | 10% 流量走 v2，90% 走 v1 |
+| 10.3 | 系统 | 灰度期间 AB 对比采集指标 | 任务完成率、幻觉率、用户反馈 | 指标持续写入 agent_metrics_daily |
+| 10.4 | 用户 | 部分用户被路由到 v2 执行任务 | 正常执行 | v2 任务正常完成 |
+| 10.5 | 系统 | 监测到 v2 任务完成率下降 15% | 灰度退化检测 | 触发告警 |
+| 10.6 | 系统 | 判定 v2 效果显著退化 | drift_score > 阈值 | 触发自动回滚 |
+| 10.7 | 系统 | 自动回滚至 v1 | v2 status=failed，全量切回 v1 | 所有流量回到 v1 |
+| 10.8 | 运维 | 收到回滚告警通知 | 告警含 v2 退化指标 | 通知运维与 Agent 负责人 |
+| 10.9 | 运维 | 排查 v2 问题，修复后重新灰度 | 更新 v2 配置或创建 v3 | 修复后重新灰度发布 |
+| 10.10 | 运维 | 灰度稳定 7 天无退化，全量发布 | v2/v3 status=published，v1 归档 | 版本历史可追溯，全量切新版本 |
+
+**端到端验证点**：版本创建 → 灰度发布 → AB 采集 → 退化检测 → 自动回滚 → 告警通知 → 修复重发 → 稳定全量 → 版本可追溯。
+
+---
+
+## 旅程覆盖矩阵
+
+| 旅程 ID | 旅程名称 | 覆盖 F 决策图 | 覆盖 PRD 全链路步骤 | 关键验证点 |
+|---|---|---|---|---|
+| E2E-01 | 新用户首次创建 Agent | F1/F2 | 1~7（L1 简化） | 全链路最简路径 |
+| E2E-02 | 多轮对话调用工具 | F1/F6/F8 | 1~6 | R1 工具调用 + SSE |
+| E2E-03 | 复杂任务 DAG 规划 | F2/F3/F4 | 2~7 | L3 + AI 规划 + 并行 |
+| E2E-04 | 子任务失败增量重规划 | F5 | 4~5 | 增量重规划 + 版本推进 |
+| E2E-05 | R3 工具人工审批 | F8 + doc 08 §2 | 4 | R3 审批 + 沙箱执行 |
+| E2E-06 | Token 水位压缩 | F7 | 4 | 四级水位逐级压缩 |
+| E2E-07 | L4 校验失败 Reflexion | F9 | 5 | L4 三级 + Reflexion 重试 |
+| E2E-08 | 漂移告警自动暂停 | F11 | 7 | 漂移四层管控 + 回滚 |
+| E2E-09 | 用户反馈 Badcase 归集 | F10 + PRD §四(二)6 | 7 | Badcase 闭环优化 |
+| E2E-10 | Agent 版本灰度发布 | PRD §五(二)4 | - | 灰度 + 回滚 + 版本管理 |
+
+---
+
+## 变更记录
+
+| 版本 | 日期 | 变更内容 | 作者 |
+|---|---|---|---|
+| v1.0 | 2026-06-27 | 初始版本，覆盖 10 个端到端用户旅程 | AgentForge 测试团队 |

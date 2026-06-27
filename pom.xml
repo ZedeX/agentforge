@@ -99,8 +99,8 @@
     <!-- Modules (added as implemented) -->
     <modules>
         <!-- Phase C1-C2: foundational layer (added after implementation) -->
-        <!-- <module>agent-proto</module> -->
-        <!-- <module>agent-common</module> -->
+        <module>agent-proto</module>
+        <module>agent-common</module>
         <!-- Phase C3: access layer (added after implementation) -->
         <!-- <module>agent-gateway</module> -->
         <!-- <module>agent-session</module> -->

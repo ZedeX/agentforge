@@ -1,0 +1,108 @@
+syntax = "proto3";
+package agentplatform.tool.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.tool.v1";
+
+// 工具网关服务（doc 02-api §3.2，端口 8090）
+service ToolGateway {
+  // 工具调用统一入口（ADR-005）
+  rpc Invoke(ToolInvokeRequest) returns (ToolInvokeResponse);
+  // 注册工具（管理流）
+  rpc RegisterTool(RegisterToolRequest) returns (RegisterToolAck);
+  // 工具列表
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+  // 工具注册详情
+  rpc GetToolRegistry(GetToolRegistryRequest) returns (ToolRegistry);
+}
+
+message ToolInvokeRequest {
+  string call_id = 1;
+  string task_id = 2;
+  int32 step_no = 3;
+  int64 agent_id = 4;
+  string tool_id = 5;
+  int32 tool_version = 6;
+  string input_json = 7;          // JSON 字符串，符合 inputSchema
+  int32 risk_level = 8;           // 1=R1 2=R2 3=R3（执行前校验）
+  string prompt_cache_key = 9;    // 用于结果缓存与审计
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ToolInvokeResponse {
+  string call_id = 1;
+  string status = 2;               // success | failed | timeout | blocked
+  string output_json = 3;
+  string error_code = 4;
+  string error_msg = 5;
+  int32 duration_ms = 6;
+  int64 cost_cent = 7;
+  int32 token_used = 8;
+  bool from_cache = 9;
+}
+
+message RegisterToolRequest {
+  string name = 1;
+  string display_name = 2;
+  string description = 3;
+  repeated string scene_tags = 4;
+  string tool_type = 5;            // atomic | composite
+  int32 risk_level = 6;
+  string input_schema_json = 7;
+  string output_schema_json = 8;
+  string error_codes_json = 9;
+  string executor_type = 10;       // general | proxy | sandbox
+  string endpoint = 11;           // grpc://...
+  int32 timeout_ms = 12;
+  string undo_action = 13;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message RegisterToolAck {
+  string tool_id = 1;
+  int32 version = 2;
+  bool approved = 3;
+}
+
+message ListToolsRequest {
+  string scene_tag = 1;
+  int32 risk_level_max = 2;
+  int32 page = 3;
+  int32 size = 4;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ListToolsResponse {
+  repeated ToolRegistry tools = 1;
+  agentplatform.common.v1.Pagination pagination = 2;
+}
+
+message GetToolRegistryRequest {
+  string tool_id = 1;
+  int32 version = 2;               // 0 = 最新版本
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 工具注册信息（字段对应 doc 02-api §3.1 POST /api/v1/tools）
+message ToolRegistry {
+  string tool_id = 1;
+  string name = 2;
+  string display_name = 3;
+  string description = 4;
+  repeated string scene_tags = 5;
+  string tool_type = 6;
+  int32 risk_level = 7;
+  string input_schema_json = 8;
+  string output_schema_json = 9;
+  string error_codes_json = 10;
+  string executor_type = 11;
+  string endpoint = 12;
+  int32 timeout_ms = 13;
+  string undo_action = 14;
+  int32 version = 15;
+  bool approved = 16;
+  int64 created_at = 17;
+  int64 updated_at = 18;
+}
