@@ -79,6 +79,7 @@
         <junit-jupiter.version>5.10.2</junit-jupiter.version>
         <mockito.version>5.11.0</mockito.version>
         <assertj.version>3.25.3</assertj.version>
+        <awaitility.version>4.2.1</awaitility.version>
         <testcontainers.version>1.19.7</testcontainers.version>
         <spring-boot-test.version>3.2.5</spring-boot-test.version>
 
@@ -91,6 +92,11 @@
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
         <maven-javadoc-plugin.version>3.6.3</maven-javadoc-plugin.version>
         <maven-failsafe-plugin.version>3.2.5</maven-failsafe-plugin.version>
+        <jacoco-maven-plugin.version>0.8.11</jacoco-maven-plugin.version>
+
+        <!-- JaCoCo Coverage Thresholds (enforced by root pom) -->
+        <jacoco.line.coverage>0.80</jacoco.line.coverage>
+        <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
 
         <!-- Build Settings -->
         <argLine>-Dfile.encoding=UTF-8 -Xss2m</argLine>
@@ -102,8 +108,8 @@
         <module>agent-proto</module>
         <module>agent-common</module>
         <!-- Phase C3: access layer (added after implementation) -->
-        <!-- <module>agent-gateway</module> -->
-        <!-- <module>agent-session</module> -->
+        <module>agent-gateway</module>
+        <module>agent-session</module>
         <!-- Phase C4: core engine layer (待后续编码) -->
         <!-- <module>agent-task-orchestrator</module> -->
         <!-- <module>agent-planning</module> -->
@@ -161,6 +167,14 @@
                 <artifactId>agent-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- Awaitility: async assertion library (replaces Thread.sleep in tests)
+                 See docs/tests/tdd-audit-report-v1.md FN-010 for context. -->
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+                <scope>test</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -174,6 +188,9 @@
                     <configuration>
                         <release>${maven.compiler.release}</release>
                         <encoding>${project.build.sourceEncoding}</encoding>
+                        <!-- Required by Spring @PathVariable/@RequestParam without explicit name
+                             (resolves "parameter name not available via reflection" error) -->
+                        <parameters>true</parameters>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -193,8 +210,87 @@
                     <artifactId>maven-failsafe-plugin</artifactId>
                     <version>${maven-failsafe-plugin.version}</version>
                     <configuration>
-                        <argLine>-Dfile.encoding=UTF-8</argLine>
+                        <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                        <systemPropertyVariables>
+                            <file.encoding>UTF-8</file.encoding>
+                            <sun.jnu.encoding>UTF-8</sun.jnu.encoding>
+                        </systemPropertyVariables>
                     </configuration>
+                    <executions>
+                        <execution>
+                            <id>integration-test</id>
+                            <goals>
+                                <goal>integration-test</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>verify</id>
+                            <goals>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco-maven-plugin.version}</version>
+                    <configuration>
+                        <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
+                        <!-- Exclude generated code: protobuf-generated classes, gRPC stubs, Lombok-generated -->
+                        <excludes>
+                            <exclude>**/com/google/protobuf/**</exclude>
+                            <exclude>**/*OuterClass*</exclude>
+                            <exclude>**/*Grpc*</exclude>
+                            <exclude>**/generated-sources/**</exclude>
+                            <exclude>**/io/grpc/**</exclude>
+                        </excludes>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>jacoco-prepare-agent</id>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>jacoco-report</id>
+                            <phase>test</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>jacoco-check</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                            <configuration>
+                                <!-- haltOnFailure=false: initial integration phase, log warnings only.
+                                     Per-module thresholds can be tightened once baseline coverage is verified.
+                                     See docs/tests/tdd-audit-report-v1.md FN-002 for context. -->
+                                <haltOnFailure>false</haltOnFailure>
+                                <rules>
+                                    <rule>
+                                        <element>BUNDLE</element>
+                                        <limits>
+                                            <limit>
+                                                <counter>LINE</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.line.coverage}</minimum>
+                                            </limit>
+                                            <limit>
+                                                <counter>BRANCH</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.branch.coverage}</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -235,6 +331,19 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <!-- Active plugins inherited by all submodules (in addition to pluginManagement) -->
+        <plugins>
+            <!-- JaCoCo: prepare agent for surefire/failsafe, generate report, enforce thresholds -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <!-- Failsafe: run integration tests (*IT.java) during verify phase -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 
     <!-- Profile: exclude unfinished modules from full reactor build -->
@@ -250,6 +359,28 @@
             <properties>
                 <maven.test.skip>true</maven.test.skip>
             </properties>
+        </profile>
+        <!-- Profile: skip Testcontainers-based tests when Docker is not available.
+             Usage: mvn clean verify -Pno-docker
+             Tests using @Testcontainers will be excluded via surefire excludes pattern. -->
+        <profile>
+            <id>no-docker</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/EndToEndTest.java</exclude>
+                                <exclude>**/SessionRepositoryTest.java</exclude>
+                                <exclude>**/ShortTermMemoryServiceTest.java</exclude>
+                                <exclude>**/*TestcontainersTest.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 
