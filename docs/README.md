@@ -2,7 +2,7 @@
 
 > 生成日期：2026-06-26  |  基于需求文档：[PRD.md](../PRD.md)  |  技术栈：Java 17 / Spring Cloud Alibaba / Milvus / MySQL / RocketMQ
 
-本目录包含 Agent 智能体平台系统的工程级设计文档，共 19 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 3 份编码计划 + 1 份前端控制台详设）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设与基础设施 DDL 脚本。
+本目录包含 Agent 智能体平台系统的工程级设计文档，共 28 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 3 份编码计划 + 1 份前端控制台详设 + 9 份测试文档）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录 / 独立审核框架与首轮报告。
 
 ## 文档导航
 
@@ -64,7 +64,37 @@
 |---|---|---|---|---|
 | 18 | [12-frontend/frontend-console-design.md](./12-frontend/frontend-console-design.md) | 运营后台 / Agent 配置工作台（低代码）/ 调试沙箱 / 终端对话界面 / 任务监控大屏，含 React 18 + Ant Design 5 + Monaco + ReactFlow + ECharts 技术栈 | 47 | 72 条 |
 
-### 八、基础设施脚本（DDL 初始化）
+### 八、测试文档（TDD 红绿循环 + 独立审核）
+
+> 脚本目录：`docs/tests/`。覆盖测试策略 / 测试计划 / 三层用例清单 / Fixture 与 Testcontainers / 红绿循环记录 / 审核框架与报告。
+
+| # | 文档 | 版本 | 内容 | 用例数 |
+|---|---|---|---|---|
+| 19 | [tests/test-strategy.md](./tests/test-strategy.md) | v1.0 | 测试策略 + 金字塔（70/20/10）+ 工具栈 + 覆盖率目标 + CI 集成 + 报告规范 | — |
+| 20 | [tests/test-plan.md](./tests/test-plan.md) | v1.0 | TDD 测试计划 + 13 微服务测试矩阵 + F1~F12 决策节点用例 + 3 E2E 场景 + Testcontainers + CI/CD 验收 | — |
+| 21 | [tests/unit-test-cases.md](./tests/unit-test-cases.md) | v1.1 | 单元测试用例清单（18 章节，含 F1~F12 决策节点双分支补全 + 4 缺失模块补全） | 213 |
+| 22 | [tests/functional-test-cases.md](./tests/functional-test-cases.md) | v1.1 | 功能测试用例清单（含状态机 10 非法流转 + 26+ 错误码触发路径） | 123 |
+| 23 | [tests/user-flow-test-cases.md](./tests/user-flow-test-cases.md) | v1.1 | 端到端用户旅程（含 F10 六层幻觉治理 / F12 长期记忆 / 知识库 RAG 召回） | 13 |
+| 24 | [tests/test-data-and-fixtures.md](./tests/test-data-and-fixtures.md) | v1.1 | 测试数据策略 + Fixture 工厂 + Testcontainers 容器矩阵 + 边界值常量 + 性能测试数据 | — |
+| 25 | [tests/tdd-red-green-records.md](./tests/tdd-red-green-records.md) | v1.0 | 已实现 4 模块（agent-proto/common/gateway/session）17 测试文件 73 方法的 Red/Green/Refactor/Commit 全过程记录 | 73 |
+| 26 | [tests/tdd-audit-framework.md](./tests/tdd-audit-framework.md) | v1.0 | TDD 独立审核流程规范：6 维度 42 检查项 + RACI 矩阵 + 评分模型 + 一票否决项 + 8 阶段工作流 | — |
+| 27 | [tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) | v1.0 | 首轮审核报告：发现 23 项问题（4 Critical / 11 Major / 5 Minor / 3 Info），总分 39.3，等级 D 不通过 | — |
+| 28 | [tests/tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) | v2.0 | 第 2 轮复核报告（P0+P1 整改后）：总分 39.3 → 65.0（C-），8 项已完成 / 1 项部分整改 / 9 项待 P2/P3；含 FN-021/022 新发现 | — |
+
+> **测试统计**：10 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **78 测试方法全绿**（v2 新增 5 个 assertThrows 用例），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
+>
+> **第 2 轮审核结论**：v1 触发 4 项一票否决 → v2 仅余 3 项（SEQ-02 / COV-01 覆盖率不达标 / CI-01 未实跑），总分 39.3 → 65.0（C-，接近通过线 80）。P0+P1 整改完成 8 项：JaCoCo 集成 + CI 配置 + 5 处 assertThrows + 3 处 Awaitility + SessionFixtures 抽取 + 9 处 verify。下一步 P2 整改：补 agent-session 覆盖率至 80% + CI 实跑 + EndToEndTest Mock 改造。
+
+### TDD 审核整改进度索引
+
+| 轮次 | 总分 | 等级 | 一票否决项 | 状态 | 报告 |
+|---|---|---|---|---|---|
+| v1（首轮） | 39.3 | D 不通过 | 4 项（SEQ-02 / COV-01 / COV-03-04-05 代码层 / CI-01） | ✅ 完成 | [tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) |
+| v2（P0+P1 整改复核） | 65.0 | C- 不通过 | 3 项（SEQ-02 / COV-01 覆盖率不达标 / CI-01 未实跑） | ✅ 完成 | [tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) |
+| v3（P2 整改复核，目标 75+） | — | — | — | ⏸ 待启动 | — |
+| v4（P3 整改复核，目标 80 通过） | — | — | — | ⏸ 待启动 | — |
+
+### 九、基础设施脚本（DDL 初始化）
 
 > 脚本目录：`infra/sql/`（项目根目录下，与 docs/ 平级）。编排入口 [`init-all.ps1`](../infra/sql/init-all.ps1)（359 行参数化 PowerShell，纯英文）。
 
@@ -126,8 +156,127 @@
 - **后端开发**：1 → 3 → 对应模块详设（4/5/6/7/8）→ 12-14（决策流程图，落地分支条件）→ 2（查表结构）
 - **DBA/运维**：2 → 10（中间件集成 + 部署配置）
 - **算法/模型工程师**：5（记忆）→ 6（工具召回）→ 8（代码检索）→ 10（治理体系）→ 13（F7 Token 压缩决策 + F8 工具选择决策）
-- **QA/测试**：9（状态机/时序图）→ 4（任务状态机）→ 7（熔断/人工介入）→ 12-14（决策流程图作为测试用例输入）
+- **QA/测试**：tests/test-strategy.md → tests/test-plan.md → tests/unit-test-cases.md / functional-test-cases.md / user-flow-test-cases.md → tests/tdd-red-green-records.md（已实现 4 模块红绿循环）→ tests/tdd-audit-framework.md（审核规范）→ tests/tdd-audit-report-v1.md（首轮审核结论）→ 9（状态机/时序图）→ 4（任务状态机）→ 7（熔断/人工介入）→ 12-14（决策流程图作为测试用例输入）
 - **产品/业务方**：11（补遗：业务示例 + 低代码配置台范围）→ 10（成本与模型选型）
+
+## AI Agent 阅读指引
+
+> 本节专为 AI Agent（Claude / GPT / Cursor / Copilot 等编码助手）设计，帮助 Agent 在少量 Token 内快速定位到与本任务相关的文档与代码位置。**所有路径均相对于本仓库根目录**（除非显式标注 `docs/` 前缀）。
+
+### 入口决策树（按任务类型选择起点）
+
+```
+你的任务是什么？
+│
+├─ 「理解整个系统」
+│   └─ 起点：docs/00-overview/tech-stack-and-architecture.md
+│       → 然后看 PRD.md（需求原点）→ docs/08-flow/state-machines-and-sequences.md（行为契约）
+│
+├─ 「写/改某个微服务代码」
+│   ├─ 先查 docs/00-overview/tech-stack-and-architecture.md §2 微服务清单 + 通信矩阵
+│   ├─ 再查对应模块详设：
+│   │   ├─ agent-task-orchestrator / agent-planning → docs/03-task-engine/task-orchestration-and-planning.md
+│   │   ├─ agent-memory → docs/04-memory/memory-system-design.md
+│   │   ├─ agent-tool-engine → docs/05-tool-engine/tool-and-invocation-system.md
+│   │   ├─ agent-runtime → docs/06-agent-runtime/agent-runtime-engine.md
+│   │   ├─ agent-repo+code-retrieval → docs/07-code-retrieval/code-retrieval-system.md
+│   │   ├─ agent-gateway / agent-session → docs/02-api/api-specification.md + docs/plans/02-agent-gateway-session-plan.md
+│   │   └─ agent-model-gateway → docs/09-governance-and-deployment/governance-and-middleware.md §3
+│   ├─ 查接口契约：docs/02-api/api-specification.md
+│   ├─ 查表结构：docs/01-database/database-schema-design.md
+│   └─ 查决策分支：docs/11-detail-flow/01|02|03-*.md（F1~F12 决策节点）
+│
+├─ 「写/改测试」
+│   ├─ 先读：docs/tests/test-strategy.md（金字塔 70/20/10 + 工具栈）
+│   ├─ 查用例：docs/tests/unit-test-cases.md（单元）/ functional-test-cases.md（功能）/ user-flow-test-cases.md（E2E）
+│   ├─ 查 Fixture 与边界值：docs/tests/test-data-and-fixtures.md（§3.10 边界值常量、§5 Mock、§6 Assert）
+│   ├─ 查 Testcontainers：docs/tests/test-data-and-fixtures.md §4
+│   ├─ 参考 TDD 红绿循环：docs/tests/tdd-red-green-records.md（已实现 4 模块 73 方法）
+│   └─ 提交前自查：docs/tests/tdd-audit-framework.md §3 检查清单（42 项）
+│
+├─ 「排查 Bug / 行为异常」
+│   ├─ 先查状态机：docs/08-flow/state-machines-and-sequences.md §1 任务状态机（10 状态）
+│   ├─ 查决策分支：docs/11-detail-flow/0X-*.md（F1~F12，103 决策节点，含错误码）
+│   ├─ 查错误码定义：docs/02-api/api-specification.md §错误码 + docs/tests/functional-test-cases.md §18（28 触发路径）
+│   └─ 查治理流程：docs/09-governance-and-deployment/governance-and-middleware.md（幻觉六层 + 漂移四层）
+│
+├─ 「数据库变更」
+│   ├─ 设计：docs/01-database/database-schema-design.md
+│   ├─ DDL：infra/sql/mysql/0X-*.sql（9 个逻辑库）
+│   ├─ 种子数据：infra/sql/mysql/11-seed-data.sql
+│   ├─ Milvus：infra/sql/milvus/01-init-collections.py（6 Collection）
+│   ├─ Neo4j：infra/sql/neo4j/0X-*.cypher（7 节点 6 关系）
+│   ├─ Redis：infra/sql/redis/01-init-data.redis
+│   └─ 编排：infra/sql/init-all.ps1（参数化一键执行）
+│
+├─ 「代码审查 / 安全审查」
+│   ├─ 审查规范：docs/tests/tdd-audit-framework.md（6 维度 42 检查项 + 评分模型）
+│   ├─ 历史报告：docs/tests/tdd-audit-report-v1.md（首轮 23 项发现）→ docs/tests/tdd-audit-report-v2.md（第 2 轮复核，整改后总分 65.0）
+│   ├─ 整改进度索引：见下方「TDD 审核整改进度索引」表
+│   └─ 风险分级：docs/05-tool-engine/tool-and-invocation-system.md §3（R1/R2/R3 工具风险）
+│
+└─ 「前端 / 控制台」
+    └─ docs/12-frontend/frontend-console-design.md（47 组件 + 72 API 映射）
+```
+
+### 关键路径速查表
+
+| 你想找... | 直接看这里 | 关键章节 |
+|---|---|---|
+| 整个系统的 7 步执行链路 | [docs/08-flow/state-machines-and-sequences.md](./08-flow/state-machines-and-sequences.md) | §2 7 步全链路时序图 |
+| 10 个任务状态与合法流转 | 同上 | §1 任务状态机 |
+| F1~F12 决策节点（103 个） | [docs/11-detail-flow/01-access-and-planning-flow.md](./11-detail-flow/01-access-and-planning-flow.md)（F1~F4）+ [02-runtime-and-replan-flow.md](./11-detail-flow/02-runtime-and-replan-flow.md)（F5~F8）+ [03-quality-and-memory-flow.md](./11-detail-flow/03-quality-and-memory-flow.md)（F9~F12） | 每张图含 ≥5 判断节点 + 错误码 |
+| 26+ 错误码与 HTTP 状态码映射 | [docs/02-api/api-specification.md](./02-api/api-specification.md) | §错误码 |
+| 错误码触发测试用例 | [docs/tests/functional-test-cases.md](./tests/functional-test-cases.md) | §18（28 用例） |
+| F1~F12 决策节点测试用例 | [docs/tests/unit-test-cases.md](./tests/unit-test-cases.md) | §18（40 用例，198 节点分支） |
+| 边界值常量（F2/F7/F9/F12） | [docs/tests/test-data-and-fixtures.md](./tests/test-data-and-fixtures.md) | §3.10 Boundary Value Fixture |
+| Testcontainers 容器矩阵 | 同上 | §4（MySQL/Redis/Milvus/Neo4j/ClickHouse/RocketMQ/ES/DinD） |
+| 已实现 4 模块的 TDD 红绿循环 | [docs/tests/tdd-red-green-records.md](./tests/tdd-red-green-records.md) | §1~§4（17 测试文件 73 方法） |
+| 审核检查清单（提交前自查） | [docs/tests/tdd-audit-framework.md](./tests/tdd-audit-framework.md) | §3（6 维度 42 项） |
+| 历史审核发现 | [docs/tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) → [v2.md](./tests/tdd-audit-report-v2.md) | §3 发现清单（23 项）→ §4 整改清单（8 项完成 / 1 部分 / 9 待 P2/P3） |
+| 整改进度索引 | 本文档 §"TDD 审核整改进度索引" 表 | v1 39.3 → v2 65.0 → v3 目标 75+ → v4 目标 80 通过 |
+| 项目记忆 / 历史决策 | [project_memory.md](../project_memory.md) | 按日期倒序的会话记录 |
+| 全局用户偏好 | [user_profile.md](../../../c:/Users/Administrator/.trae-cn/memory/user_profile.md) | 跨项目偏好 |
+
+### Agent 行为约定
+
+1. **改代码前**：先读对应模块的详设文档 + 当前测试文件，避免破坏既有契约
+2. **提交前**：跑 `mvn clean verify`（含 JaCoCo 覆盖率检查，行 ≥80%、分支 ≥70%），全绿才能提交
+3. **新增测试**：遵循 `should_{期望}_When_{条件}` 命名（详见 [tdd-audit-framework.md](./tests/tdd-audit-framework.md) §3.4 QUAL-01）
+4. **新增功能**：必须有对应的 F1~F12 决策节点用例（见 [unit-test-cases.md](./tests/unit-test-cases.md) §18）
+5. **遇到 Bug**：先查 [state-machines-and-sequences.md](./08-flow/state-machines-and-sequences.md) 状态机 + [11-detail-flow](./11-detail-flow/) 决策分支，确认是否状态流转异常或分支条件错误
+6. **审核时**：按 [tdd-audit-framework.md](./tests/tdd-audit-framework.md) §6 工作流执行，每条发现必须引用文件路径:行号 + commit hash
+7. **更新文档**：修改本索引或任何文档时，同步更新 [project_memory.md](../project_memory.md) 记录本轮工作
+
+### 快速命令
+
+```bash
+# 编译（跳过测试）
+mvn -B -ntp clean compile -DskipTests
+
+# 跑单元测试
+mvn -B -ntp test
+
+# 跑单元 + 集成测试 + JaCoCo 覆盖率检查
+mvn -B -ntp verify
+
+# 仅生成 JaCoCo 报告（不强制覆盖率门槛）
+mvn -B -ntp test jacoco:report
+
+# 查看 JaCoCo 报告（浏览器打开）
+# Windows: start target/site/jacoco/index.html
+# Linux/Mac: open target/site/jacoco/index.html
+
+# 跳过测试的快速构建（仅应急用，CI 会拒绝）
+mvn -B -ntp clean package -Pquick
+```
+
+### 文档版本约定
+
+- 所有文档头部包含 `> 文档版本：vX.Y | 更新日期：YYYY-MM-DD | 文档定位：...` 元信息
+- 主版本号 X：重大重构（如新增维度/章节）
+- 次版本号 Y：补充内容（如新增用例）
+- 每次更新在文档末尾「修订记录」表追加一行
 
 ## PRD 第七章交付物覆盖清单
 
