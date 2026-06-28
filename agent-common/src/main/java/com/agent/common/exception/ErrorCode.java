@@ -25,6 +25,9 @@ public enum ErrorCode {
     PARAM_INVALID("PARAM_INVALID", 400, "参数非法"),
     CONTENT_BLOCKED("CONTENT_BLOCKED", 400, "内容被拦截"),
 
+    // 413 请求体过大
+    PAYLOAD_TOO_LARGE("PAYLOAD_TOO_LARGE", 413, "请求体过大"),
+
     // 409 状态冲突
     TASK_STATUS_CONFLICT("TASK_STATUS_CONFLICT", 409, "任务状态冲突"),
     DAG_CYCLE_DETECTED("DAG_CYCLE_DETECTED", 409, "DAG 检测到环"),
