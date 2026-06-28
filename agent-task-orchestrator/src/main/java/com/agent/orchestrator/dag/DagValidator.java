@@ -23,6 +23,10 @@ import java.util.Set;
  *
  * <p>错误码映射：维度 1-4 失败返回 {@link ErrorCode#PARAM_INVALID}，
  * 维度 5 失败返回 {@link ErrorCode#DAG_CYCLE_DETECTED}。</p>
+ *
+ * <p>实现说明：通过组合 {@link DagGraph} + {@link TopologicalSorter} 完成 5 维校验。
+ * 综合校验入口构建一次 {@link DagGraph}，复用其邻接表/入度表给各维度校验方法，
+ * 避免每个维度重复扫描节点/边集合。</p>
  */
 public class DagValidator {
 
@@ -37,10 +41,11 @@ public class DagValidator {
      */
     public void validate(List<DagNode> nodes, List<DagEdge> edges) {
         validateNodesNotEmpty(nodes);
+        DagGraph graph = new DagGraph(nodes, edges);
         validateSubtaskIdUnique(nodes);
-        validateEdgeReferences(nodes, edges);
+        validateEdgeReferences(graph, edges);
         validateNoOrphanSubtaskNodes(nodes, edges);
-        validateNoCycle(nodes, edges);
+        validateNoCycle(graph);
     }
 
     /** 维度 1：节点非空。 */
@@ -65,12 +70,9 @@ public class DagValidator {
         }
     }
 
-    /** 维度 3：入度出度合法性 - 每条边引用的 parent/child 节点必须存在。 */
-    private void validateEdgeReferences(List<DagNode> nodes, List<DagEdge> edges) {
-        Set<String> nodeIds = new HashSet<>();
-        for (DagNode node : nodes) {
-            nodeIds.add(node.getNodeId());
-        }
+    /** 维度 3：入度出度合法性 - 每条边引用的 parent/child 节点必须存在（基于 DagGraph 节点集合）。 */
+    private void validateEdgeReferences(DagGraph graph, List<DagEdge> edges) {
+        Set<String> nodeIds = graph.getNodeIds();
         for (DagEdge edge : edges) {
             String from = edge.getParentNodeId();
             String to = edge.getChildNodeId();
@@ -103,8 +105,8 @@ public class DagValidator {
         }
     }
 
-    /** 维度 5：无环 - 委托 TopologicalSorter 检测，环抛 DAG_CYCLE_DETECTED。 */
-    private void validateNoCycle(List<DagNode> nodes, List<DagEdge> edges) {
-        sorter.sort(nodes, edges);
+    /** 维度 5：无环 - 委托 {@link TopologicalSorter#sort(DagGraph)} 检测，环抛 DAG_CYCLE_DETECTED。 */
+    private void validateNoCycle(DagGraph graph) {
+        sorter.sort(graph);
     }
 }
