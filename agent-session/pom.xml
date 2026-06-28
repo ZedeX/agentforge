@@ -58,6 +58,23 @@
             <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- H2: 内存数据库（MySQL 兼容模式），用于 EndToEndTest 在无 Docker 环境下的备选方案。
+             任务允许用 H2 MySQL-mode 替代 MySQL Testcontainer（见 tdd-audit-report-v2.md §P2-2 FN-012）。 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- jedis-mock: 纯 Java Redis 协议实现，用于 EndToEndTest 在无 Docker 环境下的备选方案。
+             jedis-mock 在 TCP 层实现 Redis 协议，Lettuce 可像连接真实 Redis 一样连接它。
+             当 Docker 不可用时，作为 Redis Testcontainer 的备选方案。
+             若 Docker 可用，建议切换回 Testcontainers Redis 以获得更真实的集成测试。 -->
+        <dependency>
+            <groupId>com.github.fppt</groupId>
+            <artifactId>jedis-mock</artifactId>
+            <version>1.1.12</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
