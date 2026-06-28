@@ -25,6 +25,9 @@ import lombok.NoArgsConstructor;
  * 改为 parentNodeId / childNodeId / edgeType，与 DDL 列命名风格一致。</p>
  *
  * <p>edgeType 取值：DATA（数据依赖）/ LOGIC（逻辑依赖）/ NONE（无依赖，仅并行批次标记）。</p>
+ *
+ * <p>实现 {@link DagElement}：getDagId 由 Lombok @Data 自动生成；
+ * getNodeId / getSubtaskId 手动覆写以适配边语义（见接口 Javadoc）。</p>
  */
 @Entity
 @Table(name = "dag_edge",
@@ -39,7 +42,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(callSuper = false)
-public class DagEdge extends BaseEntity {
+public class DagEdge extends BaseEntity implements DagElement {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -64,5 +67,22 @@ public class DagEdge extends BaseEntity {
     @PrePersist
     void prePersist() {
         touchTimestamps();
+    }
+
+    /**
+     * 覆写 {@link DagElement#getNodeId()}：边本身没有 nodeId，
+     * 返回 {@code parentNodeId}（源节点 ID），便于按节点维度索引边集合。
+     */
+    @Override
+    public String getNodeId() {
+        return parentNodeId;
+    }
+
+    /**
+     * 覆写 {@link DagElement#getSubtaskId()}：边不承载子任务语义，始终返回 null。
+     */
+    @Override
+    public String getSubtaskId() {
+        return null;
     }
 }

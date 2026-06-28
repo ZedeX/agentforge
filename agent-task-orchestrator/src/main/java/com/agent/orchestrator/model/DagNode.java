@@ -23,6 +23,9 @@ import lombok.NoArgsConstructor;
  *
  * <p>设计说明：JSON 字段（abilityTags / inputs / outputs）以 String 存储，
  * 由调用方负责序列化/反序列化，与 TaskInstance.taskSchema 风格一致。</p>
+ *
+ * <p>实现 {@link DagElement}：getDagId / getNodeId / getSubtaskId 三个方法
+ * 由 Lombok @Data 自动生成的 getter 满足接口契约。</p>
  */
 @Entity
 @Table(name = "dag_node",
@@ -36,7 +39,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(callSuper = false)
-public class DagNode extends BaseEntity {
+public class DagNode extends BaseEntity implements DagElement {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
