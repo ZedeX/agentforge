@@ -82,10 +82,11 @@
 | 28 | [tests/tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) | v2.0 | 第 2 轮复核报告（P0+P1 整改后）：总分 39.3 → 65.0（C-），8 项已完成 / 1 项部分整改 / 9 项待 P2/P3；含 FN-021/022 新发现 | — |
 | 29 | [tests/tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) | v3.0 | 第 3 轮复核报告（P2 整改后）：总分 65.0 → 74.0（C+ 不通过，接近 80），P2 全 5 项完成；FIX-04 一票否决项移除；CI 已实跑 1 次 success；含 P3 整改建议 8 项 | — |
 | 30 | [tests/tdd-audit-report-v4.md](./tests/tdd-audit-report-v4.md) | v4.0 | 第 4 轮复核报告（P3 部分整改后）：总分 74.0 → 80.5（B- 通过，首次过线），P3 完成 2/8（P3-1 agent-task-orchestrator + P3-6 agent-common branch 27%→92.5%）；**SEQ-02 一票否决正式解除**；含 P5 整改建议 8 项 | — |
+| 31 | [tests/tdd-audit-report-v5.md](./tests/tdd-audit-report-v5.md) | v5.0 | 第 5 轮复核报告（P5 部分整改后）：总分 80.5 → 81.5（B- 通过，一票否决归零），P5 完成 1/8 + 验证 1 项非问题（P5-1 agent-gateway SessionStreamController SSE 测试 line 79.9%→85.7% / branch 66%→77.4% + P5-3 jacoco-check 继承验证为非问题）；**COV-01 一票否决正式解除**；项目已无任何部分通过状态的硬性一票否决项；含 P6 整改建议 7 项 | — |
 
-> **测试统计**：11 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **176 测试方法全绿**（v4 较 v3 净增 42 方法：P3-1 新增 agent-task-orchestrator 模块 34 方法 / P3-6 补 agent-common 异常分支 8 方法），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
+> **测试统计**：11 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **181 测试方法全绿**（v5 较 v4 净增 5 方法：P5-1 补 agent-gateway SessionStreamController SSE 透传 4 路径测试），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
 >
-> **第 4 轮审核结论**：v3 触发 2 项一票否决 → v4 仅余 1 项（COV-01 部分），**SEQ-02 一票否决项正式解除**（P3-1 agent-task-orchestrator 按 §3.6 三阶段独立提交 17 commits 验证规范可执行性）；总分 74.0 → **80.5（B-，首次过 80 通过线）**。P3 部分整改完成 2 项：P3-1 新建 agent-task-orchestrator 模块（17 commits 严格 Red/Green/Refactor）+ P3-6 补 agent-common branch 覆盖率 27% → 92.5%（回调阈值 0.27 → 0.70）。下一步 P5 整改 8 项：补 agent-gateway SSE 测试 + push 触发 CI 实跑累计 10 次 + 修复子模块 jacoco-check execution 继承 + F1~F12 决策节点用例 + 命名统一 + AssertJ + @DisplayName + 实现 agent-task-orchestrator T5-T13。
+> **第 5 轮审核结论**：v4 仅余 1 项部分一票否决 → v5 **COV-01 一票否决正式解除**（P5-1 补 agent-gateway SessionStreamController SSE 测试 5 方法，line 79.9% → 85.7% / branch 66% → 77.4%，回调阈值 0.79/0.66 → 0.80/0.70 解除豁免）；总分 80.5 → **81.5（B-，一票否决项部分通过数归零）**。P5 部分整改完成 1 项 + 验证 1 项非问题：P5-1 补 agent-gateway SSE 测试（SessionStreamController line 0% → 94.1%）+ P5-3 验证子模块 jacoco-check execution 继承为非问题（父 pom 双声明机制工作正常，子 Agent 误判）。下一步 P6 整改 7 项：网络恢复后 push 触发 CI 实跑累计 10 次 + 补 F1~F12 决策节点代码层用例（198 双分支，建议拆子 Agent 并行）+ 命名统一 + AssertJ + @DisplayName + 实现 agent-task-orchestrator T5-T13 + 错误码触发路径覆盖。
 
 ### TDD 审核整改进度索引
 
@@ -95,6 +96,7 @@
 | v2（P0+P1 整改复核） | 65.0 | C- 不通过 | 3 项（SEQ-02 / COV-01 覆盖率不达标 / CI-01 未实跑） | ✅ 完成 | [tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) |
 | v3（P2 整改复核，目标 75+） | 74.0 | C+ 不通过 | 2 项（SEQ-02 / COV-01 部分） | ✅ 完成 | [tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) |
 | v4（P3 部分整改复核，目标 80 通过） | 80.5 | B- 通过 | 1 项（COV-01 部分） | ✅ 完成 | [tdd-audit-report-v4.md](./tests/tdd-audit-report-v4.md) |
+| v5（P5 部分整改复核，一票否决归零） | 81.5 | B- 通过 | 0 项（COV-01 正式解除） | ✅ 完成 | [tdd-audit-report-v5.md](./tests/tdd-audit-report-v5.md) |
 
 ### 九、基础设施脚本（DDL 初始化）
 
