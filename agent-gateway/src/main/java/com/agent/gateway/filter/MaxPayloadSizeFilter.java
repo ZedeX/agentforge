@@ -50,8 +50,8 @@ public class MaxPayloadSizeFilter extends OncePerRequestFilter {
             return;
         }
 
-        int maxSize = properties.getMaxSize();
-        int contentLength = resolveContentLength(request);
+        long maxSize = properties.getMaxSize().toBytes();
+        long contentLength = resolveContentLength(request);
 
         if (contentLength > maxSize) {
             String tenantId = (String) request.getAttribute("X-Tenant-Id");
@@ -72,8 +72,8 @@ public class MaxPayloadSizeFilter extends OncePerRequestFilter {
     /**
      * 优先使用 Content-Length 头；若为 -1（chunked 或缺失），回退到实际读取 body。
      */
-    private int resolveContentLength(HttpServletRequest request) throws IOException {
-        int contentLength = request.getContentLength();
+    private long resolveContentLength(HttpServletRequest request) throws IOException {
+        long contentLength = request.getContentLengthLong();
         if (contentLength >= 0) {
             return contentLength;
         }

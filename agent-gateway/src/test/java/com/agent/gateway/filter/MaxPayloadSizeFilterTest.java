@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.util.unit.DataSize;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -41,7 +42,7 @@ class MaxPayloadSizeFilterTest {
     @BeforeEach
     void setUp() {
         properties = new MaxPayloadSizeProperties();
-        properties.setMaxSize(ONE_MB);
+        properties.setMaxSize(DataSize.ofBytes(ONE_MB));
         auditLogService = mock(AuditLogService.class);
         filter = new MaxPayloadSizeFilter(properties, auditLogService);
     }
