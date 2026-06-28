@@ -7,11 +7,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
@@ -19,11 +20,12 @@ import java.time.Instant;
 /**
  * 任务实例实体（对齐 doc 01-database §2.1 task_instance 表）。
  *
- * <p>包含 23 业务字段 + 2 审计字段（created_at / updated_at）。
- * Refactor 阶段会将审计字段抽取到 BaseEntity。</p>
+ * <p>包含 23 业务字段；审计字段 created_at / updated_at 继承自 {@link BaseEntity}。
+ * 全参构造 {@link AllArgsConstructor} 覆盖 23 业务字段，对齐 DDL 字段顺序。</p>
  *
  * <p>风格参考 agent-session Session.java：JPA @Entity + @PrePersist 初始化默认值。
- * 与 Session 不同之处：本实体使用 Lombok @Data/@Builder/@NoArgsConstructor 简化样板代码。</p>
+ * 与 Session 不同之处：本实体使用 Lombok @Data/@Builder/@NoArgsConstructor/@AllArgsConstructor
+ * 简化样板代码，并继承 BaseEntity 复用审计字段。</p>
  */
 @Entity
 @Table(name = "task_instance",
@@ -35,7 +37,10 @@ import java.time.Instant;
         })
 @Data
 @NoArgsConstructor
-public class TaskInstance {
+@AllArgsConstructor
+@Builder
+@EqualsAndHashCode(callSuper = false)
+public class TaskInstance extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -108,54 +113,11 @@ public class TaskInstance {
     @Column(name = "result_summary", columnDefinition = "TEXT")
     private String resultSummary;
 
-    // 审计字段（Refactor 阶段抽取到 BaseEntity）
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    /**
-     * 全参构造（覆盖 23 业务字段；createdAt/updatedAt 由 prePersist 填充）。
-     * 参数顺序对齐 task_instance 表 DDL 字段顺序。
-     */
-    @Builder
-    public TaskInstance(Long id, String taskId, Long tenantId, String sessionId, String userId,
-                       String title, String goal, Integer complexity, String status, String taskSchema,
-                       Long dagId, Long agentId, Integer priority, String parentTaskId,
-                       int replanCount, Long costLimitCent, Long costUsedCent, Integer tokenUsed,
-                       Instant startedAt, Instant finishedAt, String errorCode, String errorMsg,
-                       String resultSummary) {
-        this.id = id;
-        this.taskId = taskId;
-        this.tenantId = tenantId;
-        this.sessionId = sessionId;
-        this.userId = userId;
-        this.title = title;
-        this.goal = goal;
-        this.complexity = complexity;
-        this.status = status;
-        this.taskSchema = taskSchema;
-        this.dagId = dagId;
-        this.agentId = agentId;
-        this.priority = priority;
-        this.parentTaskId = parentTaskId;
-        this.replanCount = replanCount;
-        this.costLimitCent = costLimitCent;
-        this.costUsedCent = costUsedCent;
-        this.tokenUsed = tokenUsed;
-        this.startedAt = startedAt;
-        this.finishedAt = finishedAt;
-        this.errorCode = errorCode;
-        this.errorMsg = errorMsg;
-        this.resultSummary = resultSummary;
-    }
-
     @PrePersist
     void prePersist() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
+        // 审计时间戳由 BaseEntity.touchTimestamps() 填充
+        touchTimestamps();
+        // 业务默认值
         if (this.priority == null) {
             this.priority = 5;
         }
@@ -166,10 +128,5 @@ public class TaskInstance {
         if (this.tokenUsed == null) {
             this.tokenUsed = 0;
         }
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        this.updatedAt = Instant.now();
     }
 }
