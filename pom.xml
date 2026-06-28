@@ -267,10 +267,10 @@
                                 <goal>check</goal>
                             </goals>
                             <configuration>
-                                <!-- haltOnFailure=false: initial integration phase, log warnings only.
-                                     Per-module thresholds can be tightened once baseline coverage is verified.
-                                     See docs/tests/tdd-audit-report-v1.md FN-002 for context. -->
-                                <haltOnFailure>false</haltOnFailure>
+                                <!-- haltOnFailure=true (P2-4 整改, ref tdd-audit-report-v2.md):
+                                     覆盖率不达标时 CI fail，强制约束。
+                                     模块覆盖率阈值可通过子模块 <properties> 覆盖（如 agent-gateway 暂时豁免）。 -->
+                                <haltOnFailure>true</haltOnFailure>
                                 <rules>
                                     <rule>
                                         <element>BUNDLE</element>
