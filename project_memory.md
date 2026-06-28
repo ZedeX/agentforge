@@ -1271,4 +1271,87 @@ mvn clean test jacoco:check@jacoco-check -pl agent-task-orchestrator -am -B -ntp
 
 ---
 
+## 📅 2026-06-28 会话记录：P5-1 补 agent-gateway SSE 测试 + P5-3 验证为非问题（COV-01 一票否决正式解除）
+
+### 会话目标
+用户在 v4 报告产出（80.5 分首次过线）后发出"继续"指令，按 v4 报告 §6 P5 整改 8 项优先级推进：
+- 优先完成 P5-1（补 agent-gateway SessionStreamController SSE 测试，解除 COV-01 一票否决最后一项，D2 +1.0）
+- 验证 P5-3（子模块 jacoco-check execution 继承问题）
+- 收尾 v4 报告 commit
+
+### 关键决策与产出
+
+#### v4 报告收尾 commit（6fed11e）
+- `docs/tests/tdd-audit-report-v4.md`（453 行）正式 commit 归档
+- `docs/README.md` L84 新增 v4 测试文档行，L86 测试统计 134→176 测试方法 / 4→5 模块，L88 第 4 轮审核结论段落，L96 v4 索引行 80.5/B-通过/✅ 完成
+- `project_memory.md` 追加 P3-6 + v4 会话记录（60+ 行）
+
+#### P5-1 完成（commit a0919ce）— COV-01 一票否决正式解除
+- **新增 5 个 SessionStreamController 测试方法**（211 行，agent-gateway/src/test/java/org/springframework/web/servlet/mvc/method/annotation/SessionStreamControllerTest.java）：
+  - `stream_returnsNonNullSseEmitter`：基础冒烟
+  - `stream_withValidUpstreamSse_forwardsEventsAndCompletes`：正常路径，验证 2 个 SSE 事件转发 + emitter.complete()
+  - `stream_withEventNameResetOnEmptyLine_correctlyParsed`：空行后事件名复位为 message
+  - `stream_withEmptyBody_completesWithoutEvents`：空 body 边界
+  - `stream_withUnreachableUpstream_completesWithError`：异常路径，验证 exceptionally → completeWithError
+- **测试策略**：用 JDK 内置 `com.sun.net.httpserver.HttpServer` 启动 mock SSE upstream（无需额外依赖如 WireMock）；通过 `SseEmitter.initialize(Handler)` 注册 handler 捕获 send/complete/completeWithError 事件
+- **覆盖率提升**：
+  - SessionStreamController：line 0% → 94.1%，branch 0% → 87.5%
+  - agent-gateway 整体：line 79.9% → 85.7%，branch 66% → 77.4%
+  - 阈值回调：`<jacoco.line.coverage>` 0.79 → 0.80，`<jacoco.branch.coverage>` 0.66 → 0.70
+- `mvn verify` 全绿，jacoco-check "All coverage checks have been met"，22 tests pass
+
+#### P5-3 验证为非问题（无 commit）
+- 子 Agent 在 P3-1 报告中描述"mvn verify BUILD SUCCESS 但 mvn jacoco:check@jacoco-check FAILURE"
+- 实测验证：`mvn -pl agent-task-orchestrator -am verify -B -ntp` 输出显示 `jacoco:0.8.11:check (jacoco-check) @ agent-task-orchestrator` 正常运行且 "All coverage checks have been met"，BUILD SUCCESS
+- **结论**：P5-3 是非问题。子 Agent 误判的根因是把独立调用 `mvn jacoco:check@jacoco-check`（缺少 prepare-agent 阶段生成的 `jacoco.exec` 数据文件）的失败误判为 verify 阶段问题。正常 `mvn verify` 流程 prepare-agent → test → report → check 依次执行，jacoco-check 正常运行且通过
+- **无需整改**：父 pom `<pluginManagement>` 声明 + `<plugins>` 激活的双声明机制工作正常
+
+#### 评分预估（P5-1 完成后）
+- 总分：80.5 → 81.5（D2 COV +1.0）
+- 一票否决项：1 → 0（COV-01 正式解除）
+- 项目已无任何一票否决项，达 B- 通过线
+
+### 关键技术决策与反思
+
+1. **Spring `ResponseBodyEmitter.Handler` 包级私有陷阱**：该接口在 `org.springframework.web.servlet.mvc.method.annotation` 包下为 package-private，外部包无法实现。测试必须放在同一 package 下（物理路径 `agent-gateway/src/test/java/org/springframework/web/servlet/mvc/method/annotation/`）。这是 Spring 设计有意为之，确保只有框架内部能注册 handler。
+
+2. **Handler 接口真实签名**（通过 `javap -classpath spring-webmvc-6.1.5.jar 'org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter$Handler'` 反编译发现）：
+   - `send(Object, MediaType)`
+   - `send(Set<DataWithMediaType>)`
+   - `complete()`
+   - `completeWithError(Throwable)`
+   - `onTimeout(Runnable)`
+   - `onError(Consumer<Throwable>)`
+   - `onCompletion(Runnable)`
+   - 共 7 个抽象方法。最初假设的 `send(Set, MediaType)` / `timeout()` / `error(Throwable)` 签名全错，导致编译失败 4 次。教训：不要假设 Spring 内部 API，用 javap 反编译查证
+
+3. **`SseEmitter.initialize(Handler)` 工作机制**：注册 handler 后，`emitter.send()` 调用 `handler.send(Set<DataWithMediaType>)`；`emitter.complete()` 调用 `handler.complete()`。未注册时 send 缓存到 earlyEvents，complete 仅设标志位。这一行为是测试可断言性的关键
+
+4. **JDK `com.sun.net.httpserver.HttpServer` 替代 WireMock**：内置 HTTP 服务器，`HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)` 自动分配端口，无需额外依赖。适合 mock SSE upstream 这类简单场景。生产代码不应使用（com.sun.* 是内部 API），但测试场景可接受
+
+5. **PowerShell heredoc `<<'EOF'` 不支持**：PowerShell 5.1/7 均不支持 bash 风格 heredoc。解决方案：用 `Write` 工具写入 `.git/COMMIT_MSG_*.txt`，然后 `git commit -F .git/COMMIT_MSG_*.txt`。这是 Windows 下处理多行 commit message 的稳定方法
+
+6. **PowerShell `-Dkey=value` 参数解析陷阱**：`-Dsurefire.failIfNoSpecifiedTests=false` 在 PowerShell 下，`false` 被解析为生命周期阶段，触发 `LifecyclePhaseNotFoundException`。解决方案：用双引号包裹整个参数 `"-Dsurefire.failIfNoSpecifiedTests=false"`
+
+7. **git push GFW schannel handshake 失败**（未解决）：本轮 27 个 commits（6 P2 + 19 P3 + 2 P5）因 GitHub HTTPS 在 GFW 下 schannel handshake 失败，无法 push 到远程触发 CI 实跑。已尝试 localhost:1082 / 7892 / socks5://1089 三个代理全部失败（超时 300s）。需网络恢复后 push
+
+### 给后续 Agent 的建议
+
+1. **P5-2 网络恢复后立即 push**：27 个 commits 暂存本地，push 后触发 GitHub Actions CI 实跑，累计 10 次全绿后回调 D5 CI 维度阈值（+1.0）。当前阻塞中
+
+2. **P5-3 已验证为非问题**：无需修复 jacoco-check execution 继承。父 pom 双声明机制（pluginManagement + plugins）工作正常。后续不要被独立调用 `mvn jacoco:check@jacoco-check` 的失败误导
+
+3. **P5-4 大任务（D2 +3.0）**：补 F1~F12 决策节点代码层用例（198 双分支）。这是后续提升分数的最大单项（+3.0），但工作量巨大。建议拆子 Agent 按 F1~F4 / F5~F8 / F9~F12 分组并行
+
+4. **v5 报告产出可选**：P5-1 完成后总分 80.5→81.5，一票否决 1→0。可选择产出 v5 报告记录此变化，或等 P5-2/P5-4 完成后再统一产出。建议先 push 解锁 P5-2，再决定是否产出 v5
+
+5. **本轮测试统计**：已实现 181 测试方法（v4 报告 176 + P5-1 新增 5），5 模块（agent-proto/common/gateway/session/task-orchestrator）
+
+### 推荐技能
+- P5-2 push CI: `git-commit` (网络恢复后)
+- P5-4 F1~F12 决策节点: `tdd` + `test-driven-development` + `Task`（拆子 Agent 并行）
+- v5 报告: `TRAE-code-review` + `tdd`
+
+---
+
 
