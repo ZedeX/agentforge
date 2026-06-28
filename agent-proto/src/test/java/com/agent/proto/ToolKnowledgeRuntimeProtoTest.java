@@ -3,14 +3,16 @@ package com.agent.proto;
 import agentplatform.tool.v1.*;
 import agentplatform.knowledge.v1.*;
 import agentplatform.agent_runtime.v1.*;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ToolKnowledgeRuntimeProtoTest {
 
     @Test
-    void toolInvokeRequest_carriesRiskLevelAndPromptCacheKey() throws Exception {
+    @DisplayName("ToolInvokeRequest 应携带 riskLevel 与 promptCacheKey")
+    void should_CarryRiskLevelAndPromptCacheKey_When_ToolInvokeRequestSerialized() throws Exception {
         ToolInvokeRequest req = ToolInvokeRequest.newBuilder()
                 .setCallId("call_xxx")
                 .setTaskId("tk_yyy")
@@ -23,13 +25,14 @@ class ToolKnowledgeRuntimeProtoTest {
                 .setPromptCacheKey("cache:tool:tl_query_order:u_123")
                 .build();
         ToolInvokeRequest parsed = ToolInvokeRequest.parseFrom(req.toByteArray());
-        assertEquals("call_xxx", parsed.getCallId());
-        assertEquals(1, parsed.getRiskLevel());
-        assertEquals("cache:tool:tl_query_order:u_123", parsed.getPromptCacheKey());
+        assertThat(parsed.getCallId()).isEqualTo("call_xxx");
+        assertThat(parsed.getRiskLevel()).isEqualTo(1);
+        assertThat(parsed.getPromptCacheKey()).isEqualTo("cache:tool:tl_query_order:u_123");
     }
 
     @Test
-    void toolRegistry_holdsRiskLevelAndExecutorType() throws Exception {
+    @DisplayName("ToolRegistry 应持有 riskLevel 与 executorType")
+    void should_HoldRiskLevelAndExecutorType_When_ToolRegistrySerialized() throws Exception {
         ToolRegistry reg = ToolRegistry.newBuilder()
                 .setToolId("tl_query_order")
                 .setName("query_order")
@@ -44,14 +47,15 @@ class ToolKnowledgeRuntimeProtoTest {
                 .setOutputSchemaJson("{\"type\":\"object\"}")
                 .build();
         ToolRegistry parsed = ToolRegistry.parseFrom(reg.toByteArray());
-        assertEquals("query_order", parsed.getName());
-        assertEquals(1, parsed.getRiskLevel());
-        assertEquals("proxy", parsed.getExecutorType());
-        assertEquals(5000, parsed.getTimeoutMs());
+        assertThat(parsed.getName()).isEqualTo("query_order");
+        assertThat(parsed.getRiskLevel()).isEqualTo(1);
+        assertThat(parsed.getExecutorType()).isEqualTo("proxy");
+        assertThat(parsed.getTimeoutMs()).isEqualTo(5000);
     }
 
     @Test
-    void knowledgeQuery_carriesAclRolesAndTopK() throws Exception {
+    @DisplayName("KnowledgeQuery 应携带 ACL roles 与 topK")
+    void should_CarryAclRolesAndTopK_When_KnowledgeQuerySerialized() throws Exception {
         KnowledgeQuery q = KnowledgeQuery.newBuilder()
                 .setKbId("kb_001")
                 .setQuery("退货政策是什么")
@@ -60,14 +64,15 @@ class ToolKnowledgeRuntimeProtoTest {
                 .addRoles("cs_agent")
                 .build();
         KnowledgeQuery parsed = KnowledgeQuery.parseFrom(q.toByteArray());
-        assertEquals("kb_001", parsed.getKbId());
-        assertEquals(5, parsed.getTopK());
-        assertEquals(1, parsed.getRolesCount());
-        assertEquals("cs_agent", parsed.getRoles(0));
+        assertThat(parsed.getKbId()).isEqualTo("kb_001");
+        assertThat(parsed.getTopK()).isEqualTo(5);
+        assertThat(parsed.getRolesCount()).isEqualTo(1);
+        assertThat(parsed.getRoles(0)).isEqualTo("cs_agent");
     }
 
     @Test
-    void agentState_carriesCurrentStepAndTokenUsed() throws Exception {
+    @DisplayName("AgentState 应携带 currentStep 与 tokenUsed")
+    void should_CarryCurrentStepAndTokenUsed_When_AgentStateSerialized() throws Exception {
         AgentState state = AgentState.newBuilder()
                 .setAgentInstanceId("ai_xxx")
                 .setTaskId("tk_yyy")
@@ -81,14 +86,15 @@ class ToolKnowledgeRuntimeProtoTest {
                 .setStatus("RUNNING")
                 .build();
         AgentState parsed = AgentState.parseFrom(state.toByteArray());
-        assertEquals(3, parsed.getCurrentStep());
-        assertEquals("需要先查询用户订单", parsed.getCurrentThink());
-        assertEquals(8500, parsed.getTokenUsed());
-        assertEquals("RUNNING", parsed.getStatus());
+        assertThat(parsed.getCurrentStep()).isEqualTo(3);
+        assertThat(parsed.getCurrentThink()).isEqualTo("需要先查询用户订单");
+        assertThat(parsed.getTokenUsed()).isEqualTo(8500);
+        assertThat(parsed.getStatus()).isEqualTo("RUNNING");
     }
 
     @Test
-    void startAgentRequest_carriesAllConfigFields() throws Exception {
+    @DisplayName("StartAgentRequest 应携带全部配置字段")
+    void should_CarryAllConfigFields_When_StartAgentRequestSerialized() throws Exception {
         StartAgentRequest req = StartAgentRequest.newBuilder()
                 .setTaskId("tk_yyy")
                 .setSubtaskId("st_001")
@@ -101,9 +107,9 @@ class ToolKnowledgeRuntimeProtoTest {
                 .setCostBudgetCent(5000L)
                 .build();
         StartAgentRequest parsed = StartAgentRequest.parseFrom(req.toByteArray());
-        assertEquals("st_001", parsed.getSubtaskId());
-        assertEquals(1001L, parsed.getAgentId());
-        assertEquals(10, parsed.getMaxSteps());
-        assertEquals(5000L, parsed.getCostBudgetCent());
+        assertThat(parsed.getSubtaskId()).isEqualTo("st_001");
+        assertThat(parsed.getAgentId()).isEqualTo(1001L);
+        assertThat(parsed.getMaxSteps()).isEqualTo(10);
+        assertThat(parsed.getCostBudgetCent()).isEqualTo(5000L);
     }
 }

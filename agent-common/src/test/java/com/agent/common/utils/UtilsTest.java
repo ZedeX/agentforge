@@ -3,12 +3,14 @@ package com.agent.common.utils;
 import com.agent.common.context.TraceContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UtilsTest {
 
@@ -20,56 +22,62 @@ class UtilsTest {
     // ----- JsonUtils -----
 
     @Test
-    void jsonUtils_toJsonAndFromJson_roundTripsObject() {
+    @DisplayName("JsonUtils 应能将对象与 JSON 字符串相互转换")
+    void should_RoundTripObject_When_JsonUtilsToJsonAndFromJsonInvoked() {
         Map<String, Object> data = new HashMap<>();
         data.put("name", "订单查询");
         data.put("count", 3);
         data.put("active", true);
 
         String json = JsonUtils.toJson(data);
-        assertTrue(json.contains("\"name\":\"订单查询\""));
-        assertTrue(json.contains("\"count\":3"));
-        assertTrue(json.contains("\"active\":true"));
+        assertThat(json).contains("\"name\":\"订单查询\"");
+        assertThat(json).contains("\"count\":3");
+        assertThat(json).contains("\"active\":true");
 
         Map<String, Object> parsed = JsonUtils.fromJson(json, new TypeReference<Map<String, Object>>() {});
-        assertEquals("订单查询", parsed.get("name"));
-        assertEquals(3, ((Number) parsed.get("count")).intValue());
-        assertEquals(true, parsed.get("active"));
+        assertThat(parsed.get("name")).isEqualTo("订单查询");
+        assertThat(((Number) parsed.get("count")).intValue()).isEqualTo(3);
+        assertThat(parsed.get("active")).isEqualTo(true);
     }
 
     @Test
-    void jsonUtils_toMap_convertsJsonString() {
+    @DisplayName("JsonUtils.toMap 应将 JSON 字符串转换为 Map")
+    void should_ConvertJsonString_When_JsonUtilsToMapInvoked() {
         String json = "{\"taskId\":\"tk_yyy\",\"status\":\"PENDING\"}";
         Map<String, Object> map = JsonUtils.toMap(json);
-        assertEquals("tk_yyy", map.get("taskId"));
-        assertEquals("PENDING", map.get("status"));
+        assertThat(map.get("taskId")).isEqualTo("tk_yyy");
+        assertThat(map.get("status")).isEqualTo("PENDING");
     }
 
     @Test
-    void jsonUtils_toJson_returnsNullForNull() {
-        assertNull(JsonUtils.toJson(null));
-        assertNull(JsonUtils.fromJson(null, new TypeReference<Map<String, Object>>() {}));
+    @DisplayName("JsonUtils 对 null 入参应返回 null")
+    void should_ReturnNull_When_InputIsNull() {
+        assertThat(JsonUtils.toJson(null)).isNull();
+        assertThat(JsonUtils.fromJson(null, new TypeReference<Map<String, Object>>() {})).isNull();
     }
 
     // ----- TraceUtils -----
 
     @Test
-    void traceUtils_generateTraceId_returns32CharHex() {
+    @DisplayName("TraceUtils.generateTraceId 应返回 32 位十六进制字符串")
+    void should_Return32CharHex_When_GenerateTraceIdInvoked() {
         String traceId = TraceUtils.generateTraceId();
-        assertNotNull(traceId);
-        assertEquals(32, traceId.length());
-        assertTrue(traceId.matches("[0-9a-f]{32}"));
+        assertThat(traceId).isNotNull();
+        assertThat(traceId.length()).isEqualTo(32);
+        assertThat(traceId).matches("[0-9a-f]{32}");
     }
 
     @Test
-    void traceUtils_generateTraceId_isUnique() {
+    @DisplayName("TraceUtils.generateTraceId 多次调用应返回不同结果")
+    void should_ReturnDifferentValues_When_GenerateTraceIdCalledTwice() {
         String a = TraceUtils.generateTraceId();
         String b = TraceUtils.generateTraceId();
-        assertNotEquals(a, b);
+        assertThat(a).isNotEqualTo(b);
     }
 
     @Test
-    void traceUtils_setAndGetThreadLocal_roundTrip() {
+    @DisplayName("TraceUtils 的 set 与 currentTrace 应能往返还原")
+    void should_RoundTripThreadLocal_When_SetAndCurrentTraceInvoked() {
         TraceContext ctx = TraceContext.builder()
                 .tenantId(1001L)
                 .userId("u_123")
@@ -81,52 +89,58 @@ class UtilsTest {
                 .build();
         TraceUtils.setTrace(ctx);
         TraceContext got = TraceUtils.currentTrace();
-        assertSame(ctx, got);
-        assertEquals(1001L, got.getTenantId());
-        assertEquals("trace-abc", got.getTraceId());
+        assertThat(got).isSameAs(ctx);
+        assertThat(got.getTenantId()).isEqualTo(1001L);
+        assertThat(got.getTraceId()).isEqualTo("trace-abc");
     }
 
     @Test
-    void traceUtils_currentTrace_returnsNullWhenUnset() {
-        assertNull(TraceUtils.currentTrace());
+    @DisplayName("currentTrace 在未设置时应返回 null")
+    void should_ReturnNull_When_CurrentTraceNotSet() {
+        assertThat(TraceUtils.currentTrace()).isNull();
     }
 
     @Test
-    void traceUtils_clear_removesThreadLocal() {
+    @DisplayName("TraceUtils.clear 应移除 ThreadLocal 中的 TraceContext")
+    void should_RemoveThreadLocal_When_ClearInvoked() {
         TraceContext ctx = TraceContext.builder().traceId("x").build();
         TraceUtils.setTrace(ctx);
         TraceUtils.clear();
-        assertNull(TraceUtils.currentTrace());
+        assertThat(TraceUtils.currentTrace()).isNull();
     }
 
     // ----- TokenEstimator -----
 
     @Test
-    void tokenEstimator_emptyString_returnsZero() {
-        assertEquals(0, TokenEstimator.estimateTokens(""));
-        assertEquals(0, TokenEstimator.estimateTokens(null));
+    @DisplayName("空字符串或 null 输入应返回 0 token")
+    void should_ReturnZero_When_InputIsEmpty() {
+        assertThat(TokenEstimator.estimateTokens("")).isEqualTo(0);
+        assertThat(TokenEstimator.estimateTokens(null)).isEqualTo(0);
     }
 
     @Test
-    void tokenEstimator_pureEnglish_uses4CharPerTokenHeuristic() {
+    @DisplayName("纯英文应按 4 字符/token 估算")
+    void should_Use4CharPerTokenHeuristic_When_InputIsPureEnglish() {
         // 8 个英文字符 -> 2 token（4 字符/token）
         String text = "abcdefgh";
-        assertEquals(2, TokenEstimator.estimateTokens(text));
+        assertThat(TokenEstimator.estimateTokens(text)).isEqualTo(2);
     }
 
     @Test
-    void tokenEstimator_pureChinese_applies1point7Coefficient() {
+    @DisplayName("纯中文应按 1.7 倍系数估算")
+    void should_Apply1point7Coefficient_When_InputIsPureChinese() {
         // 10 个中文字符 -> 10 * 1.7 = 17.0 -> 17 token
         String text = "智能助手查询用户订单";
-        assertEquals(10, text.length());
-        assertEquals(17, TokenEstimator.estimateTokens(text));
+        assertThat(text.length()).isEqualTo(10);
+        assertThat(TokenEstimator.estimateTokens(text)).isEqualTo(17);
     }
 
     @Test
-    void tokenEstimator_mixedContent_sumsChineseAndEnglish() {
+    @DisplayName("中英混合应将中文与英文 token 数相加")
+    void should_SumChineseAndEnglish_When_InputIsMixedContent() {
         // 3 中文 + 4 英文 = 3*1.7 + 4/4 = 5.1 + 1 = 6.1 -> 6 token
         String text = "查订单abcd";
-        assertEquals(6, TokenEstimator.estimateTokens(text));
+        assertThat(TokenEstimator.estimateTokens(text)).isEqualTo(6);
     }
 
     /**
@@ -140,12 +154,13 @@ class UtilsTest {
      * 本测试使用扩展 A 区字符 㐀㐁㐂㐃（U+3400~U+3403）验证 1.7 倍系数同样适用于扩展 A 区。</p>
      */
     @Test
-    void tokenEstimator_extensionAChinese_appliesCoefficient() {
+    @DisplayName("扩展 A 区中文字符应同样适用 1.7 倍系数")
+    void should_ApplyCoefficient_When_InputIsExtensionAChinese() {
         // 扩展 A 区 4 字符：㐀(U+3400) 㐁(U+3401) 㐂(U+3402) 㐃(U+3403)
         String text = "㐀㐁㐂㐃";
-        assertEquals(4, text.length());
+        assertThat(text.length()).isEqualTo(4);
         // 4 * 1.7 = 6.8 -> 6 token
-        assertEquals(6, TokenEstimator.estimateTokens(text));
+        assertThat(TokenEstimator.estimateTokens(text)).isEqualTo(6);
     }
 
     /**
@@ -156,21 +171,22 @@ class UtilsTest {
      * 均应被识别为中文。U+4DC0（紧邻扩展 A 区末）应被识别为非中文。</p>
      */
     @Test
-    void tokenEstimator_boundaryChars_recognizedCorrectly() {
+    @DisplayName("边界字符应被正确识别中文与非中文")
+    void should_RecognizeBoundaryCharsCorrectly_When_InputIsBoundaryChar() {
         // 基本区首字符「一」(U+4E00)
-        assertEquals(1, TokenEstimator.estimateTokens("一"));
+        assertThat(TokenEstimator.estimateTokens("一")).isEqualTo(1);
         // 基本区末字符 (U+9FFF)
         // 由于 1.7 向下取整，单字符都是 1 token
-        assertEquals(1, TokenEstimator.estimateTokens("\u9FFF"));
+        assertThat(TokenEstimator.estimateTokens("\u9FFF")).isEqualTo(1);
         // 扩展 A 区首字符 㐀 (U+3400)
-        assertEquals(1, TokenEstimator.estimateTokens("\u3400"));
+        assertThat(TokenEstimator.estimateTokens("\u3400")).isEqualTo(1);
         // 扩展 A 区末字符 (U+4DBF)
-        assertEquals(1, TokenEstimator.estimateTokens("\u4DBF"));
+        assertThat(TokenEstimator.estimateTokens("\u4DBF")).isEqualTo(1);
         // 紧邻扩展 A 区末的 U+4DC0 不在中文范围内，按 4 字符/token 算
         // 单字符：1/4=0.25 向下取整 = 0 token
-        assertEquals(0, TokenEstimator.estimateTokens("\u4DC0"));
+        assertThat(TokenEstimator.estimateTokens("\u4DC0")).isEqualTo(0);
         // 4 个 U+4DC0 字符：4/4=1.0 -> 1 token，证明按英文规则处理
-        assertEquals(1, TokenEstimator.estimateTokens("\u4DC0\u4DC0\u4DC0\u4DC0"));
+        assertThat(TokenEstimator.estimateTokens("\u4DC0\u4DC0\u4DC0\u4DC0")).isEqualTo(1);
     }
 
     /**
@@ -186,10 +202,11 @@ class UtilsTest {
      * {@code RuntimeException.class}。</p>
      */
     @Test
-    void jsonUtils_fromInvalidJson_throws() {
+    @DisplayName("非法 JSON 字符串解析时应抛 RuntimeException")
+    void should_ThrowRuntimeException_When_FromJsonReceivesInvalidJson() {
         String invalidJson = "{ this is not valid json";
-        assertThrows(RuntimeException.class,
-                () -> JsonUtils.fromJson(invalidJson, String.class));
+        assertThatThrownBy(() -> JsonUtils.fromJson(invalidJson, String.class))
+                .isInstanceOf(RuntimeException.class);
     }
 
     /**
@@ -202,9 +219,10 @@ class UtilsTest {
      * 断言类型收紧为 {@code RuntimeException.class}。</p>
      */
     @Test
-    void jsonUtils_toMapWithArrayJson_throws() {
+    @DisplayName("toMap 接收数组 JSON 时应抛 RuntimeException")
+    void should_ThrowRuntimeException_When_ToMapReceivesArrayJson() {
         String jsonArray = "[1, 2, 3]";
-        assertThrows(RuntimeException.class,
-                () -> JsonUtils.toMap(jsonArray));
+        assertThatThrownBy(() -> JsonUtils.toMap(jsonArray))
+                .isInstanceOf(RuntimeException.class);
     }
 }

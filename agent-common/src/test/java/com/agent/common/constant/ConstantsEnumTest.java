@@ -1,109 +1,122 @@
 package com.agent.common.constant;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ConstantsEnumTest {
 
     @Test
-    void taskStatus_hasAllTenStates() {
-        assertEquals(10, TaskStatus.values().length);
-        assertEquals("PENDING", TaskStatus.PENDING.name());
-        assertEquals("PLANNING", TaskStatus.PLANNING.name());
-        assertEquals("RUNNING", TaskStatus.RUNNING.name());
-        assertEquals("SUBTASK_RUNNING", TaskStatus.SUBTASK_RUNNING.name());
-        assertEquals("WAITING_HUMAN", TaskStatus.WAITING_HUMAN.name());
-        assertEquals("REPLANNING", TaskStatus.REPLANNING.name());
-        assertEquals("SUCCESS", TaskStatus.SUCCESS.name());
-        assertEquals("FAILED", TaskStatus.FAILED.name());
-        assertEquals("CANCELLED", TaskStatus.CANCELLED.name());
-        assertEquals("TIMEOUT", TaskStatus.TIMEOUT.name());
+    @DisplayName("TaskStatus 应包含全部 10 种状态")
+    void should_HaveAllTenStates_When_TaskStatusEnumerated() {
+        assertThat(TaskStatus.values().length).isEqualTo(10);
+        assertThat(TaskStatus.PENDING.name()).isEqualTo("PENDING");
+        assertThat(TaskStatus.PLANNING.name()).isEqualTo("PLANNING");
+        assertThat(TaskStatus.RUNNING.name()).isEqualTo("RUNNING");
+        assertThat(TaskStatus.SUBTASK_RUNNING.name()).isEqualTo("SUBTASK_RUNNING");
+        assertThat(TaskStatus.WAITING_HUMAN.name()).isEqualTo("WAITING_HUMAN");
+        assertThat(TaskStatus.REPLANNING.name()).isEqualTo("REPLANNING");
+        assertThat(TaskStatus.SUCCESS.name()).isEqualTo("SUCCESS");
+        assertThat(TaskStatus.FAILED.name()).isEqualTo("FAILED");
+        assertThat(TaskStatus.CANCELLED.name()).isEqualTo("CANCELLED");
+        assertThat(TaskStatus.TIMEOUT.name()).isEqualTo("TIMEOUT");
     }
 
     @Test
-    void taskStatus_isTerminal_distinguishesTerminalStates() {
-        assertTrue(TaskStatus.SUCCESS.isTerminal());
-        assertTrue(TaskStatus.FAILED.isTerminal());
-        assertTrue(TaskStatus.CANCELLED.isTerminal());
-        assertTrue(TaskStatus.TIMEOUT.isTerminal());
-        assertFalse(TaskStatus.PENDING.isTerminal());
-        assertFalse(TaskStatus.RUNNING.isTerminal());
-        assertFalse(TaskStatus.WAITING_HUMAN.isTerminal());
+    @DisplayName("TaskStatus.isTerminal 应区分终态与非终态")
+    void should_DistinguishTerminalStates_When_TaskStatusIsTerminalInvoked() {
+        assertThat(TaskStatus.SUCCESS.isTerminal()).isTrue();
+        assertThat(TaskStatus.FAILED.isTerminal()).isTrue();
+        assertThat(TaskStatus.CANCELLED.isTerminal()).isTrue();
+        assertThat(TaskStatus.TIMEOUT.isTerminal()).isTrue();
+        assertThat(TaskStatus.PENDING.isTerminal()).isFalse();
+        assertThat(TaskStatus.RUNNING.isTerminal()).isFalse();
+        assertThat(TaskStatus.WAITING_HUMAN.isTerminal()).isFalse();
     }
 
     @Test
-    void complexityLevel_l1HasCorrectRanges() {
-        assertEquals(3, ComplexityLevel.values().length);
-        assertEquals(1, ComplexityLevel.L1.getLevel());
-        assertEquals("L1", ComplexityLevel.L1.getCode());
-        assertEquals(5, ComplexityLevel.L1.getStepRange());
-        assertEquals(3, ComplexityLevel.L1.getToolRange());
-        assertEquals(500L, ComplexityLevel.L1.getCostLimitCent());
+    @DisplayName("ComplexityLevel L1 应具有正确的范围配置")
+    void should_HaveCorrectRanges_When_ComplexityLevelIsL1() {
+        assertThat(ComplexityLevel.values().length).isEqualTo(3);
+        assertThat(ComplexityLevel.L1.getLevel()).isEqualTo(1);
+        assertThat(ComplexityLevel.L1.getCode()).isEqualTo("L1");
+        assertThat(ComplexityLevel.L1.getStepRange()).isEqualTo(5);
+        assertThat(ComplexityLevel.L1.getToolRange()).isEqualTo(3);
+        assertThat(ComplexityLevel.L1.getCostLimitCent()).isEqualTo(500L);
     }
 
     @Test
-    void complexityLevel_l2HasCorrectRanges() {
-        assertEquals(2, ComplexityLevel.L2.getLevel());
-        assertEquals(10, ComplexityLevel.L2.getStepRange());
-        assertEquals(5, ComplexityLevel.L2.getToolRange());
-        assertEquals(2000L, ComplexityLevel.L2.getCostLimitCent());
+    @DisplayName("ComplexityLevel L2 应具有正确的范围配置")
+    void should_HaveCorrectRanges_When_ComplexityLevelIsL2() {
+        assertThat(ComplexityLevel.L2.getLevel()).isEqualTo(2);
+        assertThat(ComplexityLevel.L2.getStepRange()).isEqualTo(10);
+        assertThat(ComplexityLevel.L2.getToolRange()).isEqualTo(5);
+        assertThat(ComplexityLevel.L2.getCostLimitCent()).isEqualTo(2000L);
     }
 
     @Test
-    void complexityLevel_l3HasCorrectRanges() {
-        assertEquals(3, ComplexityLevel.L3.getLevel());
-        assertEquals(30, ComplexityLevel.L3.getStepRange());
-        assertEquals(10, ComplexityLevel.L3.getToolRange());
-        assertEquals(10000L, ComplexityLevel.L3.getCostLimitCent());
+    @DisplayName("ComplexityLevel L3 应具有正确的范围配置")
+    void should_HaveCorrectRanges_When_ComplexityLevelIsL3() {
+        assertThat(ComplexityLevel.L3.getLevel()).isEqualTo(3);
+        assertThat(ComplexityLevel.L3.getStepRange()).isEqualTo(30);
+        assertThat(ComplexityLevel.L3.getToolRange()).isEqualTo(10);
+        assertThat(ComplexityLevel.L3.getCostLimitCent()).isEqualTo(10000L);
     }
 
     @Test
-    void complexityLevel_fromLevel_resolvesCode() {
-        assertEquals(ComplexityLevel.L1, ComplexityLevel.fromLevel(1));
-        assertEquals(ComplexityLevel.L2, ComplexityLevel.fromLevel(2));
-        assertEquals(ComplexityLevel.L3, ComplexityLevel.fromLevel(3));
+    @DisplayName("ComplexityLevel.fromLevel 应按 level 解析对应枚举")
+    void should_ResolveCode_When_ComplexityLevelFromLevelInvoked() {
+        assertThat(ComplexityLevel.fromLevel(1)).isEqualTo(ComplexityLevel.L1);
+        assertThat(ComplexityLevel.fromLevel(2)).isEqualTo(ComplexityLevel.L2);
+        assertThat(ComplexityLevel.fromLevel(3)).isEqualTo(ComplexityLevel.L3);
     }
 
     @Test
-    void agentStatus_hasFourStatesWithCode() {
-        assertEquals(4, AgentStatus.values().length);
-        assertEquals(0, AgentStatus.DRAFT.getCode());
-        assertEquals(1, AgentStatus.ONLINE.getCode());
-        assertEquals(2, AgentStatus.OFFLINE.getCode());
-        assertEquals(3, AgentStatus.SUSPENDED.getCode());
+    @DisplayName("AgentStatus 应包含 4 种带 code 的状态")
+    void should_HaveFourStatesWithCode_When_AgentStatusEnumerated() {
+        assertThat(AgentStatus.values().length).isEqualTo(4);
+        assertThat(AgentStatus.DRAFT.getCode()).isEqualTo(0);
+        assertThat(AgentStatus.ONLINE.getCode()).isEqualTo(1);
+        assertThat(AgentStatus.OFFLINE.getCode()).isEqualTo(2);
+        assertThat(AgentStatus.SUSPENDED.getCode()).isEqualTo(3);
     }
 
     @Test
-    void agentStatus_fromCode_resolvesEnum() {
-        assertEquals(AgentStatus.DRAFT, AgentStatus.fromCode(0));
-        assertEquals(AgentStatus.ONLINE, AgentStatus.fromCode(1));
-        assertEquals(AgentStatus.OFFLINE, AgentStatus.fromCode(2));
-        assertEquals(AgentStatus.SUSPENDED, AgentStatus.fromCode(3));
+    @DisplayName("AgentStatus.fromCode 应按 code 解析对应枚举")
+    void should_ResolveEnum_When_AgentStatusFromCodeInvoked() {
+        assertThat(AgentStatus.fromCode(0)).isEqualTo(AgentStatus.DRAFT);
+        assertThat(AgentStatus.fromCode(1)).isEqualTo(AgentStatus.ONLINE);
+        assertThat(AgentStatus.fromCode(2)).isEqualTo(AgentStatus.OFFLINE);
+        assertThat(AgentStatus.fromCode(3)).isEqualTo(AgentStatus.SUSPENDED);
     }
 
     @Test
-    void riskLevel_r1HasGeneralExecutor() {
-        assertEquals(3, RiskLevel.values().length);
-        assertEquals("R1", RiskLevel.R1.getCode());
-        assertEquals(1, RiskLevel.R1.getLevel());
-        assertEquals("general", RiskLevel.R1.getExecutor());
+    @DisplayName("RiskLevel R1 应使用 general 执行器")
+    void should_HaveGeneralExecutor_When_RiskLevelIsR1() {
+        assertThat(RiskLevel.values().length).isEqualTo(3);
+        assertThat(RiskLevel.R1.getCode()).isEqualTo("R1");
+        assertThat(RiskLevel.R1.getLevel()).isEqualTo(1);
+        assertThat(RiskLevel.R1.getExecutor()).isEqualTo("general");
     }
 
     @Test
-    void riskLevel_r2HasProxyExecutor() {
-        assertEquals("R2", RiskLevel.R2.getCode());
-        assertEquals(2, RiskLevel.R2.getLevel());
-        assertEquals("proxy", RiskLevel.R2.getExecutor());
+    @DisplayName("RiskLevel R2 应使用 proxy 执行器")
+    void should_HaveProxyExecutor_When_RiskLevelIsR2() {
+        assertThat(RiskLevel.R2.getCode()).isEqualTo("R2");
+        assertThat(RiskLevel.R2.getLevel()).isEqualTo(2);
+        assertThat(RiskLevel.R2.getExecutor()).isEqualTo("proxy");
     }
 
     @Test
-    void riskLevel_r3HasSandboxExecutor() {
-        assertEquals("R3", RiskLevel.R3.getCode());
-        assertEquals(3, RiskLevel.R3.getLevel());
-        assertEquals("sandbox", RiskLevel.R3.getExecutor());
+    @DisplayName("RiskLevel R3 应使用 sandbox 执行器")
+    void should_HaveSandboxExecutor_When_RiskLevelIsR3() {
+        assertThat(RiskLevel.R3.getCode()).isEqualTo("R3");
+        assertThat(RiskLevel.R3.getLevel()).isEqualTo(3);
+        assertThat(RiskLevel.R3.getExecutor()).isEqualTo("sandbox");
     }
 
     /**
@@ -115,18 +128,20 @@ class ConstantsEnumTest {
      * 本测试同时覆盖正常解析（1/2/3）与异常分支（0/4/99）。</p>
      */
     @Test
-    void riskLevel_fromLevel_resolvesByLevel() {
-        assertEquals(RiskLevel.R1, RiskLevel.fromLevel(1));
-        assertEquals(RiskLevel.R2, RiskLevel.fromLevel(2));
-        assertEquals(RiskLevel.R3, RiskLevel.fromLevel(3));
+    @DisplayName("RiskLevel.fromLevel 应按 level 解析对应枚举")
+    void should_ResolveByLevel_When_RiskLevelFromLevelInvoked() {
+        assertThat(RiskLevel.fromLevel(1)).isEqualTo(RiskLevel.R1);
+        assertThat(RiskLevel.fromLevel(2)).isEqualTo(RiskLevel.R2);
+        assertThat(RiskLevel.fromLevel(3)).isEqualTo(RiskLevel.R3);
     }
 
     @Test
-    void riskLevel_fromLevel_unknownThrowsIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> RiskLevel.fromLevel(0));
-        assertThrows(IllegalArgumentException.class, () -> RiskLevel.fromLevel(4));
-        assertThrows(IllegalArgumentException.class, () -> RiskLevel.fromLevel(99));
-        assertThrows(IllegalArgumentException.class, () -> RiskLevel.fromLevel(-1));
+    @DisplayName("RiskLevel.fromLevel 对未知 level 应抛 IllegalArgumentException")
+    void should_ThrowIllegalArgumentException_When_RiskLevelFromLevelReceivesUnknown() {
+        assertThatThrownBy(() -> RiskLevel.fromLevel(0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RiskLevel.fromLevel(4)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RiskLevel.fromLevel(99)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RiskLevel.fromLevel(-1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
@@ -137,51 +152,47 @@ class ConstantsEnumTest {
      * 本测试覆盖全部 10 状态的合法后继集合，验证流转矩阵正确性。</p>
      */
     @Test
-    void taskStatus_getLegalNextStatuses_returnsCorrectSuccessors() {
+    @DisplayName("TaskStatus.getLegalNextStatuses 应返回正确的合法后继状态集合")
+    void should_ReturnCorrectSuccessors_When_GetLegalNextStatusesInvoked() {
         // 非终态：每个状态都有合法后继
-        assertEquals(
-                Set.of(TaskStatus.PLANNING, TaskStatus.RUNNING, TaskStatus.FAILED,
-                        TaskStatus.CANCELLED, TaskStatus.TIMEOUT),
-                TaskStatus.PENDING.getLegalNextStatuses());
-        assertEquals(
-                Set.of(TaskStatus.RUNNING, TaskStatus.WAITING_HUMAN, TaskStatus.FAILED,
-                        TaskStatus.CANCELLED, TaskStatus.TIMEOUT),
-                TaskStatus.PLANNING.getLegalNextStatuses());
-        assertEquals(
-                Set.of(TaskStatus.SUBTASK_RUNNING, TaskStatus.WAITING_HUMAN,
+        assertThat(TaskStatus.PENDING.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.PLANNING, TaskStatus.RUNNING, TaskStatus.FAILED,
+                        TaskStatus.CANCELLED, TaskStatus.TIMEOUT));
+        assertThat(TaskStatus.PLANNING.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.RUNNING, TaskStatus.WAITING_HUMAN, TaskStatus.FAILED,
+                        TaskStatus.CANCELLED, TaskStatus.TIMEOUT));
+        assertThat(TaskStatus.RUNNING.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.SUBTASK_RUNNING, TaskStatus.WAITING_HUMAN,
                         TaskStatus.REPLANNING, TaskStatus.FAILED, TaskStatus.CANCELLED,
-                        TaskStatus.TIMEOUT),
-                TaskStatus.RUNNING.getLegalNextStatuses());
-        assertEquals(
-                Set.of(TaskStatus.WAITING_HUMAN, TaskStatus.REPLANNING,
+                        TaskStatus.TIMEOUT));
+        assertThat(TaskStatus.SUBTASK_RUNNING.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.WAITING_HUMAN, TaskStatus.REPLANNING,
                         TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.CANCELLED,
-                        TaskStatus.TIMEOUT),
-                TaskStatus.SUBTASK_RUNNING.getLegalNextStatuses());
-        assertEquals(
-                Set.of(TaskStatus.RUNNING, TaskStatus.REPLANNING, TaskStatus.SUCCESS,
-                        TaskStatus.FAILED, TaskStatus.CANCELLED),
-                TaskStatus.WAITING_HUMAN.getLegalNextStatuses());
-        assertEquals(
-                Set.of(TaskStatus.RUNNING, TaskStatus.SUBTASK_RUNNING,
+                        TaskStatus.TIMEOUT));
+        assertThat(TaskStatus.WAITING_HUMAN.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.RUNNING, TaskStatus.REPLANNING, TaskStatus.SUCCESS,
+                        TaskStatus.FAILED, TaskStatus.CANCELLED));
+        assertThat(TaskStatus.REPLANNING.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.RUNNING, TaskStatus.SUBTASK_RUNNING,
                         TaskStatus.WAITING_HUMAN, TaskStatus.FAILED, TaskStatus.CANCELLED,
-                        TaskStatus.TIMEOUT),
-                TaskStatus.REPLANNING.getLegalNextStatuses());
+                        TaskStatus.TIMEOUT));
         // 终态：SUCCESS / CANCELLED 返回空集合
-        assertTrue(TaskStatus.SUCCESS.getLegalNextStatuses().isEmpty());
-        assertTrue(TaskStatus.CANCELLED.getLegalNextStatuses().isEmpty());
+        assertThat(TaskStatus.SUCCESS.getLegalNextStatuses()).isEmpty();
+        assertThat(TaskStatus.CANCELLED.getLegalNextStatuses()).isEmpty();
         // 终态但有特殊恢复路径：FAILED / TIMEOUT 可回 WAITING_HUMAN
-        assertEquals(Set.of(TaskStatus.WAITING_HUMAN),
-                TaskStatus.FAILED.getLegalNextStatuses());
-        assertEquals(Set.of(TaskStatus.WAITING_HUMAN),
-                TaskStatus.TIMEOUT.getLegalNextStatuses());
+        assertThat(TaskStatus.FAILED.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.WAITING_HUMAN));
+        assertThat(TaskStatus.TIMEOUT.getLegalNextStatuses())
+                .isEqualTo(Set.of(TaskStatus.WAITING_HUMAN));
     }
 
     @Test
-    void taskStatus_getLegalNextStatuses_isImmutable() {
+    @DisplayName("TaskStatus.getLegalNextStatuses 返回的集合应不可变")
+    void should_BeImmutable_When_GetLegalNextStatusesReturnsSet() {
         // 返回的 Set 不可被外部修改
         Set<TaskStatus> successors = TaskStatus.PENDING.getLegalNextStatuses();
-        assertThrows(UnsupportedOperationException.class,
-                () -> successors.add(TaskStatus.SUCCESS));
+        assertThatThrownBy(() -> successors.add(TaskStatus.SUCCESS))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     /**
@@ -192,10 +203,11 @@ class ConstantsEnumTest {
      * branch_missed=1。本测试覆盖异常分支。</p>
      */
     @Test
-    void complexityLevel_fromLevel_unknownThrowsIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> ComplexityLevel.fromLevel(0));
-        assertThrows(IllegalArgumentException.class, () -> ComplexityLevel.fromLevel(4));
-        assertThrows(IllegalArgumentException.class, () -> ComplexityLevel.fromLevel(99));
+    @DisplayName("ComplexityLevel.fromLevel 对未知 level 应抛 IllegalArgumentException")
+    void should_ThrowIllegalArgumentException_When_ComplexityLevelFromLevelReceivesUnknown() {
+        assertThatThrownBy(() -> ComplexityLevel.fromLevel(0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ComplexityLevel.fromLevel(4)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ComplexityLevel.fromLevel(99)).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
@@ -206,10 +218,11 @@ class ConstantsEnumTest {
      * branch_missed=1。本测试覆盖异常分支。</p>
      */
     @Test
-    void agentStatus_fromCode_unknownThrowsIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> AgentStatus.fromCode(4));
-        assertThrows(IllegalArgumentException.class, () -> AgentStatus.fromCode(5));
-        assertThrows(IllegalArgumentException.class, () -> AgentStatus.fromCode(-1));
-        assertThrows(IllegalArgumentException.class, () -> AgentStatus.fromCode(99));
+    @DisplayName("AgentStatus.fromCode 对未知 code 应抛 IllegalArgumentException")
+    void should_ThrowIllegalArgumentException_When_AgentStatusFromCodeReceivesUnknown() {
+        assertThatThrownBy(() -> AgentStatus.fromCode(4)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AgentStatus.fromCode(5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AgentStatus.fromCode(-1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AgentStatus.fromCode(99)).isInstanceOf(IllegalArgumentException.class);
     }
 }

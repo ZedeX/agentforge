@@ -3,14 +3,16 @@ package com.agent.proto;
 import agentplatform.common.v1.TraceContext;
 import agentplatform.common.v1.Error;
 import agentplatform.common.v1.Pagination;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class CommonProtoTest {
 
     @Test
-    void traceContext_canRoundTripAllFields() throws Exception {
+    @DisplayName("TraceContext 序列化后所有字段应可往返还原")
+    void should_RoundTripAllFields_When_TraceContextSerialized() throws Exception {
         TraceContext ctx = TraceContext.newBuilder()
                 .setTenantId(1001L)
                 .setUserId("u_123")
@@ -22,38 +24,40 @@ class CommonProtoTest {
                 .build();
 
         TraceContext parsed = TraceContext.parseFrom(ctx.toByteArray());
-        assertEquals(1001L, parsed.getTenantId());
-        assertEquals("u_123", parsed.getUserId());
-        assertEquals("ss_a1b2c3d4", parsed.getSessionId());
-        assertEquals("tk_yyy", parsed.getTaskId());
-        assertEquals("st_001", parsed.getSubtaskId());
-        assertEquals("trace-abc", parsed.getTraceId());
-        assertEquals("span-def", parsed.getSpanId());
+        assertThat(parsed.getTenantId()).isEqualTo(1001L);
+        assertThat(parsed.getUserId()).isEqualTo("u_123");
+        assertThat(parsed.getSessionId()).isEqualTo("ss_a1b2c3d4");
+        assertThat(parsed.getTaskId()).isEqualTo("tk_yyy");
+        assertThat(parsed.getSubtaskId()).isEqualTo("st_001");
+        assertThat(parsed.getTraceId()).isEqualTo("trace-abc");
+        assertThat(parsed.getSpanId()).isEqualTo("span-def");
     }
 
     @Test
-    void error_carriesCodeAndMessageAndDetails() throws Exception {
+    @DisplayName("Error 应携带 code、message 与 details")
+    void should_CarryCodeAndMessageAndDetails_When_ErrorSerialized() throws Exception {
         Error err = Error.newBuilder()
                 .setCode("TASK_NOT_FOUND")
                 .setMessage("任务不存在")
                 .setDetails("{\"taskId\":\"tk_xxx\"}")
                 .build();
         Error parsed = Error.parseFrom(err.toByteArray());
-        assertEquals("TASK_NOT_FOUND", parsed.getCode());
-        assertEquals("任务不存在", parsed.getMessage());
-        assertEquals("{\"taskId\":\"tk_xxx\"}", parsed.getDetails());
+        assertThat(parsed.getCode()).isEqualTo("TASK_NOT_FOUND");
+        assertThat(parsed.getMessage()).isEqualTo("任务不存在");
+        assertThat(parsed.getDetails()).isEqualTo("{\"taskId\":\"tk_xxx\"}");
     }
 
     @Test
-    void pagination_holdsPageAndSizeAndTotal() throws Exception {
+    @DisplayName("Pagination 应持有 page、size 与 total")
+    void should_HoldPageAndSizeAndTotal_When_PaginationSerialized() throws Exception {
         Pagination p = Pagination.newBuilder()
                 .setPage(1)
                 .setSize(20)
                 .setTotal(135L)
                 .build();
         Pagination parsed = Pagination.parseFrom(p.toByteArray());
-        assertEquals(1, parsed.getPage());
-        assertEquals(20, parsed.getSize());
-        assertEquals(135L, parsed.getTotal());
+        assertThat(parsed.getPage()).isEqualTo(1);
+        assertThat(parsed.getSize()).isEqualTo(20);
+        assertThat(parsed.getTotal()).isEqualTo(135L);
     }
 }
