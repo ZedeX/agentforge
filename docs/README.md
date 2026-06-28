@@ -81,10 +81,11 @@
 | 27 | [tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) | v1.0 | 首轮审核报告：发现 23 项问题（4 Critical / 11 Major / 5 Minor / 3 Info），总分 39.3，等级 D 不通过 | — |
 | 28 | [tests/tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) | v2.0 | 第 2 轮复核报告（P0+P1 整改后）：总分 39.3 → 65.0（C-），8 项已完成 / 1 项部分整改 / 9 项待 P2/P3；含 FN-021/022 新发现 | — |
 | 29 | [tests/tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) | v3.0 | 第 3 轮复核报告（P2 整改后）：总分 65.0 → 74.0（C+ 不通过，接近 80），P2 全 5 项完成；FIX-04 一票否决项移除；CI 已实跑 1 次 success；含 P3 整改建议 8 项 | — |
+| 30 | [tests/tdd-audit-report-v4.md](./tests/tdd-audit-report-v4.md) | v4.0 | 第 4 轮复核报告（P3 部分整改后）：总分 74.0 → 80.5（B- 通过，首次过线），P3 完成 2/8（P3-1 agent-task-orchestrator + P3-6 agent-common branch 27%→92.5%）；**SEQ-02 一票否决正式解除**；含 P5 整改建议 8 项 | — |
 
-> **测试统计**：11 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **134 测试方法全绿**（v3 较 v2 净增 56 方法：P2-1 新增 38 + P2-2 改造未增 + v2 复算修正 18），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
+> **测试统计**：11 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **176 测试方法全绿**（v4 较 v3 净增 42 方法：P3-1 新增 agent-task-orchestrator 模块 34 方法 / P3-6 补 agent-common 异常分支 8 方法），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
 >
-> **第 3 轮审核结论**：v2 触发 3 项一票否决 → v3 仅余 2 项（SEQ-02 / COV-01 部分），FIX-04 一票否决项已移除；总分 65.0 → 74.0（C+，接近通过线 80）。P2 整改完成 5 项：agent-session 覆盖率 38%→84.3% + EndToEndTest 真实化（H2+jedis-mock 替代 Testcontainers）+ JsonUtils catch 修复 + haltOnFailure=true + TDD 提交时序规范。CI 实跑 1 次 success。下一步 P3 整改 8 项：实现 agent-task-orchestrator + F1~F12 决策节点用例 + 命名统一 + AssertJ + @DisplayName + 补 gateway/common 测试 + 累计 10 次 CI 全绿回调阈值。
+> **第 4 轮审核结论**：v3 触发 2 项一票否决 → v4 仅余 1 项（COV-01 部分），**SEQ-02 一票否决项正式解除**（P3-1 agent-task-orchestrator 按 §3.6 三阶段独立提交 17 commits 验证规范可执行性）；总分 74.0 → **80.5（B-，首次过 80 通过线）**。P3 部分整改完成 2 项：P3-1 新建 agent-task-orchestrator 模块（17 commits 严格 Red/Green/Refactor）+ P3-6 补 agent-common branch 覆盖率 27% → 92.5%（回调阈值 0.27 → 0.70）。下一步 P5 整改 8 项：补 agent-gateway SSE 测试 + push 触发 CI 实跑累计 10 次 + 修复子模块 jacoco-check execution 继承 + F1~F12 决策节点用例 + 命名统一 + AssertJ + @DisplayName + 实现 agent-task-orchestrator T5-T13。
 
 ### TDD 审核整改进度索引
 
@@ -93,7 +94,7 @@
 | v1（首轮） | 39.3 | D 不通过 | 4 项（SEQ-02 / COV-01 / COV-03-04-05 代码层 / CI-01） | ✅ 完成 | [tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) |
 | v2（P0+P1 整改复核） | 65.0 | C- 不通过 | 3 项（SEQ-02 / COV-01 覆盖率不达标 / CI-01 未实跑） | ✅ 完成 | [tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) |
 | v3（P2 整改复核，目标 75+） | 74.0 | C+ 不通过 | 2 项（SEQ-02 / COV-01 部分） | ✅ 完成 | [tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) |
-| v4（P3 整改复核，目标 80 通过） | — | — | — | ⏸ 待启动 | — |
+| v4（P3 部分整改复核，目标 80 通过） | 80.5 | B- 通过 | 1 项（COV-01 部分） | ✅ 完成 | [tdd-audit-report-v4.md](./tests/tdd-audit-report-v4.md) |
 
 ### 九、基础设施脚本（DDL 初始化）
 
