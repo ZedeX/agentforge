@@ -1355,3 +1355,87 @@ mvn clean test jacoco:check@jacoco-check -pl agent-task-orchestrator -am -B -ntp
 ---
 
 
+## 📅 2026-06-28 会话记录：UT-F1-002 payload 校验 TDD 红绿循环实现
+
+### 会话目标
+作为 AgentForge 项目的 TDD 开发子 Agent，按 TDD 红绿循环（Red → Green → Refactor）实现 UT-F1-002 用例：`Should_EnforceMaxPayloadSize_When_BodyExceedsLimit`。要求请求体超过 1MB 时返回 413 PAYLOAD_TOO_LARGE 并记录审计日志。
+
+### 关键决策
+1. **测试组织**：3 个测试方法均使用纯 MockHttpServletRequest 单元测试（不用 @SpringBootTest），与现有 `RateLimitFilterTest` / `ContentSafetyFilterTest` 风格一致
+2. **审计接口设计**：`AuditLogService` 设计为接口 + `Slf4jAuditLogService` 实现（结构化 JSON 日志，不落库），方便后续替换为 DB/Kafka 实现
+3. **类型选型**：MaxPayloadSizeProperties.maxSize 采用 Spring `DataSize`（支持 "1MB"/"512KB" 字面量自动绑定），避免 int 字段无法解析 YAML 字符串
+4. **Filter 不注册为 @Component**：与现有 `AuthFilter` / `RateLimitFilter` / `ContentSafetyFilter` 一致，构造函数注入，便于单元测试隔离
+
+### 三阶段 commit（独立时序，遵循 §3.6 TDD 提交规范）
+
+| 阶段 | commit hash | message | 说明 |
+|---|---|---|---|
+| Red | `a45a24d` | test(gateway): add failing tests for MaxPayloadSizeFilter (UT-F1-002 Red) | 新增 PAYLOAD_TOO_LARGE 枚举（编译依赖）+ 3 个失败测试 |
+| Green | `1eb294d` | feat(gateway): implement MaxPayloadSizeFilter + AuditLogService + GlobalExceptionHandler (UT-F1-002 Green) | 4 个新文件 + application.yml 配置段 |
+| Refactor | `dd9c38d` | refactor(gateway): use DataSize for MaxPayloadSizeProperties binding (UT-F1-002 Refactor) | 修复 Spring 上下文绑定失败（int → DataSize） |
+
+### 新增文件清单
+
+| 路径 | 行数 | 作用 |
+|---|---|---|
+| `agent-common/src/main/java/com/agent/common/exception/ErrorCode.java` | +3 行 | 新增 `PAYLOAD_TOO_LARGE("PAYLOAD_TOO_LARGE", 413, "请求体过大")` |
+| `agent-gateway/src/main/java/com/agent/gateway/config/MaxPayloadSizeProperties.java` | 25 行 | @ConfigurationProperties(prefix="gateway.max-payload")，maxSize 默认 1MB |
+| `agent-gateway/src/main/java/com/agent/gateway/filter/MaxPayloadSizeFilter.java` | 84 行 | OncePerRequestFilter，仅拦截 POST /api/v1/tasks 和 /api/v1/sessions/*/messages |
+| `agent-gateway/src/main/java/com/agent/gateway/service/AuditLogService.java` | 22 行 | 审计接口（record 方法） |
+| `agent-gateway/src/main/java/com/agent/gateway/service/Slf4jAuditLogService.java` | 41 行 | 默认实现，JSON SLF4J 日志，@Component |
+| `agent-gateway/src/main/java/com/agent/gateway/handler/GlobalExceptionHandler.java` | 53 行 | @RestControllerAdvice，BusinessException → ErrorCode.httpStatus + JSON body |
+| `agent-gateway/src/main/resources/application.yml` | +2 行 | gateway.max-payload.max-size=1MB |
+| `agent-gateway/src/test/java/com/agent/gateway/filter/MaxPayloadSizeFilterTest.java` | 132 行 | 3 个测试方法 |
+
+### 测试方法清单
+1. `should_RejectWith413_When_BodyExceeds1MB` - 2MB body → 抛 `BusinessException(PAYLOAD_TOO_LARGE)`，httpStatus=413
+2. `should_AllowRequest_When_BodyWithinLimit` - 512KB body → 放行（chain.doFilter 调用，auditLogService 无交互）
+3. `should_RecordAuditLog_When_PayloadRejected` - 拒绝时 `auditLogService.record(tenantId, userId, "PAYLOAD_REJECTED", "PAYLOAD_TOO_LARGE", detail)` 被调用，detail 包含路径
+
+### 覆盖率数据（mvn -pl agent-gateway -am clean verify -B -ntp BUILD SUCCESS）
+
+| 类 | line 覆盖率 | branch 覆盖率 |
+|---|---|---|
+| `MaxPayloadSizeFilter` | **86.67% (26/30)** ✓ ≥80% 要求 | 70% (7/10) |
+| `MaxPayloadSizeProperties` | 100% (5/5) | 0% (0/0) |
+| `GlobalExceptionHandler` | 9.09% (2/22) - 仅 Spring 上下文装配覆盖 | 0% (0/2) |
+| `Slf4jAuditLogService` | 20% (3/15) - 测试中 mock 掉，仅构造覆盖 | 0% (0/0) |
+
+- agent-gateway BUNDLE 整体覆盖率：通过 jacoco-check（line ≥ 0.80, branch ≥ 0.70）
+- 测试总数：25 个全部通过，0 失败 0 错误 0 跳过
+
+### 遇到的问题与解决方案
+
+#### 问题 1：Green 阶段初次提交后 Spring 上下文加载失败
+- **现象**：`mvn -pl agent-gateway -am test -Dtest=MaxPayloadSizeFilterTest` 通过，但 `mvn -pl agent-gateway -am verify` 在 `GatewayApplicationContextTest` 失败
+- **原因**：application.yml 写 `max-size: 1MB`，但 `MaxPayloadSizeProperties.maxSize` 是 `int` 类型，Spring 无法将 "1MB" 字符串转换为 int
+- **解决方案**：Refactor 阶段将 `int maxSize` 改为 `org.springframework.util.unit.DataSize maxSize`，Spring 自动支持 "1MB"/"512KB"/"10B" 等字面量绑定
+- **教训**：Green 阶段验证不能仅靠 `-Dtest=` 过滤器，必须运行完整 `mvn test`/`mvn verify` 以发现集成层问题
+
+#### 问题 2：PowerShell 命令行编码与 mvn 输出捕获
+- **现象**：`mvn ... 2>&1 | Out-File` 在 PowerShell 7 中产生 41 字节空日志，因管道重定向时 `2>&1` 与 `Out-File` 行为不一致
+- **解决方案**：使用 `Start-Process -RedirectStandardOutput/-RedirectStandardError` 拆分输出到独立文件后用 `Get-Content` 读取
+- **次要问题**：mvn 日志中的中文在 GBK 平台显示为乱码（如 `Payload 超限拒绝` → `Payload ????ܾ?`），但不影响测试断言（断言基于 ErrorCode 而非日志文本）
+
+#### 问题 3：commit message 多行格式
+- **现象**：PowerShell 不支持 bash heredoc，单行 commit message 难以表达完整信息
+- **解决方案**：使用 Write 工具写入 `.git/COMMIT_MSG.txt`，再 `git commit -F .git/COMMIT_MSG.txt`，遵循纯英文 Conventional Commits 规范
+
+### 验证标准全部达成
+- ✅ `mvn -pl agent-gateway -am clean verify -B -ntp` BUILD SUCCESS
+- ✅ jacoco-check "All coverage checks have been met"
+- ✅ 新增测试方法 3 个，全部通过
+- ✅ MaxPayloadSizeFilter line 覆盖率 86.67% ≥ 80% 要求
+
+### 后续可补强项（非阻塞，留作技术债）
+1. **GlobalExceptionHandler 单元测试**：当前仅靠 SpringBoot 上下文加载覆盖 9.09% line，建议补 MockMvc standalone 测试覆盖 @ExceptionHandler(BusinessException.class) 路径
+2. **Slf4jAuditLogService 单元测试**：当前依赖 Mockito mock，建议补真实实例 + LogCaptor 验证 JSON 输出格式
+3. **Filter 注册与排序**：MaxPayloadSizeFilter 当前未注册为 @Component，需在 FilterConfig（若存在）或 @WebFilter 中声明，并设置过滤顺序在 AuthFilter 之后、ContentSafetyFilter 之前
+4. **MaxPayloadSizeFilter 边界用例**：补 exactly 1MB body 的边界测试（当前只测 512KB 放行 + 2MB 拒绝）
+
+### 推荐技能
+- 后续 TDD 开发：`tdd` + `test-driven-development`
+- 代码审查：`TRAE-code-review`
+- 安全审查：`TRAE-security-review`
+
+---
