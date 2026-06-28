@@ -26,11 +26,12 @@
         <jackson.version>2.16.1</jackson.version>
         <junit.version>5.10.2</junit.version>
         <mockito.version>5.11.0</mockito.version>
-        <!-- P2-4 整改: agent-common 当前 line 86% / branch 27% 暂不达标,
-             主要拉低项为 TraceContext (62 branches 未覆盖, 骨架代码待后续完善测试) 与 RiskLevel (4 branches 未覆盖)。
-             待后续 P3 阶段补 TraceContext/RiskLevel 测试后回调到 0.80/0.70。见 v3 报告说明。 -->
+        <!-- P3-6 整改: 补 RiskLevel.fromLevel/TaskStatus.getLegalNextStatuses/ComplexityLevel/
+             AgentStatus/TokenEstimator 扩展 A 区边界测试后, agent-common branch 覆盖率从 27% → 92.5%。
+             剩余 2 missed branches 为 JsonUtils 多 catch (Exception | Error) 字节码双分支,
+             无法通过测试覆盖另一分支, 留作已知限制。回调阈值到 0.70 达标。 -->
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
-        <jacoco.branch.coverage>0.27</jacoco.branch.coverage>
+        <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
     </properties>
 
     <dependencies>
