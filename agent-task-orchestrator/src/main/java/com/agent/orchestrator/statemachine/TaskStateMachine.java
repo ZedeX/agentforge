@@ -4,9 +4,6 @@ import com.agent.common.constant.TaskStatus;
 import com.agent.common.exception.BusinessException;
 import com.agent.common.exception.ErrorCode;
 
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -16,19 +13,11 @@ import java.util.Set;
  * REPLANNING / SUCCESS / FAILED / CANCELLED / TIMEOUT。
  * 终态：SUCCESS / FAILED / CANCELLED / TIMEOUT。</p>
  *
- * <p>合法流转矩阵（详见 doc §6.2 表格）：</p>
- * <ul>
- *   <li>PENDING → PLANNING, RUNNING(L1跳规划), FAILED, CANCELLED, TIMEOUT</li>
- *   <li>PLANNING → RUNNING, WAITING_HUMAN, FAILED, CANCELLED, TIMEOUT</li>
- *   <li>RUNNING → SUBTASK_RUNNING, WAITING_HUMAN, REPLANNING, FAILED, CANCELLED, TIMEOUT</li>
- *   <li>SUBTASK_RUNNING → WAITING_HUMAN, REPLANNING, SUCCESS, FAILED, CANCELLED, TIMEOUT</li>
- *   <li>WAITING_HUMAN → RUNNING(人工恢复), REPLANNING(人工触发), SUCCESS(人工确认), FAILED, CANCELLED</li>
- *   <li>REPLANNING → RUNNING(全量重规划完成), SUBTASK_RUNNING(增量完成继续跑), WAITING_HUMAN(熔断), FAILED, CANCELLED, TIMEOUT</li>
- *   <li>FAILED → WAITING_HUMAN(人工申诉)</li>
- *   <li>TIMEOUT → WAITING_HUMAN(人工申诉)</li>
- * </ul>
+ * <p>合法流转矩阵由 {@link TaskStatus#getLegalNextStatuses()} 直接提供，
+ * 状态机类无需重复维护映射表，仅负责校验与执行。</p>
  *
- * <p>禁止流转：所有未列出的转换均非法，特别是：</p>
+ * <p>禁止流转：所有未在 {@link TaskStatus#getLegalNextStatuses()} 中列出的转换均非法，
+ * 特别是：</p>
  * <ul>
  *   <li>任何终态 → 非终态（除 FAILED/TIMEOUT → WAITING_HUMAN 的申诉路径）</li>
  *   <li>SUCCESS → 任何状态</li>
@@ -38,16 +27,6 @@ import java.util.Set;
 public class TaskStateMachine {
 
     /**
-     * 状态流转矩阵：fromStatus -> Set&lt;legalToStatus&gt;。
-     * 私有不可变，构造时一次性初始化。
-     */
-    private final Map<TaskStatus, Set<TaskStatus>> transitionMatrix;
-
-    public TaskStateMachine() {
-        this.transitionMatrix = buildTransitionMatrix();
-    }
-
-    /**
      * 校验 from → to 是否合法（不实际执行状态变更）。
      *
      * @param from 当前状态
@@ -55,10 +34,10 @@ public class TaskStateMachine {
      * @return true 若转换合法；false 若非法
      */
     public boolean canTransitTo(TaskStatus from, TaskStatus to) {
-        Set<TaskStatus> legalTargets = transitionMatrix.get(from);
-        if (legalTargets == null) {
+        if (from == null || to == null) {
             return false;
         }
+        Set<TaskStatus> legalTargets = from.getLegalNextStatuses();
         return legalTargets.contains(to);
     }
 
@@ -76,77 +55,5 @@ public class TaskStateMachine {
                     "非法状态转换: " + from + " → " + to);
         }
         return to;
-    }
-
-    /**
-     * 构建状态流转矩阵，对齐 doc 03-task-engine §6.2 表格。
-     */
-    private static Map<TaskStatus, Set<TaskStatus>> buildTransitionMatrix() {
-        Map<TaskStatus, Set<TaskStatus>> matrix = new EnumMap<>(TaskStatus.class);
-
-        // PENDING → PLANNING, RUNNING(L1跳规划), FAILED, CANCELLED, TIMEOUT
-        matrix.put(TaskStatus.PENDING, EnumSet.of(
-                TaskStatus.PLANNING,
-                TaskStatus.RUNNING,
-                TaskStatus.FAILED,
-                TaskStatus.CANCELLED,
-                TaskStatus.TIMEOUT));
-
-        // PLANNING → RUNNING, WAITING_HUMAN, FAILED, CANCELLED, TIMEOUT
-        matrix.put(TaskStatus.PLANNING, EnumSet.of(
-                TaskStatus.RUNNING,
-                TaskStatus.WAITING_HUMAN,
-                TaskStatus.FAILED,
-                TaskStatus.CANCELLED,
-                TaskStatus.TIMEOUT));
-
-        // RUNNING → SUBTASK_RUNNING, WAITING_HUMAN, REPLANNING, FAILED, CANCELLED, TIMEOUT
-        matrix.put(TaskStatus.RUNNING, EnumSet.of(
-                TaskStatus.SUBTASK_RUNNING,
-                TaskStatus.WAITING_HUMAN,
-                TaskStatus.REPLANNING,
-                TaskStatus.FAILED,
-                TaskStatus.CANCELLED,
-                TaskStatus.TIMEOUT));
-
-        // SUBTASK_RUNNING → WAITING_HUMAN, REPLANNING, SUCCESS, FAILED, CANCELLED, TIMEOUT
-        matrix.put(TaskStatus.SUBTASK_RUNNING, EnumSet.of(
-                TaskStatus.WAITING_HUMAN,
-                TaskStatus.REPLANNING,
-                TaskStatus.SUCCESS,
-                TaskStatus.FAILED,
-                TaskStatus.CANCELLED,
-                TaskStatus.TIMEOUT));
-
-        // WAITING_HUMAN → RUNNING(人工恢复), REPLANNING(人工触发), SUCCESS(人工确认), FAILED, CANCELLED
-        matrix.put(TaskStatus.WAITING_HUMAN, EnumSet.of(
-                TaskStatus.RUNNING,
-                TaskStatus.REPLANNING,
-                TaskStatus.SUCCESS,
-                TaskStatus.FAILED,
-                TaskStatus.CANCELLED));
-
-        // REPLANNING → RUNNING(全量重规划完成), SUBTASK_RUNNING(增量完成继续跑), WAITING_HUMAN(熔断), FAILED, CANCELLED, TIMEOUT
-        matrix.put(TaskStatus.REPLANNING, EnumSet.of(
-                TaskStatus.RUNNING,
-                TaskStatus.SUBTASK_RUNNING,
-                TaskStatus.WAITING_HUMAN,
-                TaskStatus.FAILED,
-                TaskStatus.CANCELLED,
-                TaskStatus.TIMEOUT));
-
-        // SUCCESS → (无，终态)
-        matrix.put(TaskStatus.SUCCESS, EnumSet.noneOf(TaskStatus.class));
-
-        // FAILED → WAITING_HUMAN(人工申诉)
-        matrix.put(TaskStatus.FAILED, EnumSet.of(TaskStatus.WAITING_HUMAN));
-
-        // CANCELLED → (无，终态)
-        matrix.put(TaskStatus.CANCELLED, EnumSet.noneOf(TaskStatus.class));
-
-        // TIMEOUT → WAITING_HUMAN(人工申诉)
-        matrix.put(TaskStatus.TIMEOUT, EnumSet.of(TaskStatus.WAITING_HUMAN));
-
-        return matrix;
     }
 }
