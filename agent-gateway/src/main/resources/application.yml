@@ -23,6 +23,16 @@ spring:
       write-dates-as-timestamps: false
 
 grpc:
+  server:
+    port: 9091
+    # UT-F1-001: mTLS 双向证书认证配置（生产环境启用）
+    # 当前测试阶段仅做协议适配，mTLS 握手不在单测覆盖范围；
+    # 部署时取消注释并填写证书路径以强制客户端证书校验。
+    # security:
+    #   certificateChain: classpath:certs/server.crt
+    #   privateKey: classpath:certs/server.key
+    #   trustCertCollection: classpath:certs/trusted-clients.crt
+    #   clientAuth: REQUIRE
   client:
     task-orchestrator:
       address: static://localhost:9090

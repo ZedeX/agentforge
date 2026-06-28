@@ -17,6 +17,13 @@ public class TaskCreateRequest {
     private Boolean async = false;
     private Long costLimitCent;
 
+    /**
+     * UT-F1-001: 内部调用标记。
+     * - REST 入口构造的 TaskCreateRequest 默认 false（走 JWT/API-Key 鉴权）
+     * - gRPC 内部调用经 ProtocolAdapter.adapt() 适配后置 true（走 mTLS，跳过 JWT）
+     */
+    private Boolean internal = false;
+
     public String getType() {
         return type;
     }
@@ -71,5 +78,13 @@ public class TaskCreateRequest {
 
     public void setCostLimitCent(Long costLimitCent) {
         this.costLimitCent = costLimitCent;
+    }
+
+    public Boolean getInternal() {
+        return internal;
+    }
+
+    public void setInternal(Boolean internal) {
+        this.internal = internal;
     }
 }
