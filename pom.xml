@@ -175,6 +175,14 @@
                 <version>${awaitility.version}</version>
                 <scope>test</scope>
             </dependency>
+            <!-- AssertJ: fluent assertion library (P6-4 整改, ref tdd-audit-report-v5.md)
+                 Spring Boot 3.2.5 BOM 已管理版本, 子模块按需声明 scope=test -->
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
