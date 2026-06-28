@@ -47,6 +47,8 @@ gateway:
     paths:
       - /api/v1/health
       - "POST /api/v1/sessions"
+  max-payload:
+    max-size: 1MB
 
 logging:
   level:
