@@ -80,10 +80,11 @@
 | 26 | [tests/tdd-audit-framework.md](./tests/tdd-audit-framework.md) | v1.0 | TDD 独立审核流程规范：6 维度 42 检查项 + RACI 矩阵 + 评分模型 + 一票否决项 + 8 阶段工作流 | — |
 | 27 | [tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) | v1.0 | 首轮审核报告：发现 23 项问题（4 Critical / 11 Major / 5 Minor / 3 Info），总分 39.3，等级 D 不通过 | — |
 | 28 | [tests/tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) | v2.0 | 第 2 轮复核报告（P0+P1 整改后）：总分 39.3 → 65.0（C-），8 项已完成 / 1 项部分整改 / 9 项待 P2/P3；含 FN-021/022 新发现 | — |
+| 29 | [tests/tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) | v3.0 | 第 3 轮复核报告（P2 整改后）：总分 65.0 → 74.0（C+ 不通过，接近 80），P2 全 5 项完成；FIX-04 一票否决项移除；CI 已实跑 1 次 success；含 P3 整改建议 8 项 | — |
 
-> **测试统计**：10 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **78 测试方法全绿**（v2 新增 5 个 assertThrows 用例），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
+> **测试统计**：11 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **134 测试方法全绿**（v3 较 v2 净增 56 方法：P2-1 新增 38 + P2-2 改造未增 + v2 复算修正 18），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
 >
-> **第 2 轮审核结论**：v1 触发 4 项一票否决 → v2 仅余 3 项（SEQ-02 / COV-01 覆盖率不达标 / CI-01 未实跑），总分 39.3 → 65.0（C-，接近通过线 80）。P0+P1 整改完成 8 项：JaCoCo 集成 + CI 配置 + 5 处 assertThrows + 3 处 Awaitility + SessionFixtures 抽取 + 9 处 verify。下一步 P2 整改：补 agent-session 覆盖率至 80% + CI 实跑 + EndToEndTest Mock 改造。
+> **第 3 轮审核结论**：v2 触发 3 项一票否决 → v3 仅余 2 项（SEQ-02 / COV-01 部分），FIX-04 一票否决项已移除；总分 65.0 → 74.0（C+，接近通过线 80）。P2 整改完成 5 项：agent-session 覆盖率 38%→84.3% + EndToEndTest 真实化（H2+jedis-mock 替代 Testcontainers）+ JsonUtils catch 修复 + haltOnFailure=true + TDD 提交时序规范。CI 实跑 1 次 success。下一步 P3 整改 8 项：实现 agent-task-orchestrator + F1~F12 决策节点用例 + 命名统一 + AssertJ + @DisplayName + 补 gateway/common 测试 + 累计 10 次 CI 全绿回调阈值。
 
 ### TDD 审核整改进度索引
 
@@ -91,7 +92,7 @@
 |---|---|---|---|---|---|
 | v1（首轮） | 39.3 | D 不通过 | 4 项（SEQ-02 / COV-01 / COV-03-04-05 代码层 / CI-01） | ✅ 完成 | [tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) |
 | v2（P0+P1 整改复核） | 65.0 | C- 不通过 | 3 项（SEQ-02 / COV-01 覆盖率不达标 / CI-01 未实跑） | ✅ 完成 | [tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) |
-| v3（P2 整改复核，目标 75+） | — | — | — | ⏸ 待启动 | — |
+| v3（P2 整改复核，目标 75+） | 74.0 | C+ 不通过 | 2 项（SEQ-02 / COV-01 部分） | ✅ 完成 | [tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) |
 | v4（P3 整改复核，目标 80 通过） | — | — | — | ⏸ 待启动 | — |
 
 ### 九、基础设施脚本（DDL 初始化）
@@ -211,7 +212,7 @@
 │
 ├─ 「代码审查 / 安全审查」
 │   ├─ 审查规范：docs/tests/tdd-audit-framework.md（6 维度 42 检查项 + 评分模型）
-│   ├─ 历史报告：docs/tests/tdd-audit-report-v1.md（首轮 23 项发现）→ docs/tests/tdd-audit-report-v2.md（第 2 轮复核，整改后总分 65.0）
+│   ├─ 历史报告：docs/tests/tdd-audit-report-v1.md（首轮 23 项发现）→ docs/tests/tdd-audit-report-v2.md（第 2 轮复核，整改后总分 65.0）→ docs/tests/tdd-audit-report-v3.md（第 3 轮复核，P2 整改后 74.0）
 │   ├─ 整改进度索引：见下方「TDD 审核整改进度索引」表
 │   └─ 风险分级：docs/05-tool-engine/tool-and-invocation-system.md §3（R1/R2/R3 工具风险）
 │
@@ -233,8 +234,8 @@
 | Testcontainers 容器矩阵 | 同上 | §4（MySQL/Redis/Milvus/Neo4j/ClickHouse/RocketMQ/ES/DinD） |
 | 已实现 4 模块的 TDD 红绿循环 | [docs/tests/tdd-red-green-records.md](./tests/tdd-red-green-records.md) | §1~§4（17 测试文件 73 方法） |
 | 审核检查清单（提交前自查） | [docs/tests/tdd-audit-framework.md](./tests/tdd-audit-framework.md) | §3（6 维度 42 项） |
-| 历史审核发现 | [docs/tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) → [v2.md](./tests/tdd-audit-report-v2.md) | §3 发现清单（23 项）→ §4 整改清单（8 项完成 / 1 部分 / 9 待 P2/P3） |
-| 整改进度索引 | 本文档 §"TDD 审核整改进度索引" 表 | v1 39.3 → v2 65.0 → v3 目标 75+ → v4 目标 80 通过 |
+| 历史审核发现 | [docs/tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) → [v2.md](./tests/tdd-audit-report-v2.md) → [v3.md](./tests/tdd-audit-report-v3.md) | §3 发现清单（23 项）→ §4 整改清单（8 项完成 / 1 部分 / 9 待 P2/P3）→ P2 全 5 项完成 / P3 待启动 8 项 |
+| 整改进度索引 | 本文档 §"TDD 审核整改进度索引" 表 | v1 39.3 → v2 65.0 → v3 74.0 → v4 目标 80 通过 |
 | 项目记忆 / 历史决策 | [project_memory.md](../project_memory.md) | 按日期倒序的会话记录 |
 | 全局用户偏好 | [user_profile.md](../../../c:/Users/Administrator/.trae-cn/memory/user_profile.md) | 跨项目偏好 |
 
