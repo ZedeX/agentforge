@@ -12,7 +12,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthFilterTest {
 
@@ -93,5 +95,35 @@ class AuthFilterTest {
         authFilter.doFilter(req, resp, chain);
 
         assertEquals(HttpServletResponse.SC_OK, resp.getStatus());
+    }
+
+    // UT-F1-001: 内部 gRPC 调用判定（用于跳过 JWT 走 mTLS 链路）
+    @Test
+    void shouldIdentifyInternalGrpcCallWhenHeaderPresent() {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/tasks");
+        req.addHeader("X-Internal-Source", "grpc");
+
+        boolean result = authFilter.isInternalGrpcCall(req);
+
+        assertTrue(result, "携带 X-Internal-Source=grpc 头时应识别为内部 gRPC 调用");
+    }
+
+    @Test
+    void shouldNotIdentifyInternalGrpcCallWhenHeaderMissing() {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/tasks");
+
+        boolean result = authFilter.isInternalGrpcCall(req);
+
+        assertFalse(result, "无内部来源头时应识别为非内部 gRPC 调用");
+    }
+
+    @Test
+    void shouldNotIdentifyInternalGrpcCallWhenHeaderNotGrpc() {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/tasks");
+        req.addHeader("X-Internal-Source", "rest");
+
+        boolean result = authFilter.isInternalGrpcCall(req);
+
+        assertFalse(result, "X-Internal-Source 非 grpc 值时应识别为非内部 gRPC 调用");
     }
 }
