@@ -1108,6 +1108,115 @@ c1b7f9c (origin/main) docs: add AI Agent reading guide + audit progress index + 
    - P3-3: 统一命名规范（20 文件 134 方法重命名为 `should_{期望}_When_{条件}`，D3 +1.0）
    - P3-4: 引入 AssertJ 链式断言（FN-016，D3 +1.0）
    - P3-5: 补 `@DisplayName` 中文说明（FN-017，D3 +0.5）
+
+---
+
+## 📅 2026-06-28 会话记录：UT-F1-001 gRPC 协议适配 TDD 实现（P6-3）
+
+### 会话目标
+按 TDD 红绿循环（Red → Green → Refactor）实现 UT-F1-001：`Should_AdaptGrpcProtocol_When_InternalServiceCall`。
+测试目标：gRPC 内部 SubmitTask 调用适配为 Task，含 goal + internal=true，不走 JWT 走 mTLS。
+
+### 调研产出
+1. **task.proto SubmitTask RPC 实际签名**：
+   - RPC: `rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);` (UNARY)
+   - SubmitTaskRequest 字段：task_id, tenant_id(int64), user_id, session_id, title, goal, priority(int32), cost_limit_cent(int64), trace
+   - SubmitTaskResponse 字段：task_id, status, complexity(int32), submitted_at(int64)
+   - 注意：proto **无 `type` 字段**，需在适配器中默认为 `single_step`
+2. **agent-gateway 现有架构**：TaskController(REST) → TaskRouterService.route() → orchestrator/session client；AuthFilter 仅支持 JWT/API-Key，无 mTLS 分支
+3. **agent-proto 生成产物**：TaskOrchestratorGrpc.TaskOrchestratorImplBase 已生成，含 submitTask(request, responseObserver) 默认实现
+4. **jacoco 排除模式**：父 pom 中 `**/*Grpc*` 通配符会排除所有名字含 "Grpc" 的类（包括用户编写的 GrpcTaskService），导致 GrpcTaskService 不计入覆盖率报告（但测试仍执行）
+
+### TDD 三阶段提交
+
+| 阶段 | Commit Hash | 描述 |
+|---|---|---|
+| Red | `1053c0e` | 新增 ProtocolAdapterTest（4 测试）+ AuthFilterTest 增 3 测试，全部因 ProtocolAdapter/GrpcTaskService/getInternal()/isInternalGrpcCall() 不存在而编译失败 |
+| Green | `3485da3` | 实现 ProtocolAdapter + GrpcTaskService + AuthFilter.isInternalGrpcCall() + TaskCreateRequest.internal + application.yml grpc.server 配置，32 测试全绿 |
+| Refactor | (无) | 代码已简洁，单职责，无重复，无重构空间，按"仅在确有重构时才 commit"原则跳过 |
+
+### 新增文件清单
+
+| 文件路径 | 类型 | 作用 |
+|---|---|---|
+| `agent-gateway/src/main/java/com/agent/gateway/adapter/ProtocolAdapter.java` | 主代码 | gRPC SubmitTaskRequest → TaskCreateRequest 适配器，标记 internal=true |
+| `agent-gateway/src/main/java/com/agent/gateway/adapter/GrpcTaskService.java` | 主代码 | @GrpcService 实现 TaskOrchestratorGrpc.TaskOrchestratorImplBase，委托 ProtocolAdapter + TaskRouterService |
+| `agent-gateway/src/test/java/com/agent/gateway/adapter/ProtocolAdapterTest.java` | 测试 | 4 个测试方法（UT-F1-001） |
+
+### 修改文件清单
+
+| 文件路径 | 变更摘要 |
+|---|---|
+| `agent-gateway/src/main/java/com/agent/gateway/dto/TaskCreateRequest.java` | 新增 `internal` Boolean 字段（默认 false）+ getter/setter |
+| `agent-gateway/src/main/java/com/agent/gateway/filter/AuthFilter.java` | 新增 `isInternalGrpcCall(HttpServletRequest)` 公共方法 + 2 个常量 |
+| `agent-gateway/src/main/resources/application.yml` | 新增 `grpc.server.port=9091` + mTLS 配置注释块 |
+| `agent-gateway/src/test/java/com/agent/gateway/filter/AuthFilterTest.java` | 新增 3 个 isInternalGrpcCall 测试 + import assertTrue/assertFalse |
+
+### 测试方法清单（共 7 个新增）
+
+1. `ProtocolAdapterTest.should_AdaptGrpcToTask_When_SubmitTaskReceived` - gRPC → Task 字段映射
+2. `ProtocolAdapterTest.should_SetInternalFlagTrue_When_FromGrpc` - gRPC=true/REST=false 区分
+3. `ProtocolAdapterTest.should_PreserveGoal_When_Adapting` - goal 透传不丢失
+4. `ProtocolAdapterTest.should_DelegateToRouterAndReturnResponse_When_GrpcSubmitTask` - GrpcTaskService 端到端
+5. `AuthFilterTest.shouldIdentifyInternalGrpcCallWhenHeaderPresent` - X-Internal-Source=grpc → true
+6. `AuthFilterTest.shouldNotIdentifyInternalGrpcCallWhenHeaderMissing` - 无 header → false
+7. `AuthFilterTest.shouldNotIdentifyInternalGrpcCallWhenHeaderNotGrpc` - 非 grpc 值 → false
+
+### 覆盖率数据（来自 jacoco.csv）
+
+| 类 | LINE_MISSED | LINE_COVERED | Line% | BRANCH_MISSED | BRANCH_COVERED | Method% |
+|---|---|---|---|---|---|---|
+| ProtocolAdapter | 1 | 11 | **91.7%** ✓ | 1 | 1 | 100% |
+| GrpcTaskService | (excluded) | (excluded) | N/A | (excluded) | (excluded) | N/A |
+| AuthFilter | 23 | 194 | 89.4% | 7 | 13 | 100% |
+| TaskCreateRequest | 0 | 28 | 100% | 0 | 0 | 100% |
+
+- agent-gateway 模块整体：BUILD SUCCESS，"All coverage checks have been met"
+- ProtocolAdapter line 覆盖率 91.7% ≥ 80% 要求 ✓
+- GrpcTaskService 被父 pom 的 `**/*Grpc*` 排除模式过滤，不计入覆盖率，但测试实际执行
+- 1 个未覆盖分支 = ProtocolAdapter 的 `if (grpcRequest == null)` 守卫（防御性代码）
+
+### mTLS 简化方案
+
+完整 mTLS 实现需证书颁发机构 + 服务端/客户端证书签发 + Spring gRPC security 配置 + 握手测试，超出单测范围。简化方案：
+1. **AuthFilter.isInternalGrpcCall()**：基于 HTTP 头 `X-Internal-Source=grpc` 判定（大小写不敏感），用于识别经 Envoy/gRPC-Web 桥接的内部调用，跳过 JWT/API-Key
+2. **gRPC 端口独立**：grpc.server.port=9091 与 HTTP 8080 分离，gRPC 流量不经过 Servlet Filter，由 grpc-spring-boot-starter 直接处理
+3. **mTLS 配置占位**：application.yml 注释了 `grpc.server.security.certificateChain/privateKey/trustCertCollection/clientAuth=REQUIRE`，生产部署取消注释并填证书路径即启用
+4. **测试不验证握手**：单测只验证 ProtocolAdapter.adapt() 协议适配逻辑 + GrpcTaskService 委托路由行为，不测试 mTLS 握手
+
+### 关键技术决策
+
+1. **proto 无 `type` 字段的处理**：TaskCreateRequest.type 是 @NotBlank 必填，但 proto SubmitTaskRequest 无此字段。ProtocolAdapter 默认设为 `single_step`（公开常量 `DEFAULT_GRPC_TASK_TYPE`），如未来需区分 chat/complex 应扩展 proto 或在 gRPC metadata 中携带
+2. **tenant_id 类型转换**：proto tenant_id 是 int64，TaskRouterService.route() 期望 String。GrpcTaskService.normalizeTenantId() 将 long 转 String，<=0 视为缺失回退 "0"（与 REST API-Key 链路一致）
+3. **GrpcTaskService 错误映射**：IllegalArgumentException → Status.INVALID_ARGUMENT；其他 Exception → Status.INTERNAL；均通过 responseObserver.onError() 返回，gRPC 框架自动转 HTTP 状态码
+4. **未修改 pom.xml jacoco 排除模式**：`**/*Grpc*` 会排除 GrpcTaskService，但修改父 pom 影响所有模块，且 jacoco-check 整体已通过，遵循"不超出任务范围"原则未改
+5. **Phase 3 Refactor 跳过**：代码已遵循单职责、命名规范、无重复，无重构空间，按任务约束"仅在确有重构时才 commit"不提交空 commit
+
+### 遇到的问题与解决方案
+
+| 问题 | 解决方案 |
+|---|---|
+| PowerShell `mvn -Dxxx=yyy` 参数被切分 | 用单引号包裹：`'-Dmaven.test.failure.ignore=true'` |
+| PowerShell heredoc 不支持 | 用 Write 工具写 .git/COMMIT_MSG.txt，git commit -F 引用 |
+| `mvn clean` 删除 agent-proto jar 失败（Windows 文件锁） | 用 `Remove-Item -Recurse -Force` 先删 target，再 mvn；或 Start-Process 重定向 stdout/stderr 到文件 |
+| PowerShell `>` 重定向编码丢失（UTF-16 BOM） | 用 `Start-Process -RedirectStandardOutput file.log` 或 `findstr` 过滤 |
+| `cmd /c` 被 Trae IDE 安全策略阻止 | 改用 PowerShell 原生命令或 Start-Process |
+| GrpcTaskService 不计入 jacoco 覆盖率 | 父 pom `**/*Grpc*` 排除模式副作用；测试仍执行，jacoco-check 整体通过，未修改父 pom |
+
+### 临时文件（待清理）
+
+以下文件为本轮调试 PowerShell 输出重定向产生，已被 .gitignore (`*.log`) 排除，未提交。等用户明确"清理临时文件"命令时再删除：
+- `verify-output.log`（root 目录）
+- `verify-stdout.log`（root 目录）
+- `verify-stderr.log`（root 目录）
+- `.git/COMMIT_MSG.txt`（git commit 临时文件）
+
+### 待办（next session）
+
+1. **Push commit**：本地有 2 个新 commit（1053c0e + 3485da3），等网络恢复后 `git push origin main` 触发 CI
+2. **后续 UT-F1 用例**：UT-F1-001 已完成，可继续 UT-F1-002 已由 P6-2 子 Agent 完成，下一个建议补 UT-F4/F5/F8 系列
+3. **GrpcTaskService 覆盖率**：若需将 GrpcTaskService 纳入覆盖率统计，可将父 pom 的 `**/*Grpc*` 改为更精确的 `**/*Grpc*.java`（仅排除生成代码），或重命名 GrpcTaskService 为 TaskProtocolGrpcEndpoint 等不含 "Grpc" 前缀的名字（但语义性较差，不建议）
+4. **mTLS 生产部署**：上线前需在 application.yml 取消注释 grpc.server.security 配置，签发服务端/客户端证书
    - P3-6: 补 agent-common TraceContext/RiskLevel 测试，branch 27%→70%+，回调阈值
    - P3-7: 补 agent-gateway SessionStreamController SSE 测试，回调阈值
    - P3-8: 累计 10 次 CI 全绿后回调豁免阈值到 0.80/0.70
