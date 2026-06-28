@@ -111,7 +111,7 @@
         <module>agent-gateway</module>
         <module>agent-session</module>
         <!-- Phase C4: core engine layer (待后续编码) -->
-        <!-- <module>agent-task-orchestrator</module> -->
+        <module>agent-task-orchestrator</module>
         <!-- <module>agent-planning</module> -->
         <!-- <module>agent-memory</module> -->
         <!-- <module>agent-tool-engine</module> -->
