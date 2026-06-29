@@ -32,3 +32,18 @@ grpc:
 logging:
   level:
     com.agent.orchestrator: DEBUG
+
+# T11: RocketMQ 集成（4 Topic: execute/done/state-change/cancel）
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: orchestrator-producer
+    send-message-timeout: 5000
+  orchestrator:
+    topics:
+      subtask-execute: task.subtask.execute
+      subtask-done: task.subtask.done
+      state-change: task.state.change
+      subtask-cancel: task.subtask.cancel
+    groups:
+      orchestrator-consumer: orchestrator-cg
