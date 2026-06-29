@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.agentforge</groupId>
+        <artifactId>agentforge-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>agent-tool-engine</artifactId>
+    <packaging>jar</packaging>
+    <name>agent-tool-engine</name>
+    <description>Agent Platform Tool Engine (F8 tool invoke: registry / risk / sandbox / audit)</description>
+
+    <properties>
+        <!-- P7-3 skeleton: F8 decision node minimal skeleton, threshold aligned with root pom -->
+        <jacoco.line.coverage>0.80</jacoco.line.coverage>
+        <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
+    </properties>
+
+    <dependencies>
+        <!-- Test dependencies: junit5 + mockito + assertj bundled in starter-test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- AssertJ: explicit declaration for fluent assertions (aligned with agent-common pattern) -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

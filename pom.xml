@@ -113,8 +113,11 @@
         <!-- Phase C4: core engine layer (待后续编码) -->
         <module>agent-task-orchestrator</module>
         <!-- <module>agent-planning</module> -->
-        <!-- <module>agent-memory</module> -->
-        <!-- <module>agent-tool-engine</module> -->
+        <!-- P7-3: F8/F10/F11/F12 决策节点最小骨架 (POJO + interface + 测试) -->
+        <module>agent-tool-engine</module>
+        <module>hallucination-governance</module>
+        <module>drift-monitor</module>
+        <module>agent-memory</module>
         <!-- <module>agent-runtime</module> -->
         <!-- <module>agent-model-gateway</module> -->
         <!-- <module>agent-repo</module> -->
