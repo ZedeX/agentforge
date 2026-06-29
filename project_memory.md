@@ -2176,3 +2176,161 @@ mvn -pl agent-task-orchestrator -am test -Dsurefire.failIfNoSpecifiedTests=false
 5. **PowerShell 多行字符串处理**: 子 Agent 用 PowerShell 写多行内容到文件时，`\t`/`\n`/`\v` 会被解释为转义字符。建议子 Agent 直接用 Write 工具而非 PowerShell here-string。
 
 ---
+
+## 📅 2026-06-29 P6-2 F4/F5 决策节点补强（4 条用例）
+
+### 会话目标
+按 `docs/tests/unit-test-cases.md` §18.2（F4 子任务分发）和 §18.3（F5 动态重规划）补 4 条决策节点代码层用例，提升 F4.D7/D8 与 F5.D3/D4 决策节点覆盖率。
+
+### 工作内容
+新建 2 个独立测试类（便于追踪 F1~F12 决策节点覆盖），未修改任何 main 源文件、pom.xml、application.yml。
+
+| 文件 | 用例 ID | 用例名 | 覆盖情况 |
+|---|---|---|---|
+| `agent-task-orchestrator/src/test/java/com/agent/orchestrator/dag/F4DecisionNodeTest.java` | UT-F4-001 | should_MarkSkipped_When_NodeConditionNotMet | 新增 |
+| 同上 | UT-F4-002 | should_TimeoutSubtask_When_DurationExceedsMax | 新增 |
+| `agent-task-orchestrator/src/test/java/com/agent/orchestrator/replanner/F5DecisionNodeTest.java` | UT-F5-001 | should_FallbackToFullReplan_When_IncrementalInfeasible | 新增（精确组合 failed=3/others invalid，与 ReplanModeSelectorTest 既有 failed=3/other=true 和 failed=1/other=false 交叉） |
+| 同上 | UT-F5-002 | should_AbortTask_When_ReplanAndCostBothExhausted | 新增（双耗尽组合，既有测试只单独覆盖 replan 超限或 cost 超限） |
+
+### 关键技术决策
+1. **F4 决策节点依赖未实现组件**：DagNode 当前无 `condition` 字段，main 源文件无 `ConditionEvaluator`（F4.D7）和 `SubtaskTimeoutMonitor`（F4.D8）。按任务约束"不要新增 main 源文件"，在测试类内部用 helper 模拟决策逻辑（`evaluateCondition` 解析 `if(field>number)` 表达式 + `parseOutputs` 解析极简 JSON），验证 DagGraph 结构层面（下游入度不变）与 TaskStateMachine 状态层面（SUBTASK_RUNNING→TIMEOUT 合法 + TIMEOUT→WAITING_HUMAN 重规划路径合法）的可观测行为。javadoc 标注"后续实现 ConditionEvaluator 后应迁移至 main"。
+
+2. **F5-001 精确输入组合**：§18.3 指定 `failed_count=3, others invalid`。现有 `ReplanModeSelectorTest.should_SelectFullReplan_When_MajoritySubtasksFail` 是 failed=3/other=true（触发"失败过半"规则），`should_SelectFullReplan_When_OtherOutputsInvalid` 是 failed=1/other=false（触发"默认 FULL"规则）。本用例补 failed=3/total=5/other=false 的精确组合，验证"失败过半 + 其余无效"同时命中时返回 FULL，并在 javadoc 标注与既有测试的交叉关系，避免重复造轮子。
+
+3. **F5-002 双耗尽组合**：`replan_count=3 > max_replan=2` 触发 `REPLAN_EXHAUSTED`，`cost_used=12000 > cost_limit=10000` 触发 `COST_BUDGET_EXCEEDED`，双触发 → FAILED 终态。现有 `ReplanModeSelectorTest` 只单独测 replan 超限（抛异常或返回 ABORT），`SubtaskDoneHandlerTest` 只单独测 cost 超限（转 TIMEOUT）。本用例用真实 `ReplanModeSelector` + `TaskStateMachine` 验证 SUBTASK_RUNNING→FAILED 合法流转 + FAILED.isTerminal()=true，并模拟设置 errorCode 记录双触发原因。javadoc 标注"生产实现应由 DualExhaustionChecker 组合两个错误码"。
+
+4. **真实组件而非 mock**：F5 测试类直接用真实 `ReplanModeSelector` 和 `TaskStateMachine`（纯函数式组件，无外部依赖），验证决策节点在边界场景下的可观测行为，比 mock 更能反映真实逻辑。
+
+### 验证结果
+- **F4/F5 单独运行**：`mvn -pl agent-task-orchestrator -am test -Dtest=F4DecisionNodeTest,F5DecisionNodeTest -Dsurefire.failIfNoSpecifiedTests=false` → 4 tests, 0 failures, BUILD SUCCESS
+- **全量回归**：`mvn -pl agent-task-orchestrator -am test -Dsurefire.failIfNoSpecifiedTests=false` → 164 tests（160 既有 + 4 新增）, 0 failures, BUILD SUCCESS
+  - F4DecisionNodeTest: 2 tests ✅
+  - F5DecisionNodeTest: 2 tests ✅
+  - 既有 160 测试全绿，无回归破坏
+
+### 未 commit
+按任务约束"不要 commit 或 push（留给主 Agent）"，4 条用例已落盘但未 commit。主 Agent 可直接 `git add` 两个新测试文件并 commit，建议 commit message：
+`test(task-orchestrator): add P6-2 F4/F5 decision node tests (UT-F4-001/002, UT-F5-001/002)`
+
+### 后续待办
+- 实现 `ConditionEvaluator`（F4.D7）和 `SubtaskTimeoutMonitor`（F4.D8）后，迁移 F4DecisionNodeTest 的 helper 至 main 源文件
+- 实现 `DualExhaustionChecker`（F5.D4+F4.D9）后，F5-002 可改为对真实组件的验证
+- P6-2 其他决策节点（F2/F3/F6~F12）仍依赖未实现模块，后续大任务
+
+---
+
+## 📅 2026-06-29 20:50 P6-3/4/5 三模块整改状态核验（agent-proto / agent-gateway / agent-session）
+
+### 会话目标
+按主 Agent 派单对 agent-proto / agent-gateway / agent-session 三个模块执行 P6-3/4/5 测试代码风格整改（snake_case 命名 / AssertJ 替换 JUnit / 中文 @DisplayName）。
+
+### 关键发现：整改工作已在更早的两次 commit 中完成
+
+| 模块 | 整改 commit | 时间 | 说明 |
+|---|---|---|---|
+| agent-proto | `5f6ac26 test(proto,common): apply P6-3/4/5 refactor` | 2026-06-28 22:37:55 | 4 文件 16 测试，与 agent-common 一同整改 |
+| agent-gateway | `f5b4d05 test(gateway,session,task-orchestrator): apply P6-3/4/5 refactor` | 2026-06-29 12:05:27 | 8 文件 32 测试 |
+| agent-session | `f5b4d05`（同上） | 2026-06-29 12:05:27 | 8 文件 62 测试 |
+
+### 核验基线（grep 统计）
+
+| 模块 | @Test 数 | should_*_When_* 命名 | @DisplayName 中文 | JUnit assertions 残留 | AssertJ 用量 |
+|---|---|---|---|---|---|
+| agent-proto | 16 | 16 ✅ | 16 ✅ | 0 ✅ | 68 |
+| agent-gateway | 32 | 32 ✅ | 32 ✅ | 0 ✅ | 70 |
+| agent-session | 62 | 62 ✅ | 62 ✅ | 0 ✅（仅 javadoc 注释中提及 assertThrows 字样，非代码） | 128 |
+
+> 注：早期 grep `@Test` 出现 33/35/64/68 等偏大数字，因 `@TestPropertySource` / `@Testcontainers` / Javadoc 中 `should_Xxx_When_Yyy` 字符串也被计入，实际 @Test 方法数分别为 16 / 32 / 62。
+
+### 抽样核验（Read 4 个代表文件，确认全部符合 P6-3/4/5）
+
+- `agent-proto/src/test/java/com/agent/proto/CommonProtoTest.java`：3 个 @Test 全部 `should_*_When_*` + 中文 @DisplayName + `assertThat`
+- `agent-gateway/src/test/java/com/agent/gateway/filter/AuthFilterTest.java`：8 个 @Test 全部合规
+- `agent-session/src/test/java/com/agent/session/controller/SessionControllerTest.java`：9 个 @Test 全部合规
+- `agent-session/src/test/java/com/agent/session/repository/SessionRepositoryTest.java`：5 个 @Test 全部合规
+- `agent-session/src/test/java/com/agent/session/service/ShortTermMemoryServiceTest.java`：5 个 @Test 全部合规
+
+### mvn test 结果
+
+`cmd /c mvn -pl agent-proto,agent-gateway,agent-session -am test -B -ntp`
+
+| 模块 | Tests run | Failures | Errors | Skipped | 状态 |
+|---|---|---|---|---|---|
+| agent-proto | 16 | 0 | 0 | 0 | ✅ SUCCESS |
+| agent-common（依赖） | 73 | 0 | 0 | 0 | ✅ SUCCESS |
+| agent-gateway | 32 | 0 | 0 | 0 | ✅ SUCCESS |
+| agent-session | 54 | 0 | 2 | 0 | ⚠️ 2 个 Docker 依赖错误 |
+| **合计** | **175** | **0** | **2** | **0** | — |
+
+### 2 个 Errors 的根因（非整改引入）
+
+- `com.agent.session.repository.SessionRepositoryTest` → `IllegalState: Could not find a valid Docker environment`
+- `com.agent.session.service.ShortTermMemoryServiceTest` → `IllegalState: Previous attempts to find a Docker environment failed`
+
+这两个测试类均带 `@Testcontainers` 注解（分别依赖 `MySQLContainer` 和 `RedisContainer`），本机无 Docker 时必然报错。f5b4d05 的 commit message 已明确说明 "2 session tests skipped (SessionRepositoryTest, ShortTermMemoryServiceTest) due to Docker/Testcontainers dependency (environment issue, not refactor-introduced)"。本次 Read 验证两文件 P6-3/4/5 整改已全部到位（命名 / 断言 / @DisplayName 均合规），与 Docker 无关。
+
+### 未 commit（无代码改动）
+
+本次任务为状态核验，未修改任何 agent-proto / agent-gateway / agent-session 测试源文件——三个模块的整改早已包含在 commit `5f6ac26` 与 `f5b4d05` 中，无需重复整改，也无需新增 commit。仅本核验记录追加到 project_memory.md（与上文 P6-2 F4/F5 记录一同保留，留待主 Agent 决定何时 commit）。
+
+### 给主 Agent 的建议
+
+1. 如需在 GitHub 上同步 P6-3/4/5 整改成果，直接 `git push` 即可（commits 5f6ac26 + f5b4d05 已在本地 main 上）。
+2. agent-session 的 2 个 Testcontainers 失败属于环境问题，不影响 P6-3/4/5 整改合规性，可在有 Docker 的环境上回归。
+3. 后续如需补 P6 其他清单项，可参考 docs/tests/tdd-audit-report-v5.md §6。
+
+---
+
+## 2026-06-29 覆盖率 debt 修复：补 6 类单元测试（T7/T11 遗留）
+
+**作用**：记录 JaCoCo 覆盖率 debt 修复过程，补齐 T7/T11 新增的 6 个 0% 覆盖率类的单元测试，使 `mvn verify` 的 JaCoCo check 通过 80% line / 70% branch 阈值。
+
+### 任务背景
+- 起因：`mvn verify` 在 JaCoCo check 阶段失败，T7/T11 新增的 6 个类覆盖率 0%，拉低整体覆盖率低于阈值。
+- 范围：agent-task-orchestrator 模块，4 个 MQ Producer/Consumer + 2 个 Mapper，共 6 个测试文件。
+
+### 新增测试文件（6 个）
+
+#### MQ 包（4 个）
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/mq/SubtaskExecuteProducerTest.java`
+  - 6 个 @Test：dispatch 返回 msgId / 保留预填元数据 / destination 构造 topic:tenantId / keys 头 taskId:nodeId / 默认 topic / syncSend 异常透传
+  - 验证 syncSend 参数 (5000L, 3) 与 TAGS 头设置
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/mq/SubtaskCancelProducerTest.java`
+  - 5 个 @Test：cancel 返回 msgId / 保留预填元数据 / destination 构造 / keys 头不含 TAGS / 异常透传
+  - 验证 syncSend 参数 (5000L, 2)
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/mq/StateChangeProducerTest.java`
+  - 6 个 @Test：broadcast 返回 msgId + 自动填充 createdAt / 保留预填 createdAt / destination / keys 头 taskId:fromStatus->toStatus / 默认 topic / 异常透传
+  - 验证 syncSend 参数 (3000L, 1)
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/mq/SubtaskDoneConsumerTest.java`
+  - 6 个 @Test：委托 handler.handle / 正常完成 / RuntimeException 重抛 / IllegalArgumentException 重抛 / eventId null 委托 / NPE 异常类型保留
+
+#### planning.grpc 包（2 个）
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/planning/grpc/DagJsonMapperTest.java`
+  - 22 个 @Test：覆盖 toDagJson（正常/null/空列表/单边/序列化失败兜底）、fromDagJsonNodes（合法/null/空/无字段/非数组/非法/多节点）、fromDagJsonEdges（同维度）、往返测试、注入构造器
+  - 关键发现：DagEdge 覆写 getNodeId() 返回 parentNodeId 是设计固有问题，序列化输出 nodeId 字段但反序列化找不到 setNodeId，故 Edges 往返不可行，已用手工 JSON 测试覆盖
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/planning/grpc/AssessResultMapperTest.java`
+  - 12 个 @Test：toAssessResponse L1→1 / L2→2 / L3→3 / level null 抛 IllegalArgumentException / reason null 转 "" / tags null 转空列表 / 双 null / 空 tags 列表
+  - toNumeric L1/L2/L3 + 一致性校验
+
+### API 签名发现
+任务描述中给出的方法名与实际源码不符，按源码修正：
+- `DagJsonMapper`：实际是 `toDagJson(nodes, edges)` / `fromDagJsonNodes(json)` / `fromDagJsonEdges(json)`，非 `toJson/fromJson`
+- `AssessResultMapper`：实际是 `toAssessResponse(level, reason, tags)` / `toNumeric(level)`，非 `toProto/fromProto`
+
+### 验证结果
+- **单独跑**：6 个测试类 57 个 @Test 全绿，BUILD SUCCESS
+- **全量回归**：agent-task-orchestrator 模块 221 tests（164 + 57 新增）全绿，0 failures / 0 errors / 0 skipped
+- **mvn verify**：BUILD SUCCESS，JaCoCo check 通过（agent-proto / agent-common / agent-task-orchestrator 三模块均无 violation）
+- 测试统计：SubtaskExecuteProducerTest 6 + SubtaskCancelProducerTest 5 + StateChangeProducerTest 6 + SubtaskDoneConsumerTest 6 + DagJsonMapperTest 22 + AssessResultMapperTest 12 = 57 新增
+
+### 测试规范遵循
+- 方法名 `should_X_When_Y` snake_case ✓
+- `@DisplayName("中文说明")` ✓
+- `@MockitoSettings(strictness = Strictness.LENIENT)` + `@ExtendWith(MockitoExtension.class)` ✓
+- AssertJ `assertThat` / `assertThatThrownBy` / `assertThatCode` ✓
+- Producer 测试：`mock(SendResult.class)` + ArgumentCaptor 验证 Message headers ✓
+- Consumer 测试：`doThrow` 验证委托 + 异常重抛 ✓
+- Mapper 测试：`new DagJsonMapper()` 真实对象，注入 mock ObjectMapper 测试序列化失败分支 ✓
+
+### 关键 commit
+- 待主 Agent 提交（本次未 commit，按任务约束留给主 Agent）
