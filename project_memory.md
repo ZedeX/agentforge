@@ -2104,3 +2104,75 @@ mvn -pl agent-task-orchestrator -am test-compile -B -ntp
 - 代码审查: `TRAE-code-review`
 
 ---
+
+## 2026-06-29 23:30 — P6-6 Wave 2 全部完成（主 Agent 总结）
+
+**执行者**: 主 Agent (GLM-5.2)
+**任务**: 接手 T7 子 Agent 被 killed 后的验证工作 + 推进 T5/T7/T11/T13 全部 commit + push + 派发 T11/T13 子 Agent 并行实施
+
+### 本轮成果（8 个 commit 全部 push 到 main）
+
+| commit | type | 说明 |
+|---|---|---|
+| `6dd6334` | feat | T5 TaskOrchestrator gRPC 服务（4 文件，13 tests） |
+| `0210c56` | feat | T7 PlanningService gRPC 服务（4 文件，14 tests） |
+| `2258fe0` | docs | T5/T7 project_memory 记录 + 修复 PowerShell 转义瑕疵 |
+| `8cc0f0b` | feat | T11 RocketMQ 集成（11 文件，10 tests） |
+| `d2c11a5` | docs | T11 project_memory 记录 |
+| `c942812` | test | T13 E2E 集成测试（1 文件，6 tests） |
+| `8fd4892` | docs | T13 project_memory 记录 |
+
+### 关键决策
+
+1. **T7 子 Agent 被 killed 后的恢复**: T7 子 Agent（agentId c7c6c048）在输出"现在我已经掌握了所有必要信息。让我来创建这 4 个文件。"后被 killed，但文件系统显示 4 个文件实际已创建完整。主 Agent 接手后：① 用 Glob 验证 4 个文件存在；② 用 Grep 统计 @Test 数量（14 个）；③ 跑 `mvn test -Dtest=PlanningServiceGrpcImplTest` 验证 14 tests 全绿；④ commit 0210c56。
+
+2. **并行派发 T11 + T13 子 Agent**: T5/T7 完成后，主 Agent 派 T11 子 Agent（agentId 210ddca6）后台运行 RocketMQ 集成；T11 完成后立即派 T13 子 Agent（agentId 8186190d）后台运行 E2E 集成测试。两个子 Agent 均独立完成全部工作并自验证测试通过。
+
+3. **GitHub 网络间歇性故障处理**: 用户报告"github暂时连不上"，主 Agent 先 commit 到本地（符合用户指令"先commit到本地暂存吧"）。网络恢复时立即 push（`ae5a020..2258fe0`），后续又断过一次，最终所有 8 个 commit 全部 push 成功（`2258fe0..8fd4892`）。push 命令用 `git -c http.proxy= -c https.proxy= push origin main` 绕过损坏的本地代理直连 GitHub。
+
+4. **PowerShell 转义瑕疵修复**: T5 子 Agent 在 project_memory.md 留下 4 处 PowerShell 多行字符串转义问题（`\t` 被解释为 tab、`\n` 被解释为换行、`\v` 被吃前缀字符）：
+   - `gent-task-orchestrator` → `agent-task-orchestrator`（4 处）
+   - `  r.isPassed() →   r.isAllPass()` → `vr.isPassed() → vr.isAllPass()`
+   - `\new ValidationResult(...)` → `new ValidationResult(...)`
+   - `\transitIfPossible/ToWithAck/ForTimeout` → `transitIfPossible/ToWithAck/ForTimeout`
+   主 Agent 用 Edit 工具逐处修复。
+
+### 全量回归验证（最终状态）
+
+```
+mvn -pl agent-task-orchestrator -am test -Dsurefire.failIfNoSpecifiedTests=false
+[INFO] Tests run: 160, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+**测试明细**:
+- agent-proto: 16 tests
+- agent-common: 73 tests
+- agent-task-orchestrator: 160 tests（含 T5 13 + T7 14 + T11 10 + T13 6 = 43 新测试 + 既有 117 测试）
+
+### P6-6 Wave 2 完成度
+
+| Task | 状态 | 测试数 | commit |
+|---|---|---|---|
+| T5 TaskOrchestrator gRPC | ✅ 完成 | 13 | 6dd6334 |
+| T7 PlanningService gRPC | ✅ 完成 | 14 | 0210c56 |
+| T11 RocketMQ 集成 | ✅ 完成 | 10 | 8cc0f0b |
+| T13 E2E 集成测试 | ✅ 完成 | 6 | c942812 |
+| **合计** | **4/4 完成** | **43 新测试** | **4 个功能 commit** |
+
+### 待办
+
+- ⏸ **P6-1 CI 验证**: ae5a020 + 8 个新 commit 已 push，GitHub Actions 应已触发，可检查 CI 状态
+- ⏸ **P6-2 F2~F12**: 依赖 9 个未实现模块（agent-repo / model-gateway / agent-runtime / observability 等），后续大任务
+- ⏸ **v6 报告产出**（可选）: P6-6 Wave 2 完成后可产出 v6 审核报告记录此次变化
+- 📋 **Plan 04 后续**: Plan 04 的 T5/T7/T11/T13 全部完成，Plan 04 可标记为已完成
+
+### 关键经验教训
+
+1. **子 Agent 被 killed 不等于工作失败**: T7 子 Agent 被 killed 但文件已写完，主 Agent 接手验证即可，不必重新派子 Agent。
+2. **Plan 代码骨架的 API 签名不匹配是常态**: T5 修正 4 处，T11 修正 1 处（@MockitoSettings 语法），T13 修正 4 处。子 Agent 需要先 Grep/Read 确认真实 API 签名再写代码。
+3. **并行子 Agent 派发策略**: T5/T7 可并行（不同包），T11 依赖 T5，T13 依赖 T5/T7/T11。实际派发顺序：T5 + T7 并行 → T11 → T13。
+4. **GitHub 网络间歇性故障**: 不要死等网络，先本地 commit，网络恢复时立即 push。`git -c http.proxy= -c https.proxy=` 可绕过损坏代理。
+5. **PowerShell 多行字符串处理**: 子 Agent 用 PowerShell 写多行内容到文件时，`\t`/`\n`/`\v` 会被解释为转义字符。建议子 Agent 直接用 Write 工具而非 PowerShell here-string。
+
+---
