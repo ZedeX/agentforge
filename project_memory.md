@@ -1709,3 +1709,75 @@ mvn clean test jacoco:check@jacoco-check -pl agent-task-orchestrator -am -B -ntp
 - 会话交接：`handoff`
 
 ---
+---
+
+## 2026-06-29 P6-6 T9 子 Agent-E：5 维度 DAG 校验（PlanValidator）实现完成
+
+**作用**：记录 P6-6 T9「5 维度 DAG 校验」的实现细节、关键设计决策与验证结果，供后续主 Agent 统一提交与 CI 验证参考。
+
+### 任务范围
+- 实现 PlanValidator，覆盖 UT-PLAN-009（5 维度全通过）/ UT-PLAN-010（完备性失败抛 PLAN_VALIDATION_FAILED → ErrorCode.COMPLETENESS_FAIL）
+- 设计依据：docs/03-task-engine/task-orchestration-and-planning.md §3.3 Step 5
+- 测试用例：docs/tests/unit-test-cases.md §6 UT-PLAN-009/010
+
+### 新建文件（5 个，未修改任何已有源文件）
+源文件（位于 gent-task-orchestrator/src/main/java/com/agent/orchestrator/validator/）：
+1. ValidationDimension.java — 校验维度枚举（COMPLETENESS/ATOMICITY/EFFICIENCY/COST/FAULT_TOLERANCE）
+2. ValidationResult.java — 校验结果 POJO（@Data + @Builder，含 allPass / dimensionResults / errors / warnings，静态工厂 pass() / fail(Map, List)）
+3. ValidationContext.java — 校验上下文 POJO（@Data + @Builder + @AllArgsConstructor + @NoArgsConstructor，含 nodes / edges / deliverables / costLimitCent / estimatedCostCent / maxRetries）
+4. PlanValidator.java — 5 维度校验器（@Component），双 API：
+   - alidate(ValidationContext) 返回 ValidationResult（不抛异常）
+   - alidateOrThrow(ValidationContext) 抛 BusinessException，errorCode 映射：
+     - 完备性失败 → COMPLETENESS_FAIL
+     - 成本超限 → COST_BUDGET_EXCEEDED
+     - 其他维度失败 → VALIDATION_FAILED（对应 PLAN_VALIDATION_FAILED）
+
+测试文件（位于 gent-task-orchestrator/src/test/java/com/agent/orchestrator/validator/）：
+5. PlanValidatorTest.java — **15 个 @Test 全部通过**
+
+### 关键设计决策
+1. **PlanValidator 为无状态纯函数式校验器**（参考 ReplanModeSelector 风格），便于单测覆盖所有分支。
+2. **效率维度采用宽松语义**：检测到可并行但串行的节点对仅追加 warning 不阻塞 allPass（与 doc §3.3「调整 depType 为 none」失败动作一致——降级为修正建议而非硬性失败）。UT 边界2 验证 warnings 非空。
+3. **容错维度**：因 DagNode POJO 未独立暴露 config 字段（参考现有 DagNode.java 字段定义），将容错配置以 JSON 字段名存于 outputs 字符串中，校验时检查 "maxRetries" 与 "undoAction" 字段名存在性。后续若 DagNode 扩展 config 字段，可迁移判定逻辑。
+4. **成本维度**：costLimitCent <= 0 时跳过校验（视为通过，未设置预算）。
+5. **完备性维度**：deliverables 为空时通过（无完备性要求）；
+odes 为空但 deliverables 非空时失败。
+6. **原子性维度**：检测 title 中含 "和"/"并且"/"以及"/"同时" 任一关键词则失败。
+7. **「2 轮重试」逻辑由上层负责**：PlanValidator 本身不持有重试状态，调用方（AiPlanner / Orchestrator）负责「修正上下文后再次调用」最多 2 轮，仍失败时抛 VALIDATION_FAILED → 转 WAITING_HUMAN。
+8. **ValidationResult 手动覆写 getErrors()/getWarnings()** 返回不可修改视图（防止外部误改内部状态）；Lombok @Data 检测到已存在 getter 自动跳过生成。
+
+### 验证结果
+- ✅ javac 独立编译 5 个源文件 + 测试文件全部通过（exit code 0）
+- ✅ JUnit Platform Launcher 独立运行测试：**15/15 通过**（容器 2、测试 15、失败 0）
+- ✅ 未运行 mvn（避免与其他子 Agent 冲突，符合任务约束）
+- ✅ 未修改任何已有源文件、未 commit
+- ✅ 编码规范：包路径 com.agent.orchestrator.validator、方法名 should_X_When_Y、AssertJ assertThat、@DisplayName 中文
+
+### 测试用例清单（15 个）
+| # | 测试方法 | 描述 |
+|---|---|---|
+| 1 | should_PassValidation_When_AllFiveDimensionsOk | UT-PLAN-009: 5 维度全通过 → allPass=true |
+| 2 | should_ReturnPlanValidationFailed_When_CompletenessFailed | UT-PLAN-010: 完备性失败 → validateOrThrow 抛 COMPLETENESS_FAIL + validate() allPass=false |
+| 3 | should_FailAtomicity_When_NodeTitleContainsConjunction | 边界1: 原子性失败（title 含「和」） |
+| 4 | should_AddWarning_When_ParallelizableNodesAreSerialized | 边界2: 效率提示（warnings 非空） |
+| 5 | should_FailCost_When_EstimatedCostExceedsThreshold | 边界3: 成本超限 |
+| 6 | should_FailFaultTolerance_When_WriteNodeMissingConfig | 边界4: 容错失败 |
+| 7 | should_FailCompleteness_When_NodesEmptyButDeliverablesNonEmpty | 边界5: 空 DAG + 非空 deliverables |
+| 8 | should_PassValidation_When_SingleNodeAndNoDeliverables | 边界6: 单节点 DAG 全通过 |
+| 9 | should_SkipCost_When_CostLimitIsZero | 边界7: costLimitCent=0 跳过 |
+| 10 | should_PassCompleteness_When_DeliverablesEmpty | 边界8: deliverables 为空通过 |
+| 11 | should_PassFaultTolerance_When_WriteNodeHasCompensationConfig | 边界9: 容错通过 |
+| 12 | should_ThrowCostBudgetExceeded_When_CostExceedsLimit | 边界10: validateOrThrow 成本超限 → COST_BUDGET_EXCEEDED |
+| 13 | should_ThrowValidationFailed_When_AtomicityFailed | 边界11: validateOrThrow 原子性失败 → VALIDATION_FAILED |
+| 14 | should_AggregateErrors_When_MultipleDimensionsFail | 边界12: 多维度同时失败 |
+| 15 | should_ThrowParamInvalid_When_ContextIsNull | 边界13: null 上下文 → PARAM_INVALID |
+
+### 验证用临时文件（保留，待用户统一清理）
+- 	mp/validator-compile/TestRunner.java — 独立 JUnit Platform Launcher 启动器
+- 	mp/validator-compile/*.class — 编译产物
+
+### 主 Agent 后续动作
+- 统一 mvn install 验证
+- 统一 commit（建议 commit message：eat(orchestrator): T9 实现 5 维度 DAG 校验 PlanValidator（UT-PLAN-009/010））
+
+---
