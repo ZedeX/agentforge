@@ -1548,3 +1548,164 @@ mvn clean test jacoco:check@jacoco-check -pl agent-task-orchestrator -am -B -ntp
 - 安全审查：`TRAE-security-review`
 
 ---
+
+## 2026-06-29 P6-3/4/5 测试改造完成（agent-gateway + agent-session + agent-task-orchestrator）
+
+### 会话目标
+完成 v5 审核报告 §P6-3/4/5 三项测试改造（命名统一 + AssertJ + @DisplayName），覆盖 agent-gateway（8 文件）、agent-session（8 文件）、agent-task-orchestrator（6 文件）共 22 个测试文件。此前 agent-proto（4 文件）+ agent-common（3 文件）已在 commit 5f6ac26 完成改造。
+
+### 改造内容
+- **P6-3 方法名重命名**：`testXxx()` / `shouldXxxWhenYyy()` → `should_Xxx_When_Yyy()`（should_期望_When_条件 风格）
+- **P6-4 JUnit 断言替换为 AssertJ**：
+  - `assertEquals(expected, actual)` → `assertThat(actual).isEqualTo(expected)`
+  - `assertTrue(cond, msg)` → `assertThat(cond).as(msg).isTrue()`
+  - `assertThrows(X.class, () -> ...)` → `assertThatThrownBy(() -> ...).isInstanceOf(X.class)` 或 `.isInstanceOfSatisfying(X.class, ex -> {...})`
+  - `assertDoesNotThrow` → `assertThatCode().doesNotThrowAnyException()` 或直接执行
+  - `import static org.junit.jupiter.api.Assertions.*` → `import static org.assertj.core.api.Assertions.*`
+- **P6-5 @DisplayName**：每个 `@Test` 方法添加 `@DisplayName("中文说明")`
+
+### 关键 commit
+- `f5b4d05` test(gateway,session,task-orchestrator): apply P6-3/4/5 refactor — 22 files, +694/-563
+- `5f6ac26` test(proto,common): apply P6-3/4/5 refactor — 7 files（此前已完成）
+
+### 验证结果
+- **mvn test**：186 测试通过，0 失败
+  - agent-gateway: 32 测试通过 ✅
+  - agent-session: 52 测试通过 ✅（跳过 2 个 Docker/Testcontainers 依赖测试：SessionRepositoryTest、ShortTermMemoryServiceTest）
+  - agent-task-orchestrator: 42 测试通过 ✅
+  - agent-proto: 16 测试通过 ✅
+  - agent-common: 44 测试通过 ✅
+- **Grep 验证**：3 个模块的 src/test 下 0 处 JUnit 断言残留，0 处 JUnit import 残留
+- **编译验证**：`mvn test-compile` BUILD SUCCESS，23 个测试文件全部编译通过
+
+### 遇到的问题与解决方案
+
+#### 问题 1：前两个子 Agent 被 kill
+- **现象**：Group B（gateway）和 Group C（session+orchestrator）两个后台子 Agent 在运行中被 killed
+- **原因**：子 Agent 大量使用 Write 工具重写整个文件，频繁触发 "IDE Command timeout: Elapsed(())"，导致卡住无法推进
+- **解决方案**：
+  1. 主 Agent 接手 agent-gateway 剩余 7 个文件，优先用 Edit 增量改（小修改）或 Write 重写（大文件）
+  2. 启动新子 Agent 处理 agent-task-orchestrator 6 个文件，明确指令"用 Edit 增量改，不要用 Write 全文重写"
+  3. 子 Agent 成功完成 task-orchestrator 改造（42 测试通过）
+
+#### 问题 2：TaskControllerTest.java 的 `import import` 语法错误
+- **现象**：Group B 子 Agent 用 Write 重写 TaskControllerTest 时，第 5 行变成 `import import com.agent.gateway.service.TaskRouterService;`
+- **原因**：Write 工具在 IDE timeout 后部分写入，导致 import 关键字重复
+- **解决方案**：子 Agent 用 PowerShell `Get-Content -replace` 修复，在被 kill 前实际已修复成功（Read 验证确认）
+
+#### 问题 3：agent-session 2 个测试依赖 Docker/Testcontainers
+- **现象**：`SessionRepositoryTest` 和 `ShortTermMemoryServiceTest` 因本机无 Docker 环境失败
+- **原因**：这 2 个测试使用 Testcontainers 启动 MySQL/Redis 容器，本机无 Docker
+- **解决方案**：用 `-Dtest=!SessionRepositoryTest,!ShortTermMemoryServiceTest` 跳过，其余 52 个测试全部通过
+- **说明**：这是已知的环境问题，非 P6 改造引入。已有 Mock 版本（ShortTermMemoryServiceUnitTest、EndToEndTest 用 H2 + jedis-mock）作为无 Docker 备选方案
+
+### 关键技术决策
+1. **AssertJ 异常断言**：`assertThrows + assertEquals(ex.getErrorCode())` 统一用 `assertThatThrownBy(...).isInstanceOfSatisfying(X.class, ex -> assertThat(ex.getErrorCode()).isEqualTo(...))`，更优雅且能链式验证异常字段
+2. **带 message 断言**：`assertTrue(cond, msg)` → `assertThat(cond).as(msg).isTrue()`（保留原始失败提示信息）
+3. **集合断言优化**：`assertTrue(events.isEmpty(), msg)` → `assertThat(events).as(msg).isEmpty()`
+4. **assertj-core 依赖**：通过 spring-boot-starter-test 3.2.5 BOM 间接引入（版本 3.25.3），gateway/session/task-orchestrator 均无需修改 pom.xml
+
+### 后续待办（P6 整改清单剩余项）
+- **P6-1**：网络恢复后 push 累计 commits 触发 CI（D5 +1.0）— 阻塞（GFW）
+- **P6-2 F2~F12**：依赖 9 个未实现模块，后续大任务
+- **P6-6**：实现 agent-task-orchestrator T5-T13
+- **P6-7**：补错误码触发路径覆盖
+- **v6 报告产出**（可选）：P6-3/4/5 全部完成后预估 81.5→84+ 分
+- **清理遗留文件**：`run-mvn-verify.bat`（Group A 创建的临时 bat 脚本，未跟踪）
+
+### 推荐技能
+- 后续 TDD 开发：`tdd` + `test-driven-development`
+- 代码审查：`TRAE-code-review`
+- 会话交接：`handoff`
+
+---
+
+## 2026-06-29 P6-6 Wave 1 + P6-7 完成（复杂度识别 + 批次调度 + 重规划 + 错误码覆盖）
+
+### 会话目标
+承接上一轮 handoff，按用户指令"继续推进，整体推进，主Agent做监控，子Agent做TODO"，完成 v5 审核报告 §P6-6（agent-task-orchestrator T5-T13）中的可独立实现部分（T6/T10/T12，纯 POJO 无外部依赖）和 §P6-7（错误码触发路径覆盖）。采用 3 个并行子 Agent 分工，主 Agent 负责监控协调 + 整合验证 + 统一 commit。
+
+### 工作分工与产出
+
+#### 子 Agent-A（P6-7 错误码触发路径覆盖）— ✅ 完成
+- **文件**：`agent-common/src/test/java/com/agent/common/exception/ErrorCodePathTest.java`
+- **测试**：29 个 @Test 方法，mvn test 全绿（0.420s）
+- **覆盖**：除 OK 外全部 29 个错误码（401×1、403×2、404×3、400×3、413×1、409×3、429×3、500×8、503×2、504×3）
+- **三段式覆盖**：字段完整性（code/httpStatus/defaultMessage）+ 构造回环（BusinessException 单参构造）+ 触发路径（模拟真实业务条件）
+
+#### 子 Agent-B（T6 复杂度识别）— ✅ 完成
+- **源文件（4 个，`com.agent.orchestrator.assessor` 包）**：
+  - `ComplexityLevel.java` — L1/L2/L3 枚举
+  - `ComplexityDimensions.java` — 6 维度评分 POJO（goal/execution/domain/knowledge/risk/context，Lombok @Data + @Builder，含 `totalScore()`）
+  - `ComplexityScorer.java` — 评分器，阈值 ≤8→L1 / 9~14→L2 / >14→L3，risk>=3 强制 L3
+  - `RuleFilter.java` — 规则初筛器，含静态嵌套 `Result` 类，置信度设计：关键词 0.95 / 长度规则 0.85 / 无匹配 0.5，阈值 0.9
+- **测试文件（2 个）**：
+  - `ComplexityScorerTest.java` — 10 个 @Test（UT-PLAN-001~004）
+  - `RuleFilterTest.java` — 21 个 @Test（UT-PLAN-005/006 + 长度/关键词/置信度规则）
+- **关键设计决策**：
+  1. 阈值以 unit-test-cases.md 为准（无加权 ≤8/9-14/>14），非设计文档 §2.2 的加权阈值
+  2. risk>=3 强制 L3 规则在总分阈值判断之前执行
+  3. 关键词优先级 L3 > L2 > L1（高复杂度关键词优先匹配）
+  4. ModelAssessor 未创建（留接口），通过 `Result.needsModelAssessment()` 标志决策是否调用模型精判
+  5. ComplexityLevel 新建而非复用 agent-common（避免与运行时配置耦合）
+
+#### 子 Agent-C（T10 批次调度 + T12 重规划模式选择）— ✅ 完成
+- **T10 源文件（`com.agent.orchestrator.dispatcher` 包）**：
+  - `Batch.java` — 批次 POJO（batchIndex/nodes）
+  - `BatchPartitioner.java` — 基于 Kahn 算法按拓扑层划分批次，复用 DagGraph 值对象，环检测抛 DAG_CYCLE_DETECTED
+- **T12 源文件（`com.agent.orchestrator.replanner` 包）**：
+  - `ReplanMode.java` — 枚举 INCREMENTAL / FULL / ABORT
+  - `ReplanModeSelector.java` — 双接口设计：`select()` 超限抛 REPLAN_EXHAUSTED / `selectOrAbort()` 超限返回 ABORT（对应转 WAITING_HUMAN），熔断检查优先于其他规则
+- **测试文件（2 个）**：
+  - `BatchPartitionerTest.java` — 10 个 @Test（UT-ORCH-006 + 单节点/线性链/空DAG/NONE边/DATA边跨批次/菱形DAG/含环）
+  - `ReplanModeSelectorTest.java` — 11 个 @Test（UT-ORCH-009/010/011/013 + 全部失败→FULL/多失败其余有效→INCREMENTAL/replanCount==max边界/reason=null/熔断优先）
+
+### 整合验证结果
+- **mvn install**：BUILD SUCCESS（15.122s），4 模块全部 SUCCESS
+- **测试**：52 tests, 0 failures, 0 errors, 0 skipped
+  - agent-common ErrorCodePathTest: 29 tests ✅
+  - agent-task-orchestrator ComplexityScorerTest: 10 tests ✅
+  - agent-task-orchestrator RuleFilterTest: 21 tests ✅
+  - agent-task-orchestrator BatchPartitionerTest: 10 tests ✅
+  - agent-task-orchestrator ReplanModeSelectorTest: 11 tests ✅
+- **JaCoCo 覆盖率**：所有模块 "All coverage checks have been met" ✅
+- **log 文件**：`tmp/mvn-verify-p6-6-7.log`
+
+### 关键 commit
+- `96370c5` test(common): add ErrorCodePathTest for 29 error codes trigger path coverage (P6-7) — 1 file, +485
+- `9386ad2` feat(orchestrator): implement T6 complexity scorer + T10 batch partitioner + T12 replan mode selector (P6-6 Wave 1) — 12 files, +1514
+
+### Wave 2 依赖识别（为后续推进做准备）
+读取 `agent-task-orchestrator/pom.xml` 确认：当前**无 gRPC 和 RocketMQ 依赖**，只有 spring-boot-starter-web/data-jpa/validation + Lombok + 测试依赖（awaitility/h2/jedis-mock）。
+- **Wave 2 需补依赖**（参考 `agent-gateway/pom.xml`）：
+  - `net.devh:grpc-spring-boot-starter:3.1.0.RELEASE`（排除 grpc-netty-shaded）
+  - `net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE`
+  - RocketMQ starter（具体版本待定）
+
+### 后续待办（P6 整改清单剩余项）
+- **P6-6 Wave 2（需先补 pom.xml 依赖）**：
+  - T5 TaskOrchestrator gRPC 服务（SubmitTask/GetTaskStatus/CancelTask/ReportSubtaskResult）
+  - T7 PlanningService gRPC 服务（Plan/ValidatePlan/Replan，注：AssessComplexity 已由 T6 实现）
+  - T11 RocketMQ 集成
+  - T13 集成测试
+- **P6-6 纯 POJO 可并行**：
+  - T8 模板匹配
+  - T9 5 维度 DAG 校验
+- **P6-1**：网络恢复后 push 累计 commits 触发 CI（D5 +1.0）— 阻塞（GFW）
+- **P6-2 F2~F12**：依赖 9 个未实现模块，后续大任务
+- **v6 报告产出**（可选）：P6-6/P6-7 完成后预估 81.5→84+ 分
+- **清理遗留文件**：`run-mvn-verify.bat`、`tmp/check_length.ps1`（子 Agent-B 创建的探索脚本）、`tmp/mvn-verify-p6-6-7.log`
+
+### 执行反思
+- ✅ 3 个子 Agent 在不同模块/子包操作（agent-common / assessor / dispatcher+replanner），无文件冲突，可并行
+- ✅ TDD 流程：子 Agent 先写测试（Red）→ 再写源文件（Green）→ 主 Agent 统一 mvn install 验证
+- ✅ 子 Agent 主动发现并修复测试 bug（Agent-B 发现 18 字符 goal 字符串误用，主动改为 22 字符）
+- ⚠️ PowerShell 调用 mvn.cmd 时 `-D` 参数被错误解析为 lifecycle phase，需用 `cmd /c` 包装
+- ⚠️ TaskOutput block=true 长时间等待会返回 "toolcall result is missing"，需改用 block=false 快速检查或较短 timeout 多次轮询
+
+### 推荐技能
+- 后续 Wave 2：`tdd` + `test-driven-development`（gRPC 服务实现）
+- 代码审查：`TRAE-code-review`
+- 会话交接：`handoff`
+
+---
