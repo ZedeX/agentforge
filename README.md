@@ -65,7 +65,7 @@ AgentForge 是一个企业级多智能体平台，目标是把"声明式定义 A
 
 ```
 agentforge/
-├── pom.xml                          # Parent POM（13 模块聚合）
+├── pom.xml                          # Parent POM（11 模块激活 / 15 总计）
 ├── agent-proto/                     # Protobuf 契约层（8 .proto + 生成 stub）
 ├── agent-common/                    # 公共工具层（DTO/异常/工具类）
 ├── agent-gateway/                   # 接入网关（8080）
@@ -150,17 +150,19 @@ cd infra/sql
 
 ## Status
 
-当前阶段：**设计与基础层编码中**。
+当前阶段：**核心模块编码 + TDD 审计整改推进中（v7.5，B+ 89.2 分，距 A- 差 0.8 分）**。
 
 - ✅ 设计文档（19 份，覆盖 PRD 全部交付物）
 - ✅ DDL 脚本（16 文件，2158 行，9 MySQL 库 32 表 + Milvus + Neo4j + Redis）
-- ✅ 编码计划（agent-proto+common + agent-gateway+session）
+- ✅ 编码计划（agent-proto+common + agent-gateway+session + task-orchestrator）
 - ✅ Mermaid 语法校验（12/12 通过）
-- ⚙️ 编码实施（agent-proto / agent-common / agent-gateway / agent-session 进行中）
-- ⏸ 其余 9 个微服务编码（待后续）
+- ✅ 核心模块编码（5 模块完整实现：agent-proto / agent-common / agent-gateway / agent-session / agent-task-orchestrator，464+ 测试用例）
+- ✅ 决策节点骨架（6 模块 POJO+interface+测试：agent-tool-engine / hallucination-governance / drift-monitor / agent-memory / agent-runtime / agent-quality，F1~F12 全 12 节点组覆盖）
+- ⏸ 其余 4 个微服务编码（agent-planning / agent-model-gateway / agent-repo / agent-knowledge，待后续）
 - ⏸ Docker / K8s 部署配置
+- ⏸ TDD 审计 v7.5 → A- 推进（P7-1 CI 累计 10 次全绿，当前 streak=4/10）
 
-详见 [project_memory.md](./project_memory.md)。
+详见 [project_memory.md](./project_memory.md) 与 [docs/tests/tdd-audit-report-v7.md](./docs/tests/tdd-audit-report-v7.md)。
 
 ## License
 
