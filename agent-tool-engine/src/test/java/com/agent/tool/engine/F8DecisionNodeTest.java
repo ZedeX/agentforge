@@ -430,6 +430,32 @@ class F8DecisionNodeTest {
                 .isEqualTo("trace_001");
     }
 
+    // ============ F8 enums 分支覆盖 (P7-3 修复 CI 失败补充) ============
+
+    @Test
+    @DisplayName("UT-F8-017: ToolRiskLevel.fromCode 解析 R1/R2/R3 成功 + 未知 code 抛 IllegalArgumentException")
+    void should_ResolveOrThrow_When_FromCodeCalled() {
+        // enums fromCode 分支覆盖: 3 个命中分支 (R1/R2/R3) + 1 个 throw 分支 (循环完毕未命中)
+        // 补充原因: P7-3 骨架阶段 excludes 排除 model/exception 后, enums 中 ToolRiskLevel.fromCode
+        // 是唯一含分支逻辑的方法, 需补测试覆盖以达 line 0.80 / branch 0.70 阈值.
+        assertThat(ToolRiskLevel.fromCode("R1"))
+                .as("fromCode(R1) 应返回 R1 常量 (R1=低风险, 本地直接执行)")
+                .isEqualTo(ToolRiskLevel.R1);
+        assertThat(ToolRiskLevel.fromCode("R2"))
+                .as("fromCode(R2) 应返回 R2 常量 (R2=中风险, 代理转发)")
+                .isEqualTo(ToolRiskLevel.R2);
+        assertThat(ToolRiskLevel.fromCode("R3"))
+                .as("fromCode(R3) 应返回 R3 常量 (R3=高风险, 沙箱+双审批)")
+                .isEqualTo(ToolRiskLevel.R3);
+
+        // 未知 code: for 循环遍历完毕未命中, 抛 IllegalArgumentException
+        assertThatThrownBy(() -> ToolRiskLevel.fromCode("R4"))
+                .as("fromCode(未知 code) 应抛 IllegalArgumentException, 含未知 code 描述")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown ToolRiskLevel")
+                .hasMessageContaining("R4");
+    }
+
     // ============ helpers ============
 
     /**

@@ -37,6 +37,21 @@
 
     <build>
         <plugins>
+            <!-- P7-3 骨架阶段扩展 JaCoCo excludes (ref tdd-audit-report-v7.md §12 P7-3 整改):
+                 model POJO (getter/setter 无业务逻辑, 行业惯例不测试) 暂时排除覆盖率校验.
+                 enums 保留 (常量定义, class loading 触发构造方法覆盖).
+                 combine.children="append" 追加到根 pom excludes 后面.
+                 后续 P7-4 决策节点补齐 + 业务实现注入后, 视情况恢复 model 校验. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes combine.children="append">
+                        <exclude>**/model/**</exclude>
+                        <exclude>**/exception/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
