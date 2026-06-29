@@ -4,6 +4,7 @@ import com.agent.session.config.ShortTermMemoryProperties;
 import com.redis.testcontainers.RedisContainer;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -15,7 +16,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 class ShortTermMemoryServiceTest {
@@ -43,7 +44,8 @@ class ShortTermMemoryServiceTest {
     }
 
     @Test
-    void shouldSaveAndLoadContext() {
+    @DisplayName("saveContext 后 loadContext 应返回完整上下文字段")
+    void should_SaveAndLoadContext_When_ContextPersisted() {
         ShortTermMemoryService.SessionContext ctx = new ShortTermMemoryService.SessionContext();
         ctx.setSystemPrompt("你是订单助手");
         ctx.setTaskGoal("查询订单");
@@ -54,15 +56,16 @@ class ShortTermMemoryServiceTest {
         service.saveContext("ss_ctx_001", ctx);
 
         ShortTermMemoryService.SessionContext loaded = service.loadContext("ss_ctx_001");
-        assertNotNull(loaded);
-        assertEquals("你是订单助手", loaded.getSystemPrompt());
-        assertEquals("查询订单", loaded.getTaskGoal());
-        assertEquals(1, loaded.getRecentMessages().size());
-        assertEquals("无相关记忆", loaded.getRecalledMemory());
+        assertThat(loaded).isNotNull();
+        assertThat(loaded.getSystemPrompt()).isEqualTo("你是订单助手");
+        assertThat(loaded.getTaskGoal()).isEqualTo("查询订单");
+        assertThat(loaded.getRecentMessages()).hasSize(1);
+        assertThat(loaded.getRecalledMemory()).isEqualTo("无相关记忆");
     }
 
     @Test
-    void shouldAppendMessageToRecentList() {
+    @DisplayName("appendMessage 应按调用顺序追加到 recentMessages 列表")
+    void should_AppendMessageToRecentList_When_MessagesAppended() {
         ShortTermMemoryService.SessionContext ctx = new ShortTermMemoryService.SessionContext();
         ctx.setSystemPrompt("sys");
         ctx.setRecentMessages(List.of());
@@ -72,12 +75,13 @@ class ShortTermMemoryServiceTest {
         service.appendMessage("ss_append_001", Map.of("role", "assistant", "content", "你好"));
 
         ShortTermMemoryService.SessionContext loaded = service.loadContext("ss_append_001");
-        assertEquals(2, loaded.getRecentMessages().size());
-        assertEquals("第一句", loaded.getRecentMessages().get(0).get("content"));
+        assertThat(loaded.getRecentMessages()).hasSize(2);
+        assertThat(loaded.getRecentMessages().get(0).get("content")).isEqualTo("第一句");
     }
 
     @Test
-    void shouldRespectMaxRecentMessagesLimit() {
+    @DisplayName("追加消息数超过 maxRecentMessages 时应剔除最早条目")
+    void should_RespectMaxRecentMessagesLimit_When_ExceedingLimit() {
         ShortTermMemoryService.SessionContext ctx = new ShortTermMemoryService.SessionContext();
         ctx.setRecentMessages(List.of());
         service.saveContext("ss_max_001", ctx);
@@ -87,22 +91,24 @@ class ShortTermMemoryServiceTest {
         }
 
         ShortTermMemoryService.SessionContext loaded = service.loadContext("ss_max_001");
-        assertEquals(20, loaded.getRecentMessages().size());
-        assertEquals(6, loaded.getRecentMessages().get(0).get("seq"));
+        assertThat(loaded.getRecentMessages()).hasSize(20);
+        assertThat(loaded.getRecentMessages().get(0).get("seq")).isEqualTo(6);
     }
 
     @Test
-    void shouldClearContext() {
+    @DisplayName("clearContext 后再 loadContext 应返回 null")
+    void should_ClearContext_When_ClearCalled() {
         service.saveContext("ss_clear_001", new ShortTermMemoryService.SessionContext());
-        assertNotNull(service.loadContext("ss_clear_001"));
+        assertThat(service.loadContext("ss_clear_001")).isNotNull();
 
         service.clearContext("ss_clear_001");
 
-        assertNull(service.loadContext("ss_clear_001"));
+        assertThat(service.loadContext("ss_clear_001")).isNull();
     }
 
     @Test
-    void shouldExpireContextAfterTtl() {
+    @DisplayName("TTL 到期后 loadContext 应返回 null")
+    void should_ExpireContextAfterTtl_When_TtlReached() {
         ShortTermMemoryProperties props = new ShortTermMemoryProperties();
         props.setKeyPrefix("sm");
         props.setTtlHours(0);
@@ -116,13 +122,13 @@ class ShortTermMemoryServiceTest {
         };
 
         shortTtlService.saveContext("ss_expire_001", new ShortTermMemoryService.SessionContext());
-        assertNotNull(shortTtlService.loadContext("ss_expire_001"));
+        assertThat(shortTtlService.loadContext("ss_expire_001")).isNotNull();
 
         // FN-010 整改：原 Thread.sleep(1500) 替换为 Awaitility 轮询条件，
         // TTL 一旦失效立即返回，最坏情况等待 3 秒（含 Redis 后台清理延迟）。
         Awaitility.await()
                 .atMost(Duration.ofSeconds(3))
                 .pollInterval(Duration.ofMillis(200))
-                .untilAsserted(() -> assertNull(shortTtlService.loadContext("ss_expire_001")));
+                .untilAsserted(() -> assertThat(shortTtlService.loadContext("ss_expire_001")).isNull());
     }
 }

@@ -4,13 +4,14 @@ import com.agent.gateway.config.RateLimitConfig;
 import com.agent.gateway.config.RateLimitProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class RateLimitFilterTest {
 
@@ -27,7 +28,8 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void shouldAllow20ConsecutiveRequestsThenReject21st() throws Exception {
+    @DisplayName("令牌桶容量 20 时连续 20 次请求应放行，第 21 次应返回 429 RATE_LIMITED")
+    void should_Allow20ThenReject21st_When_TokenBucketExhausted() throws Exception {
         String tenantId = "tenant-A";
 
         for (int i = 1; i <= 20; i++) {
@@ -36,8 +38,9 @@ class RateLimitFilterTest {
             MockHttpServletResponse resp = new MockHttpServletResponse();
             MockFilterChain chain = new MockFilterChain();
             filter.doFilter(req, resp, chain);
-            assertEquals(HttpServletResponse.SC_OK, resp.getStatus(),
-                    "第 " + i + " 次请求应通过");
+            assertThat(resp.getStatus())
+                    .as("第 " + i + " 次请求应通过")
+                    .isEqualTo(HttpServletResponse.SC_OK);
         }
 
         MockHttpServletRequest req21 = new MockHttpServletRequest("POST", "/api/v1/tasks");
@@ -46,12 +49,13 @@ class RateLimitFilterTest {
         MockFilterChain chain21 = new MockFilterChain();
         filter.doFilter(req21, resp21, chain21);
 
-        assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), resp21.getStatus());
-        assertEquals("RATE_LIMITED", resp21.getHeader("X-Error-Code"));
+        assertThat(resp21.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
+        assertThat(resp21.getHeader("X-Error-Code")).isEqualTo("RATE_LIMITED");
     }
 
     @Test
-    void shouldIsolateBucketsByTenant() throws Exception {
+    @DisplayName("不同租户的令牌桶应隔离，tenant-A 耗尽不应影响 tenant-B")
+    void should_IsolateBuckets_When_DifferentTenants() throws Exception {
         for (int i = 1; i <= 20; i++) {
             MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/tasks");
             req.addHeader("X-Tenant-Id", "tenant-A");
@@ -64,16 +68,17 @@ class RateLimitFilterTest {
         MockHttpServletResponse respB = new MockHttpServletResponse();
         filter.doFilter(reqB, respB, new MockFilterChain());
 
-        assertEquals(HttpServletResponse.SC_OK, respB.getStatus());
+        assertThat(respB.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
     }
 
     @Test
-    void shouldFallbackToIpWhenTenantIdMissing() throws Exception {
+    @DisplayName("缺少 X-Tenant-Id 头时应回退到客户端 IP 作为限流 key")
+    void should_FallbackToIp_When_TenantIdMissing() throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/tasks");
         req.setRemoteAddr("10.0.0.1");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         filter.doFilter(req, resp, new MockFilterChain());
 
-        assertEquals(HttpServletResponse.SC_OK, resp.getStatus());
+        assertThat(resp.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
     }
 }

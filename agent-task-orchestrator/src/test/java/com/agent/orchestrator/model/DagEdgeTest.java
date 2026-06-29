@@ -1,12 +1,9 @@
 package com.agent.orchestrator.model;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * DagEdge 实体单元测试（Red 阶段：实现尚未存在，预期编译失败）。
@@ -23,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DagEdgeTest {
 
     @Test
-    void builder_shouldSetAllFields() {
+    @DisplayName("通过 Builder 构建时应正确设置所有字段")
+    void should_SetAllFields_When_UsingBuilder() {
         DagEdge edge = DagEdge.builder()
                 .id(1L)
                 .dagId(10086L)
@@ -33,16 +31,17 @@ class DagEdgeTest {
                 .paramMapping("{\"n1.outputs.orderList\":\"n2.inputs.data\"}")
                 .build();
 
-        assertEquals(1L, edge.getId());
-        assertEquals(10086L, edge.getDagId());
-        assertEquals("n1", edge.getParentNodeId());
-        assertEquals("n2", edge.getChildNodeId());
-        assertEquals("DATA", edge.getEdgeType());
-        assertEquals("{\"n1.outputs.orderList\":\"n2.inputs.data\"}", edge.getParamMapping());
+        assertThat(edge.getId()).isEqualTo(1L);
+        assertThat(edge.getDagId()).isEqualTo(10086L);
+        assertThat(edge.getParentNodeId()).isEqualTo("n1");
+        assertThat(edge.getChildNodeId()).isEqualTo("n2");
+        assertThat(edge.getEdgeType()).isEqualTo("DATA");
+        assertThat(edge.getParamMapping()).isEqualTo("{\"n1.outputs.orderList\":\"n2.inputs.data\"}");
     }
 
     @Test
-    void builder_shouldGenerateToStringContainingFieldName() {
+    @DisplayName("Builder 生成的 toString 应包含字段名")
+    void should_GenerateToStringContainingFieldName_When_UsingBuilder() {
         DagEdge edge = DagEdge.builder()
                 .parentNodeId("n_from")
                 .childNodeId("n_to")
@@ -50,54 +49,58 @@ class DagEdgeTest {
                 .build();
 
         String str = edge.toString();
-        assertNotNull(str);
-        assertTrue(str.contains("parentNodeId=n_from"), "toString should contain parentNodeId field");
-        assertTrue(str.contains("childNodeId=n_to"), "toString should contain childNodeId field");
-        assertTrue(str.contains("edgeType=LOGIC"), "toString should contain edgeType field");
+        assertThat(str).isNotNull();
+        assertThat(str.contains("parentNodeId=n_from")).as("toString should contain parentNodeId field").isTrue();
+        assertThat(str.contains("childNodeId=n_to")).as("toString should contain childNodeId field").isTrue();
+        assertThat(str.contains("edgeType=LOGIC")).as("toString should contain edgeType field").isTrue();
     }
 
     @Test
-    void data_shouldImplementEqualsAndHashCodeByAllFields() {
+    @DisplayName("equals/hashCode 应基于所有字段实现，同值边相等，不同值边不等")
+    void should_ImplementEqualsAndHashCodeByAllFields_When_EdgesHaveSameOrDifferentValues() {
         DagEdge e1 = DagEdge.builder().parentNodeId("n1").childNodeId("n2").edgeType("DATA").build();
         DagEdge e2 = DagEdge.builder().parentNodeId("n1").childNodeId("n2").edgeType("DATA").build();
         DagEdge e3 = DagEdge.builder().parentNodeId("n1").childNodeId("n2").edgeType("LOGIC").build();
 
-        assertEquals(e1, e2, "同值边应相等");
-        assertEquals(e1.hashCode(), e2.hashCode(), "同值边 hashCode 应相等");
-        assertFalse(e1.equals(e3), "edgeType 不同应不等");
+        assertThat(e1).as("同值边应相等").isEqualTo(e2);
+        assertThat(e1.hashCode()).as("同值边 hashCode 应相等").isEqualTo(e2.hashCode());
+        assertThat(e1.equals(e3)).as("edgeType 不同应不等").isFalse();
     }
 
     @Test
-    void noArgsConstructor_shouldCreateInstanceWithNullFields() {
+    @DisplayName("无参构造函数创建实例时所有引用类型字段应为 null")
+    void should_CreateInstanceWithNullFields_When_UsingNoArgsConstructor() {
         DagEdge edge = new DagEdge();
-        assertNull(edge.getParentNodeId());
-        assertNull(edge.getChildNodeId());
-        assertNull(edge.getEdgeType());
-        assertNull(edge.getParamMapping());
+        assertThat(edge.getParentNodeId()).isNull();
+        assertThat(edge.getChildNodeId()).isNull();
+        assertThat(edge.getEdgeType()).isNull();
+        assertThat(edge.getParamMapping()).isNull();
     }
 
     @Test
-    void allArgsConstructor_shouldSetAllFields() {
+    @DisplayName("全参构造函数应正确设置所有字段")
+    void should_SetAllFields_When_UsingAllArgsConstructor() {
         DagEdge edge = new DagEdge(
                 9L, 10086L, "n0", "n1", "LOGIC", null);
 
-        assertEquals(9L, edge.getId());
-        assertEquals(10086L, edge.getDagId());
-        assertEquals("n0", edge.getParentNodeId());
-        assertEquals("n1", edge.getChildNodeId());
-        assertEquals("LOGIC", edge.getEdgeType());
-        assertNull(edge.getParamMapping());
+        assertThat(edge.getId()).isEqualTo(9L);
+        assertThat(edge.getDagId()).isEqualTo(10086L);
+        assertThat(edge.getParentNodeId()).isEqualTo("n0");
+        assertThat(edge.getChildNodeId()).isEqualTo("n1");
+        assertThat(edge.getEdgeType()).isEqualTo("LOGIC");
+        assertThat(edge.getParamMapping()).isNull();
     }
 
     @Test
-    void edgeType_shouldAcceptDataLogicNoneValues() {
+    @DisplayName("edgeType 字段应接受 DATA/LOGIC/NONE 三种取值")
+    void should_AcceptDataLogicNoneValues_When_EdgeTypeIsSet() {
         // 验证 edgeType 字段可接受 doc §4.1 定义的 DATA / LOGIC / NONE 三种取值
         DagEdge dataEdge = DagEdge.builder().edgeType("DATA").build();
         DagEdge logicEdge = DagEdge.builder().edgeType("LOGIC").build();
         DagEdge noneEdge = DagEdge.builder().edgeType("NONE").build();
 
-        assertEquals("DATA", dataEdge.getEdgeType());
-        assertEquals("LOGIC", logicEdge.getEdgeType());
-        assertEquals("NONE", noneEdge.getEdgeType());
+        assertThat(dataEdge.getEdgeType()).isEqualTo("DATA");
+        assertThat(logicEdge.getEdgeType()).isEqualTo("LOGIC");
+        assertThat(noneEdge.getEdgeType()).isEqualTo("NONE");
     }
 }

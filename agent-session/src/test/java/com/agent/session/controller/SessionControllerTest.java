@@ -8,6 +8,7 @@ import com.agent.session.service.ShortTermMemoryService;
 import com.agent.session.testinfra.fixture.SessionFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -20,7 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>FN-013：在 shouldCreateSession / shouldCloseSession / shouldSendMessage 中补 {@code verify()}
  *       交互断言，确认 controller 调用 service 的参数与次数符合契约；</li>
  *   <li>FN-009：新增 shouldThrowWhenServiceThrows，用 {@code assertThrows} 验证异常向上冒泡不被吞。</li>
+ *   <li>P6-3/4/5：方法名统一为 {@code should_Xxx_When_Yyy}；JUnit 断言替换为 AssertJ；补充中文 @DisplayName。</li>
  * </ul>
  */
 class SessionControllerTest {
@@ -61,7 +63,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldCreateSession() throws Exception {
+    @DisplayName("创建会话请求应返回 active 状态的 Session 并透传租户/用户/agent/title")
+    void should_CreateSession_When_ValidRequest() throws Exception {
         Session s = SessionFixtures.aSession("ss_new_001");
         when(sessionService.createSession(any(), any(), any(), any())).thenReturn(s);
 
@@ -88,7 +91,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldGetSession() throws Exception {
+    @DisplayName("查询已存在的 Session 应返回对应数据")
+    void should_ReturnSession_When_GetExistingSession() throws Exception {
         Session s = SessionFixtures.aSession("ss_get_001");
         when(sessionService.getSession("ss_get_001")).thenReturn(Optional.of(s));
 
@@ -100,7 +104,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldReturn404WhenSessionNotFound() throws Exception {
+    @DisplayName("查询不存在的 Session 应返回 404 与 SESSION_NOT_FOUND 错误码")
+    void should_Return404_When_SessionNotFound() throws Exception {
         when(sessionService.getSession("ss_missing")).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/sessions/ss_missing"))
@@ -111,7 +116,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldCloseSession() throws Exception {
+    @DisplayName("关闭已存在的 Session 应返回 OK")
+    void should_CloseSession_When_ValidRequest() throws Exception {
         when(sessionService.closeSession("ss_close_001")).thenReturn(true);
 
         mockMvc.perform(delete("/api/v1/sessions/ss_close_001"))
@@ -122,7 +128,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldReturn404WhenClosingMissingSession() throws Exception {
+    @DisplayName("关闭不存在的 Session 应返回 404 与 SESSION_NOT_FOUND 错误码")
+    void should_Return404_When_ClosingMissingSession() throws Exception {
         when(sessionService.closeSession("ss_missing")).thenReturn(false);
 
         mockMvc.perform(delete("/api/v1/sessions/ss_missing"))
@@ -133,7 +140,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldSendMessage() throws Exception {
+    @DisplayName("向 active 会话发消息应返回 assistant 回复")
+    void should_SendMessageAndReturnReply_When_ValidRequest() throws Exception {
         Message reply = SessionFixtures.aMessage("ss_msg_001", MessageRole.ASSISTANT, "已收到");
         reply.setTokenCount(5);
         when(sessionService.sendMessage(eq("ss_msg_001"), anyString(), any(), any()))
@@ -157,7 +165,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldListMessagesPaginated() throws Exception {
+    @DisplayName("分页查询消息应返回对应分页数据")
+    void should_ReturnPaginatedMessages_When_ListMessages() throws Exception {
         Message m1 = SessionFixtures.aMessage("ss_list_001", MessageRole.USER, "hi");
         m1.setTokenCount(2);
         m1.setCreatedAt(Instant.now());
@@ -176,7 +185,8 @@ class SessionControllerTest {
     }
 
     @Test
-    void shouldRejectInvalidContent() throws Exception {
+    @DisplayName("content 为空时请求应被拒绝并返回 INVALID_ARGUMENT 错误码")
+    void should_ReturnBadRequest_When_ContentEmpty() throws Exception {
         String body = """
                 {
                   "content": "",
@@ -193,10 +203,11 @@ class SessionControllerTest {
 
     /**
      * FN-009 整改：直接单元测试 controller 依赖的 service 抛异常时未被吞掉，能正常向上冒泡。
-     * 此用例绕过 MockMvc，直接调用 controller 方法，用 {@code assertThrows} 断言异常类型。
+     * 此用例绕过 MockMvc，直接调用 controller 方法，用 AssertJ 断言异常类型。
      */
     @Test
-    void shouldThrowWhenServiceThrows() {
+    @DisplayName("Service 抛出 IllegalStateException 时 controller 不应吞掉异常")
+    void should_ThrowIllegalStateException_When_ServiceThrowsException() {
         SessionService throwingService = mock(SessionService.class);
         ShortTermMemoryService memory = mock(ShortTermMemoryService.class);
         when(throwingService.getSession("ss_throw"))
@@ -204,7 +215,7 @@ class SessionControllerTest {
         SessionController controller = new SessionController(throwingService, memory);
 
         // controller 未捕获 IllegalStateException，应直接冒泡到调用方
-        assertThrows(IllegalStateException.class,
-                () -> controller.getSession("ss_throw"));
+        assertThatThrownBy(() -> controller.getSession("ss_throw"))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

@@ -3,12 +3,11 @@ package com.agent.orchestrator.statemachine;
 import com.agent.common.constant.TaskStatus;
 import com.agent.common.exception.BusinessException;
 import com.agent.common.exception.ErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * TaskStateMachine 单元测试（Red 阶段：实现尚未存在，预期编译失败）。
@@ -30,81 +29,91 @@ class TaskStateMachineTest {
     // ===== 合法转换 =====
 
     @Test
-    void canTransitTo_pendingToPlanning_returnsTrue() {
-        assertTrue(stateMachine.canTransitTo(TaskStatus.PENDING, TaskStatus.PLANNING),
-                "PENDING → PLANNING 应合法");
+    @DisplayName("PENDING → PLANNING 应为合法状态流转")
+    void should_ReturnTrue_When_TransitFromPendingToPlanning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.PENDING, TaskStatus.PLANNING))
+                .as("PENDING → PLANNING 应合法").isTrue();
     }
 
     @Test
-    void canTransitTo_planningToRunning_returnsTrue() {
-        assertTrue(stateMachine.canTransitTo(TaskStatus.PLANNING, TaskStatus.RUNNING),
-                "PLANNING → RUNNING 应合法");
+    @DisplayName("PLANNING → RUNNING 应为合法状态流转")
+    void should_ReturnTrue_When_TransitFromPlanningToRunning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.PLANNING, TaskStatus.RUNNING))
+                .as("PLANNING → RUNNING 应合法").isTrue();
     }
 
     @Test
-    void canTransitTo_runningToSubtaskRunning_returnsTrue() {
-        assertTrue(stateMachine.canTransitTo(TaskStatus.RUNNING, TaskStatus.SUBTASK_RUNNING),
-                "RUNNING → SUBTASK_RUNNING 应合法");
+    @DisplayName("RUNNING → SUBTASK_RUNNING 应为合法状态流转")
+    void should_ReturnTrue_When_TransitFromRunningToSubtaskRunning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.RUNNING, TaskStatus.SUBTASK_RUNNING))
+                .as("RUNNING → SUBTASK_RUNNING 应合法").isTrue();
     }
 
     @Test
-    void canTransitTo_subtaskRunningToSuccess_returnsTrue() {
-        assertTrue(stateMachine.canTransitTo(TaskStatus.SUBTASK_RUNNING, TaskStatus.SUCCESS),
-                "SUBTASK_RUNNING → SUCCESS 应合法");
+    @DisplayName("SUBTASK_RUNNING → SUCCESS 应为合法状态流转")
+    void should_ReturnTrue_When_TransitFromSubtaskRunningToSuccess() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.SUBTASK_RUNNING, TaskStatus.SUCCESS))
+                .as("SUBTASK_RUNNING → SUCCESS 应合法").isTrue();
     }
 
     @Test
-    void canTransitTo_waitingHumanToReplanning_returnsTrue() {
-        assertTrue(stateMachine.canTransitTo(TaskStatus.WAITING_HUMAN, TaskStatus.REPLANNING),
-                "WAITING_HUMAN → REPLANNING（人工触发）应合法");
+    @DisplayName("WAITING_HUMAN → REPLANNING 应为合法状态流转（人工触发）")
+    void should_ReturnTrue_When_TransitFromWaitingHumanToReplanning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.WAITING_HUMAN, TaskStatus.REPLANNING))
+                .as("WAITING_HUMAN → REPLANNING（人工触发）应合法").isTrue();
     }
 
     @Test
-    void canTransitTo_replanningToSubtaskRunning_returnsTrue() {
-        assertTrue(stateMachine.canTransitTo(TaskStatus.REPLANNING, TaskStatus.SUBTASK_RUNNING),
-                "REPLANNING → SUBTASK_RUNNING（增量完成继续跑）应合法");
+    @DisplayName("REPLANNING → SUBTASK_RUNNING 应为合法状态流转（增量完成继续跑）")
+    void should_ReturnTrue_When_TransitFromReplanningToSubtaskRunning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.REPLANNING, TaskStatus.SUBTASK_RUNNING))
+                .as("REPLANNING → SUBTASK_RUNNING（增量完成继续跑）应合法").isTrue();
     }
 
     // ===== 非法转换 =====
 
     @Test
-    void canTransitTo_successToRunning_returnsFalse() {
-        assertFalse(stateMachine.canTransitTo(TaskStatus.SUCCESS, TaskStatus.RUNNING),
-                "SUCCESS 为终态，禁止流转到 RUNNING");
+    @DisplayName("SUCCESS 为终态，禁止流转到 RUNNING")
+    void should_ReturnFalse_When_TransitFromSuccessToRunning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.SUCCESS, TaskStatus.RUNNING))
+                .as("SUCCESS 为终态，禁止流转到 RUNNING").isFalse();
     }
 
     @Test
-    void canTransitTo_pendingToSuccess_returnsFalse() {
-        assertFalse(stateMachine.canTransitTo(TaskStatus.PENDING, TaskStatus.SUCCESS),
-                "PENDING → SUCCESS 跳阶段，禁止");
+    @DisplayName("PENDING → SUCCESS 跳阶段，禁止")
+    void should_ReturnFalse_When_TransitFromPendingToSuccess() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.PENDING, TaskStatus.SUCCESS))
+                .as("PENDING → SUCCESS 跳阶段，禁止").isFalse();
     }
 
     @Test
-    void canTransitTo_planningToSubtaskRunning_returnsFalse() {
-        assertFalse(stateMachine.canTransitTo(TaskStatus.PLANNING, TaskStatus.SUBTASK_RUNNING),
-                "PLANNING → SUBTASK_RUNNING 跳过 RUNNING，禁止");
+    @DisplayName("PLANNING → SUBTASK_RUNNING 跳过 RUNNING，禁止")
+    void should_ReturnFalse_When_TransitFromPlanningToSubtaskRunning() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.PLANNING, TaskStatus.SUBTASK_RUNNING))
+                .as("PLANNING → SUBTASK_RUNNING 跳过 RUNNING，禁止").isFalse();
     }
 
     @Test
-    void canTransitTo_successToSelf_returnsFalse() {
-        assertFalse(stateMachine.canTransitTo(TaskStatus.SUCCESS, TaskStatus.SUCCESS),
-                "SUCCESS 为终态，自环禁止");
+    @DisplayName("SUCCESS 为终态，自环禁止")
+    void should_ReturnFalse_When_TransitFromSuccessToSelf() {
+        assertThat(stateMachine.canTransitTo(TaskStatus.SUCCESS, TaskStatus.SUCCESS))
+                .as("SUCCESS 为终态，自环禁止").isFalse();
     }
 
     // ===== transit 方法 =====
 
     @Test
-    void transit_legalTransition_returnsTargetStatus() {
+    @DisplayName("合法状态转换应返回目标状态")
+    void should_ReturnTargetStatus_When_TransitionIsLegal() {
         TaskStatus result = stateMachine.transit(TaskStatus.PENDING, TaskStatus.PLANNING);
-        assertEquals(TaskStatus.PLANNING, result, "合法转换应返回目标状态");
+        assertThat(result).as("合法转换应返回目标状态").isEqualTo(TaskStatus.PLANNING);
     }
 
     @Test
-    void transit_illegalTransition_throwsBusinessExceptionWithParamInvalid() {
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> stateMachine.transit(TaskStatus.SUCCESS, TaskStatus.RUNNING),
-                "非法转换应抛 BusinessException");
-        assertEquals(ErrorCode.PARAM_INVALID, ex.getErrorCode(),
-                "非法状态转换错误码应为 PARAM_INVALID");
+    @DisplayName("非法状态转换应抛出 BusinessException 且错误码为 PARAM_INVALID")
+    void should_ThrowBusinessExceptionWithParamInvalid_When_TransitionIsIllegal() {
+        assertThatThrownBy(() -> stateMachine.transit(TaskStatus.SUCCESS, TaskStatus.RUNNING))
+                .isInstanceOfSatisfying(BusinessException.class, ex ->
+                        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.PARAM_INVALID));
     }
 }

@@ -1,14 +1,15 @@
 package com.agent.session.model;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class SessionTest {
 
     @Test
-    void shouldSetAndGetAllFields() {
+    @DisplayName("Session 实体应能正确设置和读取所有字段")
+    void should_SetAndGetAllFields_When_SessionFieldsPopulated() {
         Session s = new Session();
         s.setSessionId("ss_abc123");
         s.setTenantId(1001L);
@@ -19,26 +20,28 @@ class SessionTest {
         s.setTokenUsed(1500L);
         s.setContextSummary("摘要内容");
 
-        assertEquals("ss_abc123", s.getSessionId());
-        assertEquals(1001L, s.getTenantId());
-        assertEquals("u_001", s.getUserId());
-        assertEquals(2001L, s.getAgentId());
-        assertEquals("测试会话", s.getTitle());
-        assertEquals(1, s.getStatus());
-        assertEquals(1500L, s.getTokenUsed());
-        assertEquals("摘要内容", s.getContextSummary());
+        assertThat(s.getSessionId()).isEqualTo("ss_abc123");
+        assertThat(s.getTenantId()).isEqualTo(1001L);
+        assertThat(s.getUserId()).isEqualTo("u_001");
+        assertThat(s.getAgentId()).isEqualTo(2001L);
+        assertThat(s.getTitle()).isEqualTo("测试会话");
+        assertThat(s.getStatus()).isEqualTo(1);
+        assertThat(s.getTokenUsed()).isEqualTo(1500L);
+        assertThat(s.getContextSummary()).isEqualTo("摘要内容");
     }
 
     @Test
-    void shouldConvertStatusBetweenCodeAndEnum() {
-        assertEquals(SessionStatus.ACTIVE, SessionStatus.fromCode(1));
-        assertEquals(SessionStatus.CLOSED, SessionStatus.fromCode(3));
-        assertEquals("active", SessionStatus.ACTIVE.getApiValue());
-        assertEquals("closed", SessionStatus.CLOSED.getApiValue());
+    @DisplayName("SessionStatus 应支持在 code 与 enum 之间双向转换")
+    void should_ConvertStatusBetweenCodeAndEnum_When_StatusAccessed() {
+        assertThat(SessionStatus.fromCode(1)).isEqualTo(SessionStatus.ACTIVE);
+        assertThat(SessionStatus.fromCode(3)).isEqualTo(SessionStatus.CLOSED);
+        assertThat(SessionStatus.ACTIVE.getApiValue()).isEqualTo("active");
+        assertThat(SessionStatus.CLOSED.getApiValue()).isEqualTo("closed");
     }
 
     @Test
-    void shouldInitMessageDefaults() {
+    @DisplayName("Message 在 prePersist 后应初始化默认值")
+    void should_InitMessageDefaults_When_PrePersist() {
         Message m = new Message();
         m.setMsgId("msg_001");
         m.setSessionId("ss_abc");
@@ -46,12 +49,12 @@ class SessionTest {
         m.setContent("hello");
         m.prePersist();
 
-        assertEquals("msg_001", m.getMsgId());
-        assertEquals(MessageRole.USER, m.getRole());
-        assertEquals("text", m.getContentType());
-        assertEquals(0, m.getTokenCount());
-        assertEquals(false, m.getIsCompressed());
-        assertNotNull(m.getCreatedAt());
-        assertNotNull(m.getUpdatedAt());
+        assertThat(m.getMsgId()).isEqualTo("msg_001");
+        assertThat(m.getRole()).isEqualTo(MessageRole.USER);
+        assertThat(m.getContentType()).isEqualTo("text");
+        assertThat(m.getTokenCount()).isEqualTo(0);
+        assertThat(m.getIsCompressed()).isEqualTo(false);
+        assertThat(m.getCreatedAt()).isNotNull();
+        assertThat(m.getUpdatedAt()).isNotNull();
     }
 }

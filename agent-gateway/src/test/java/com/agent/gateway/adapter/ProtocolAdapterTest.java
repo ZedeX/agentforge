@@ -7,9 +7,10 @@ import com.agent.gateway.dto.TaskCreateResponse;
 import com.agent.gateway.service.TaskRouterService;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -41,6 +42,7 @@ class ProtocolAdapterTest {
     }
 
     @Test
+    @DisplayName("gRPC SubmitTaskRequest 适配为 TaskCreateRequest 时应透传全部字段并标记 internal=true")
     void should_AdaptGrpcToTask_When_SubmitTaskReceived() {
         SubmitTaskRequest grpcReq = SubmitTaskRequest.newBuilder()
                 .setGoal("生成本周销售周报")
@@ -54,16 +56,17 @@ class ProtocolAdapterTest {
 
         TaskCreateRequest result = protocolAdapter.adapt(grpcReq);
 
-        assertNotNull(result);
-        assertEquals("生成本周销售周报", result.getGoal());
-        assertEquals("周报任务", result.getTitle());
-        assertEquals("ss_internal_001", result.getSessionId());
-        assertEquals(5, result.getPriority());
-        assertEquals(5000L, result.getCostLimitCent());
-        assertTrue(result.getInternal(), "gRPC 来源应标记 internal=true");
+        assertThat(result).isNotNull();
+        assertThat(result.getGoal()).isEqualTo("生成本周销售周报");
+        assertThat(result.getTitle()).isEqualTo("周报任务");
+        assertThat(result.getSessionId()).isEqualTo("ss_internal_001");
+        assertThat(result.getPriority()).isEqualTo(5);
+        assertThat(result.getCostLimitCent()).isEqualTo(5000L);
+        assertThat(result.getInternal()).as("gRPC 来源应标记 internal=true").isTrue();
     }
 
     @Test
+    @DisplayName("gRPC 来源应标记 internal=true，REST 来源应保持 internal=false 默认值")
     void should_SetInternalFlagTrue_When_FromGrpc() {
         SubmitTaskRequest grpcReq = SubmitTaskRequest.newBuilder()
                 .setGoal("内部 gRPC 任务")
@@ -73,11 +76,12 @@ class ProtocolAdapterTest {
         TaskCreateRequest restResult = new TaskCreateRequest();
         restResult.setGoal("REST 任务");
 
-        assertTrue(grpcResult.getInternal(), "gRPC 来源应标记 internal=true");
-        assertFalse(restResult.getInternal(), "REST 来源应保持 internal=false 默认值");
+        assertThat(grpcResult.getInternal()).as("gRPC 来源应标记 internal=true").isTrue();
+        assertThat(restResult.getInternal()).as("REST 来源应保持 internal=false 默认值").isFalse();
     }
 
     @Test
+    @DisplayName("goal 字段在适配过程中应原样透传不丢失或截断")
     void should_PreserveGoal_When_Adapting() {
         String longGoal = "这是一个较长的目标字符串，用于验证适配过程中 goal 字段不会丢失或被截断";
         SubmitTaskRequest grpcReq = SubmitTaskRequest.newBuilder()
@@ -86,10 +90,11 @@ class ProtocolAdapterTest {
 
         TaskCreateRequest result = protocolAdapter.adapt(grpcReq);
 
-        assertEquals(longGoal, result.getGoal(), "goal 字段应原样透传");
+        assertThat(result.getGoal()).as("goal 字段应原样透传").isEqualTo(longGoal);
     }
 
     @Test
+    @DisplayName("GrpcTaskService 应委托 routerService 路由并返回 SubmitTaskResponse 给 observer")
     void should_DelegateToRouterAndReturnResponse_When_GrpcSubmitTask() {
         SubmitTaskRequest grpcReq = SubmitTaskRequest.newBuilder()
                 .setGoal("测试 gRPC 转发")

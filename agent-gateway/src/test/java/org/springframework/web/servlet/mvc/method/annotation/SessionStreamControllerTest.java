@@ -4,6 +4,7 @@ import com.agent.gateway.controller.SessionStreamController;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -20,10 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * SessionStreamController 单元测试 (P5-1)。
@@ -52,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>空 body：readLine 立即返回 null → 无事件 + complete()
  *   <li>事件名重置：空行后 currentEvent[0] 复位为 "message"
  * </ul>
+ *
+ * <p>P6-3/4/5：方法名统一为 {@code should_Xxx_When_Yyy}；JUnit 断言替换为 AssertJ；补充中文 @DisplayName。</p>
  */
 class SessionStreamControllerTest {
 
@@ -131,14 +131,16 @@ class SessionStreamControllerTest {
     }
 
     @Test
-    void stream_returnsNonNullSseEmitter() {
+    @DisplayName("stream 应返回非空 SseEmitter")
+    void should_ReturnNonNullEmitter_When_StreamCalled() {
         mockSseEndpoint("/api/v1/sessions/test-1/stream", "data: hello\n\n");
         SseEmitter emitter = controller.stream("test-1");
-        assertNotNull(emitter, "stream() must return a non-null SseEmitter");
+        assertThat(emitter).as("stream() must return a non-null SseEmitter").isNotNull();
     }
 
     @Test
-    void stream_withValidUpstreamSse_forwardsEventsAndCompletes() throws Exception {
+    @DisplayName("上游 SSE 有效时应转发全部事件并在完成后 complete")
+    void should_ForwardEventsAndComplete_When_UpstreamSseValid() throws Exception {
         String sseBody = "event: message\ndata: hello\n\ndata: world\n\n";
         AtomicInteger requestCount = new AtomicInteger(0);
         byte[] body = sseBody.getBytes(StandardCharsets.UTF_8);
@@ -158,14 +160,15 @@ class SessionStreamControllerTest {
         SseEmitter emitter = controller.stream("test-123");
         wireEmitter(emitter, latch, errorRef, events);
 
-        assertTrue(latch.await(5, TimeUnit.SECONDS), "SseEmitter should complete within 5s");
-        assertNull(errorRef.get(), "No error expected on valid upstream SSE");
-        assertEquals(1, requestCount.get(), "Upstream should receive exactly 1 request");
-        assertEquals(2, events.size(), "Expected 2 SSE events forwarded");
+        assertThat(latch.await(5, TimeUnit.SECONDS)).as("SseEmitter should complete within 5s").isTrue();
+        assertThat(errorRef.get()).as("No error expected on valid upstream SSE").isNull();
+        assertThat(requestCount.get()).as("Upstream should receive exactly 1 request").isEqualTo(1);
+        assertThat(events.size()).as("Expected 2 SSE events forwarded").isEqualTo(2);
     }
 
     @Test
-    void stream_withEventNameResetOnEmptyLine_correctlyParsed() throws Exception {
+    @DisplayName("空行应复位事件名为 message，正确解析后续事件")
+    void should_ResetEventNameOnEmptyLine_When_ParsedSse() throws Exception {
         // 第一个事件名为 foo，空行后应复位为 message
         String sseBody = "event: foo\ndata: a\n\ndata: b\n\n";
         mockSseEndpoint("/api/v1/sessions/reset-test/stream", sseBody);
@@ -177,13 +180,16 @@ class SessionStreamControllerTest {
         SseEmitter emitter = controller.stream("reset-test");
         wireEmitter(emitter, latch, errorRef, events);
 
-        assertTrue(latch.await(5, TimeUnit.SECONDS), "SseEmitter should complete");
-        assertNull(errorRef.get(), "No error expected");
-        assertEquals(2, events.size(), "Expected 2 events: first 'foo' with data 'a', second 'message' with data 'b'");
+        assertThat(latch.await(5, TimeUnit.SECONDS)).as("SseEmitter should complete").isTrue();
+        assertThat(errorRef.get()).as("No error expected").isNull();
+        assertThat(events.size())
+                .as("Expected 2 events: first 'foo' with data 'a', second 'message' with data 'b'")
+                .isEqualTo(2);
     }
 
     @Test
-    void stream_withEmptyBody_completesWithoutEvents() throws Exception {
+    @DisplayName("上游返回空 body 时应 complete 且不产生任何事件")
+    void should_CompleteWithoutEvents_When_UpstreamBodyEmpty() throws Exception {
         mockServer.createContext("/api/v1/sessions/empty/stream", exchange -> {
             exchange.getResponseHeaders().set("Content-Type", MediaType.TEXT_EVENT_STREAM_VALUE);
             exchange.sendResponseHeaders(200, 0);
@@ -197,13 +203,14 @@ class SessionStreamControllerTest {
         SseEmitter emitter = controller.stream("empty");
         wireEmitter(emitter, latch, errorRef, events);
 
-        assertTrue(latch.await(5, TimeUnit.SECONDS), "SseEmitter should complete on empty body");
-        assertNull(errorRef.get(), "No error expected on empty body");
-        assertTrue(events.isEmpty(), "No events expected on empty body");
+        assertThat(latch.await(5, TimeUnit.SECONDS)).as("SseEmitter should complete on empty body").isTrue();
+        assertThat(errorRef.get()).as("No error expected on empty body").isNull();
+        assertThat(events).as("No events expected on empty body").isEmpty();
     }
 
     @Test
-    void stream_withUnreachableUpstream_completesWithError() throws Exception {
+    @DisplayName("上游不可达时应 completeWithError 且不产生任何事件")
+    void should_CompleteWithError_When_UpstreamUnreachable() throws Exception {
         // 使用未监听端口，HttpClient.sendAsync 立即触发 ConnectException → exceptionally
         ReflectionTestUtils.setField(controller, "sessionServiceBaseUrl", "http://127.0.0.1:1");
 
@@ -214,9 +221,10 @@ class SessionStreamControllerTest {
         SseEmitter emitter = controller.stream("any");
         wireEmitter(emitter, latch, errorRef, events);
 
-        assertTrue(latch.await(8, TimeUnit.SECONDS),
-                "SseEmitter should complete (with error) within 8s on unreachable upstream");
-        assertNotNull(errorRef.get(), "Expected error from unreachable upstream");
-        assertTrue(events.isEmpty(), "No events expected on upstream failure");
+        assertThat(latch.await(8, TimeUnit.SECONDS))
+                .as("SseEmitter should complete (with error) within 8s on unreachable upstream")
+                .isTrue();
+        assertThat(errorRef.get()).as("Expected error from unreachable upstream").isNotNull();
+        assertThat(events).as("No events expected on upstream failure").isEmpty();
     }
 }

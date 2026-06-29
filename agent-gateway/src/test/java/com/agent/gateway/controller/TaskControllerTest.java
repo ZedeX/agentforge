@@ -5,6 +5,7 @@ import com.agent.gateway.client.TaskOrchestratorClient;
 import com.agent.gateway.service.TaskRouterService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -40,7 +41,8 @@ class TaskControllerTest {
     }
 
     @Test
-    void shouldRouteChatToSessionService() throws Exception {
+    @DisplayName("type=chat 时应路由到 SessionService 并返回 ACCEPTED")
+    void should_RouteChatToSessionService_When_TypeIsChat() throws Exception {
         String body = """
                 {
                   "type": "chat",
@@ -67,7 +69,8 @@ class TaskControllerTest {
     }
 
     @Test
-    void shouldRouteSingleStepToOrchestrator() throws Exception {
+    @DisplayName("type=single_step 时应路由到 Orchestrator 并返回 taskId=PENDING")
+    void should_RouteSingleStepToOrchestrator_When_TypeIsSingleStep() throws Exception {
         String body = """
                 {
                   "type": "single_step",
@@ -92,7 +95,8 @@ class TaskControllerTest {
     }
 
     @Test
-    void shouldRouteComplexToOrchestrator() throws Exception {
+    @DisplayName("type=complex 时应路由到 Orchestrator 并透传 title/goal/async/costLimit")
+    void should_RouteComplexToOrchestrator_When_TypeIsComplex() throws Exception {
         String body = """
                 {
                   "type": "complex",
@@ -119,7 +123,8 @@ class TaskControllerTest {
     }
 
     @Test
-    void shouldRejectInvalidType() throws Exception {
+    @DisplayName("type=unknown 时应返回 400 INVALID_ARGUMENT 且不调用任何下游 client")
+    void should_RejectRequest_When_TypeIsInvalid() throws Exception {
         String body = """
                 {
                   "type": "unknown",

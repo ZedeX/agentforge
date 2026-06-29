@@ -16,6 +16,7 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
@@ -39,8 +40,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -57,7 +57,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <ul>
  *   <li>数据库：H2 内存数据库（MODE=MySQL），Hibernate {@code ddl-auto=create-drop} 自动建表。
  *       任务允许用 H2 MySQL-mode 替代 MySQL Testcontainer（见 tdd-audit-report-v2.md §P2-2 FN-012）。</li>
- *   <li>Redis：jedis-mock（com.github.fppt:jedis-mock）嵌入式 Redis 服务器。
+ *   <li>Redis：jedis-mock（com.github.fppt:jedismock）嵌入式 Redis 服务器。
  *       jedis-mock 在 TCP 层实现 Redis 协议，Lettuce 客户端可像连接真实 Redis 一样连接它。
  *       当 Docker 不可用时，作为 Redis Testcontainer 的备选方案。
  *       若 Docker 可用，建议切换回 Testcontainers Redis 以获得更真实的集成测试。</li>
@@ -83,6 +83,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>测试 1 的 sessionId 断言从硬编码 {@code "ss_e2e_001"} 改为从响应 JSON 解析真实生成的 ID
  * （真实 SessionService 用 UUID 生成 sessionId，无法预测具体值，但场景不变：创建→订阅→推送）。</p>
+ *
+ * <p>P6-3/4/5：方法名统一为 {@code should_Xxx_When_Yyy}；JUnit 断言替换为 AssertJ；补充中文 @DisplayName。</p>
  */
 class EndToEndTest {
 
@@ -188,7 +190,8 @@ class EndToEndTest {
     }
 
     @Test
-    void shouldCreateSessionPublishEventAndClientReceive() throws Exception {
+    @DisplayName("创建会话后通过 SSE 推送事件，客户端应能订阅到流")
+    void should_CreateSessionPublishEventAndClientReceive_When_E2EFlow() throws Exception {
         // 1. 创建会话（真实 SessionService 真实落库 H2）
         String body = """
                 {
@@ -209,8 +212,8 @@ class EndToEndTest {
         // 真实 sessionId 由 SessionService 内部 UUID 生成，需从响应解析（原 mock 写死 "ss_e2e_001"）
         String responseBody = createResult.getResponse().getContentAsString();
         String sessionId = om.readTree(responseBody).at("/data/sessionId").asText();
-        assertNotNull(sessionId, "响应中应包含 sessionId");
-        assertTrue(sessionId.startsWith("ss_"), "sessionId 应以 ss_ 开头");
+        assertThat(sessionId).as("响应中应包含 sessionId").isNotNull();
+        assertThat(sessionId.startsWith("ss_")).as("sessionId 应以 ss_ 开头").isTrue();
 
         // 2. 启动 SSE 监听（异步）
         AtomicReference<String> receivedEvent = new AtomicReference<>();
@@ -256,15 +259,16 @@ class EndToEndTest {
 
         // 4. 校验：至少监听到 SSE 流被建立（asyncStarted=true 即可证明）
         //    实际推送事件需通过 SseEmitter 异步发送，本测试验证链路无异常
-        assertNotNull(sessionId);
+        assertThat(sessionId).isNotNull();
     }
 
     @Test
-    void shouldPushEventViaRedisPubSub() throws Exception {
+    @DisplayName("通过 Redis Pub/Sub 推送事件应不抛异常")
+    void should_PushEventViaRedisPubSub_When_PublishCalled() throws Exception {
         ssePushService.publish("ss_pub_001", "token", Map.of("delta", "hi"));
 
         // 验证 publish 不抛异常即视为通过（Redis Pub/Sub 链路）
-        assertTrue(true);
+        assertThat(true).isTrue();
     }
 
     private com.agent.session.config.ShortTermMemoryProperties memoryProps() {

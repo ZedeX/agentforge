@@ -8,6 +8,7 @@ import com.agent.session.repository.MessageRepository;
 import com.agent.session.repository.SessionRepository;
 import com.agent.session.testinfra.fixture.SessionFixtures;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Page;
@@ -18,13 +19,8 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -42,6 +38,8 @@ import static org.mockito.Mockito.when;
  * mock 三个依赖（SessionRepository / MessageRepository / ShortTermMemoryService），
  * 覆盖 createSession / getSession / closeSession / archiveSession / sendMessage / listMessages
  * 的正常路径与边界场景。</p>
+ *
+ * <p>P6-3/4/5：方法名统一为 {@code should_Xxx_When_Yyy}；JUnit 断言替换为 AssertJ；补充中文 @DisplayName。</p>
  */
 class SessionServiceTest {
 
@@ -67,17 +65,17 @@ class SessionServiceTest {
     // ==================== createSession ====================
 
     @Test
-    void createSession_shouldReturnSessionWithActiveStatus() {
+    @DisplayName("createSession 应返回 active 状态的 Session 并写入仓储与短期记忆")
+    void should_ReturnSessionWithActiveStatus_When_CreateSession() {
         Session result = sessionService.createSession(1001L, "u_001", 2001L, "测试会话");
 
-        assertNotNull(result);
-        assertNotNull(result.getSessionId());
-        assertTrue(result.getSessionId().startsWith("ss_"),
-                "sessionId should start with ss_ prefix");
-        assertEquals(SessionStatus.ACTIVE.getCode(), result.getStatus());
-        assertEquals(0L, result.getTokenUsed());
-        assertEquals("u_001", result.getUserId());
-        assertEquals(2001L, result.getAgentId());
+        assertThat(result).isNotNull();
+        assertThat(result.getSessionId()).isNotNull();
+        assertThat(result.getSessionId()).startsWith("ss_");
+        assertThat(result.getStatus()).isEqualTo(SessionStatus.ACTIVE.getCode());
+        assertThat(result.getTokenUsed()).isEqualTo(0L);
+        assertThat(result.getUserId()).isEqualTo("u_001");
+        assertThat(result.getAgentId()).isEqualTo(2001L);
 
         verify(sessionRepository, times(1)).save(any(Session.class));
         verify(memoryService, times(1))
@@ -85,70 +83,75 @@ class SessionServiceTest {
     }
 
     @Test
-    void createSession_shouldUseDefaultContentTypeWhenNull() {
+    @DisplayName("title 为 null 时 createSession 应使用空字符串填充默认上下文")
+    void should_UseDefaultContentTypeWhenNull_When_CreateSessionWithNullTitle() {
         Session result = sessionService.createSession(1001L, "u_001", 2001L, null);
 
-        assertNotNull(result);
-        assertNull(result.getTitle());
+        assertThat(result).isNotNull();
+        assertThat(result.getTitle()).isNull();
 
         ArgumentCaptor<ShortTermMemoryService.SessionContext> ctxCaptor =
                 ArgumentCaptor.forClass(ShortTermMemoryService.SessionContext.class);
         verify(memoryService).saveContext(eq(result.getSessionId()), ctxCaptor.capture());
         ShortTermMemoryService.SessionContext ctx = ctxCaptor.getValue();
-        assertNull(ctx.getTaskGoal());
-        assertEquals("", ctx.getSystemPrompt());
-        assertEquals("", ctx.getRecalledMemory());
-        assertNotNull(ctx.getRecentMessages());
-        assertNotNull(ctx.getToolHistory());
+        assertThat(ctx.getTaskGoal()).isNull();
+        assertThat(ctx.getSystemPrompt()).isEqualTo("");
+        assertThat(ctx.getRecalledMemory()).isEqualTo("");
+        assertThat(ctx.getRecentMessages()).isNotNull();
+        assertThat(ctx.getToolHistory()).isNotNull();
     }
 
     // ==================== getSession ====================
 
     @Test
-    void getSession_shouldReturnSessionWhenExists() {
+    @DisplayName("getSession 在仓储命中时应返回对应 Session")
+    void should_ReturnSession_When_SessionExists() {
         Session session = SessionFixtures.aSession("ss_001");
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
         Optional<Session> result = sessionService.getSession("ss_001");
 
-        assertTrue(result.isPresent());
-        assertSame(session, result.get());
+        assertThat(result).isPresent();
+        assertThat(result.get()).isSameAs(session);
     }
 
     @Test
-    void getSession_shouldReturnEmptyWhenNotExists() {
+    @DisplayName("getSession 在仓储未命中时应返回 empty")
+    void should_ReturnEmpty_When_SessionNotExists() {
         when(sessionRepository.findBySessionId("ss_notexist")).thenReturn(Optional.empty());
 
         Optional<Session> result = sessionService.getSession("ss_notexist");
 
-        assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
     // ==================== closeSession ====================
 
     @Test
-    void closeSession_shouldReturnTrueAndSetClosedStatus() {
+    @DisplayName("closeSession 命中时应将状态置为 CLOSED 并清理短期记忆")
+    void should_ReturnTrueAndSetClosedStatus_When_CloseExistingSession() {
         Session session = SessionFixtures.aSession("ss_001");
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
         boolean result = sessionService.closeSession("ss_001");
 
-        assertTrue(result);
+        assertThat(result).isTrue();
 
         ArgumentCaptor<Session> captor = ArgumentCaptor.forClass(Session.class);
         verify(sessionRepository).save(captor.capture());
-        assertEquals(SessionStatus.CLOSED.getCode(), captor.getValue().getStatus());
+        assertThat(captor.getValue().getStatus()).isEqualTo(SessionStatus.CLOSED.getCode());
 
         verify(memoryService).clearContext("ss_001");
     }
 
     @Test
-    void closeSession_shouldReturnFalseWhenNotExists() {
+    @DisplayName("closeSession 在仓储未命中时应返回 false 且不触发任何写操作")
+    void should_ReturnFalse_When_CloseMissingSession() {
         when(sessionRepository.findBySessionId("ss_notexist")).thenReturn(Optional.empty());
 
         boolean result = sessionService.closeSession("ss_notexist");
 
-        assertFalse(result);
+        assertThat(result).isFalse();
         verify(sessionRepository, never()).save(any(Session.class));
         verify(memoryService, never()).clearContext(anyString());
     }
@@ -156,28 +159,30 @@ class SessionServiceTest {
     // ==================== archiveSession ====================
 
     @Test
-    void archiveSession_shouldReturnTrueAndSetArchivedStatus() {
+    @DisplayName("archiveSession 命中时应将状态置为 ARCHIVED 并清理短期记忆")
+    void should_ReturnTrueAndSetArchivedStatus_When_ArchiveExistingSession() {
         Session session = SessionFixtures.aSession("ss_001");
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
         boolean result = sessionService.archiveSession("ss_001");
 
-        assertTrue(result);
+        assertThat(result).isTrue();
 
         ArgumentCaptor<Session> captor = ArgumentCaptor.forClass(Session.class);
         verify(sessionRepository).save(captor.capture());
-        assertEquals(SessionStatus.ARCHIVED.getCode(), captor.getValue().getStatus());
+        assertThat(captor.getValue().getStatus()).isEqualTo(SessionStatus.ARCHIVED.getCode());
 
         verify(memoryService).clearContext("ss_001");
     }
 
     @Test
-    void archiveSession_shouldReturnFalseWhenNotExists() {
+    @DisplayName("archiveSession 在仓储未命中时应返回 false 且不触发任何写操作")
+    void should_ReturnFalse_When_ArchiveMissingSession() {
         when(sessionRepository.findBySessionId("ss_notexist")).thenReturn(Optional.empty());
 
         boolean result = sessionService.archiveSession("ss_notexist");
 
-        assertFalse(result);
+        assertThat(result).isFalse();
         verify(sessionRepository, never()).save(any(Session.class));
         verify(memoryService, never()).clearContext(anyString());
     }
@@ -185,17 +190,18 @@ class SessionServiceTest {
     // ==================== sendMessage ====================
 
     @Test
-    void sendMessage_shouldReturnAssistantMessage_whenSessionActive() {
+    @DisplayName("向 active 会话发消息应返回 assistant 回复并写入仓储与短期记忆")
+    void should_ReturnAssistantMessage_When_SessionActive() {
         Session session = SessionFixtures.aSession("ss_001");
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
         Message result = sessionService.sendMessage("ss_001", "hello", "text", "u_001");
 
-        assertNotNull(result);
-        assertEquals("[echo] hello", result.getContent());
-        assertEquals(MessageRole.ASSISTANT, result.getRole());
-        assertEquals("text", result.getContentType());
-        assertNotNull(result.getMsgId());
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).isEqualTo("[echo] hello");
+        assertThat(result.getRole()).isEqualTo(MessageRole.ASSISTANT);
+        assertThat(result.getContentType()).isEqualTo("text");
+        assertThat(result.getMsgId()).isNotNull();
 
         verify(messageRepository, times(2)).save(any(Message.class));
         verify(memoryService, times(2)).appendMessage(eq("ss_001"), anyMap());
@@ -203,45 +209,49 @@ class SessionServiceTest {
     }
 
     @Test
-    void sendMessage_shouldThrowIllegalArgument_whenSessionNotFound() {
+    @DisplayName("会话不存在时 sendMessage 应抛 IllegalArgumentException")
+    void should_ThrowIllegalArgument_When_SessionNotFound() {
         when(sessionRepository.findBySessionId("ss_notexist")).thenReturn(Optional.empty());
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> sessionService.sendMessage("ss_notexist", "hello", "text", "u_001"));
+        assertThatThrownBy(() -> sessionService.sendMessage("ss_notexist", "hello", "text", "u_001"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ss_notexist");
 
-        assertTrue(ex.getMessage().contains("ss_notexist"));
         verify(messageRepository, never()).save(any(Message.class));
         verify(memoryService, never()).appendMessage(anyString(), anyMap());
     }
 
     @Test
-    void sendMessage_shouldThrowIllegalState_whenSessionClosed() {
+    @DisplayName("会话状态为 CLOSED 时 sendMessage 应抛 IllegalStateException")
+    void should_ThrowIllegalState_When_SessionClosed() {
         Session session = SessionFixtures.aSession("ss_001");
         session.setStatus(SessionStatus.CLOSED.getCode());
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
-        assertThrows(IllegalStateException.class,
-                () -> sessionService.sendMessage("ss_001", "hello", "text", "u_001"));
+        assertThatThrownBy(() -> sessionService.sendMessage("ss_001", "hello", "text", "u_001"))
+                .isInstanceOf(IllegalStateException.class);
 
         verify(messageRepository, never()).save(any(Message.class));
         verify(memoryService, never()).appendMessage(anyString(), anyMap());
     }
 
     @Test
-    void sendMessage_shouldThrowIllegalState_whenSessionArchived() {
+    @DisplayName("会话状态为 ARCHIVED 时 sendMessage 应抛 IllegalStateException")
+    void should_ThrowIllegalState_When_SessionArchived() {
         Session session = SessionFixtures.aSession("ss_001");
         session.setStatus(SessionStatus.ARCHIVED.getCode());
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
-        assertThrows(IllegalStateException.class,
-                () -> sessionService.sendMessage("ss_001", "hello", "text", "u_001"));
+        assertThatThrownBy(() -> sessionService.sendMessage("ss_001", "hello", "text", "u_001"))
+                .isInstanceOf(IllegalStateException.class);
 
         verify(messageRepository, never()).save(any(Message.class));
         verify(memoryService, never()).appendMessage(anyString(), anyMap());
     }
 
     @Test
-    void sendMessage_shouldUseDefaultContentType_whenContentTypeIsNull() {
+    @DisplayName("contentType 为 null 时 sendMessage 应使用默认值 text")
+    void should_UseDefaultContentType_When_ContentTypeIsNull() {
         Session session = SessionFixtures.aSession("ss_001");
         when(sessionRepository.findBySessionId("ss_001")).thenReturn(Optional.of(session));
 
@@ -250,14 +260,15 @@ class SessionServiceTest {
         ArgumentCaptor<Message> msgCaptor = ArgumentCaptor.forClass(Message.class);
         verify(messageRepository, times(2)).save(msgCaptor.capture());
         Message savedUserMsg = msgCaptor.getAllValues().get(0);
-        assertEquals(MessageRole.USER, savedUserMsg.getRole());
-        assertEquals("text", savedUserMsg.getContentType());
+        assertThat(savedUserMsg.getRole()).isEqualTo(MessageRole.USER);
+        assertThat(savedUserMsg.getContentType()).isEqualTo("text");
     }
 
     // ==================== listMessages ====================
 
     @Test
-    void listMessages_shouldReturnPage() {
+    @DisplayName("listMessages 应返回分页结果")
+    void should_ReturnPage_When_ListMessages() {
         Pageable pageable = PageRequest.of(0, 10);
         List<Message> messages = List.of(
                 SessionFixtures.aMessage("ss_001", MessageRole.USER, "hi"),
@@ -268,9 +279,9 @@ class SessionServiceTest {
 
         Page<Message> result = sessionService.listMessages("ss_001", pageable);
 
-        assertNotNull(result);
-        assertEquals(2, result.getTotalElements());
-        assertEquals(messages, result.getContent());
+        assertThat(result).isNotNull();
+        assertThat(result.getTotalElements()).isEqualTo(2L);
+        assertThat(result.getContent()).isEqualTo(messages);
         verify(messageRepository).findBySessionId("ss_001", pageable);
     }
 }

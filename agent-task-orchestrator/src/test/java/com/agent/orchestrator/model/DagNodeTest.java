@@ -1,12 +1,9 @@
 package com.agent.orchestrator.model;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * DagNode 实体单元测试（Red 阶段：实现尚未存在，预期编译失败）。
@@ -23,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DagNodeTest {
 
     @Test
-    void builder_shouldSetAllFields() {
+    @DisplayName("通过 Builder 构建时应正确设置所有字段")
+    void should_SetAllFields_When_UsingBuilder() {
         DagNode node = DagNode.builder()
                 .id(1L)
                 .dagId(10086L)
@@ -38,21 +36,22 @@ class DagNodeTest {
                 .status("pending")
                 .build();
 
-        assertEquals(1L, node.getId());
-        assertEquals(10086L, node.getDagId());
-        assertEquals("n1", node.getNodeId());
-        assertEquals("subtask", node.getNodeType());
-        assertEquals("st_001", node.getSubtaskId());
-        assertEquals("查询订单", node.getTitle());
-        assertEquals(2001L, node.getAgentId());
-        assertEquals("[\"query\",\"order\"]", node.getAbilityTags());
-        assertEquals("{\"userId\":\"u_123\"}", node.getInputs());
-        assertEquals("{\"orderList\":[]}", node.getOutputs());
-        assertEquals("pending", node.getStatus());
+        assertThat(node.getId()).isEqualTo(1L);
+        assertThat(node.getDagId()).isEqualTo(10086L);
+        assertThat(node.getNodeId()).isEqualTo("n1");
+        assertThat(node.getNodeType()).isEqualTo("subtask");
+        assertThat(node.getSubtaskId()).isEqualTo("st_001");
+        assertThat(node.getTitle()).isEqualTo("查询订单");
+        assertThat(node.getAgentId()).isEqualTo(2001L);
+        assertThat(node.getAbilityTags()).isEqualTo("[\"query\",\"order\"]");
+        assertThat(node.getInputs()).isEqualTo("{\"userId\":\"u_123\"}");
+        assertThat(node.getOutputs()).isEqualTo("{\"orderList\":[]}");
+        assertThat(node.getStatus()).isEqualTo("pending");
     }
 
     @Test
-    void builder_shouldGenerateToStringContainingFieldName() {
+    @DisplayName("Builder 生成的 toString 应包含字段名")
+    void should_GenerateToStringContainingFieldName_When_UsingBuilder() {
         DagNode node = DagNode.builder()
                 .nodeId("n_toString")
                 .nodeType("start")
@@ -60,49 +59,53 @@ class DagNodeTest {
                 .build();
 
         String str = node.toString();
-        assertNotNull(str);
-        assertTrue(str.contains("nodeId=n_toString"), "toString should contain nodeId field");
-        assertTrue(str.contains("nodeType=start"), "toString should contain nodeType field");
-        assertTrue(str.contains("status=success"), "toString should contain status field");
+        assertThat(str).isNotNull();
+        assertThat(str.contains("nodeId=n_toString")).as("toString should contain nodeId field").isTrue();
+        assertThat(str.contains("nodeType=start")).as("toString should contain nodeType field").isTrue();
+        assertThat(str.contains("status=success")).as("toString should contain status field").isTrue();
     }
 
     @Test
-    void data_shouldImplementEqualsAndHashCodeByAllFields() {
+    @DisplayName("equals/hashCode 应基于所有字段实现，同值节点相等，不同值节点不等")
+    void should_ImplementEqualsAndHashCodeByAllFields_When_NodesHaveSameOrDifferentValues() {
         DagNode n1 = DagNode.builder().nodeId("n1").nodeType("subtask").status("pending").build();
         DagNode n2 = DagNode.builder().nodeId("n1").nodeType("subtask").status("pending").build();
         DagNode n3 = DagNode.builder().nodeId("n1").nodeType("subtask").status("running").build();
 
-        assertEquals(n1, n2, "同值节点应相等");
-        assertEquals(n1.hashCode(), n2.hashCode(), "同值节点 hashCode 应相等");
-        assertFalse(n1.equals(n3), "status 不同应不等");
+        assertThat(n1).as("同值节点应相等").isEqualTo(n2);
+        assertThat(n1.hashCode()).as("同值节点 hashCode 应相等").isEqualTo(n2.hashCode());
+        assertThat(n1.equals(n3)).as("status 不同应不等").isFalse();
     }
 
     @Test
-    void noArgsConstructor_shouldCreateInstanceWithNullFields() {
+    @DisplayName("无参构造函数创建实例时所有引用类型字段应为 null")
+    void should_CreateInstanceWithNullFields_When_UsingNoArgsConstructor() {
         DagNode node = new DagNode();
-        assertNull(node.getNodeId());
-        assertNull(node.getNodeType());
-        assertNull(node.getStatus());
-        assertNull(node.getSubtaskId());
+        assertThat(node.getNodeId()).isNull();
+        assertThat(node.getNodeType()).isNull();
+        assertThat(node.getStatus()).isNull();
+        assertThat(node.getSubtaskId()).isNull();
     }
 
     @Test
-    void allArgsConstructor_shouldSetAllFields() {
+    @DisplayName("全参构造函数应正确设置所有字段")
+    void should_SetAllFields_When_UsingAllArgsConstructor() {
         DagNode node = new DagNode(
                 7L, 10086L, "n_ctor", "end", null,
                 "任务终点", null, null, null, null, "pending");
 
-        assertEquals(7L, node.getId());
-        assertEquals(10086L, node.getDagId());
-        assertEquals("n_ctor", node.getNodeId());
-        assertEquals("end", node.getNodeType());
-        assertNull(node.getSubtaskId());
-        assertEquals("任务终点", node.getTitle());
-        assertEquals("pending", node.getStatus());
+        assertThat(node.getId()).isEqualTo(7L);
+        assertThat(node.getDagId()).isEqualTo(10086L);
+        assertThat(node.getNodeId()).isEqualTo("n_ctor");
+        assertThat(node.getNodeType()).isEqualTo("end");
+        assertThat(node.getSubtaskId()).isNull();
+        assertThat(node.getTitle()).isEqualTo("任务终点");
+        assertThat(node.getStatus()).isEqualTo("pending");
     }
 
     @Test
-    void prePersist_shouldInitializeDefaultStatusToPending() {
+    @DisplayName("PrePersist 应将 status 默认值初始化为 pending 并填充时间戳字段")
+    void should_InitializeDefaultStatusToPending_When_PrePersistIsCalled() {
         DagNode node = DagNode.builder()
                 .dagId(10086L)
                 .nodeId("n_default")
@@ -112,8 +115,8 @@ class DagNodeTest {
         // PrePersist 应填充 status 默认值 "pending"
         node.prePersist();
 
-        assertEquals("pending", node.getStatus(), "status 默认应为 pending");
-        assertNotNull(node.getCreatedAt(), "createdAt 应被 PrePersist 填充");
-        assertNotNull(node.getUpdatedAt(), "updatedAt 应被 PrePersist 填充");
+        assertThat(node.getStatus()).as("status 默认应为 pending").isEqualTo("pending");
+        assertThat(node.getCreatedAt()).as("createdAt 应被 PrePersist 填充").isNotNull();
+        assertThat(node.getUpdatedAt()).as("updatedAt 应被 PrePersist 填充").isNotNull();
     }
 }
