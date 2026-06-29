@@ -1264,6 +1264,52 @@ c1b7f9c (origin/main) docs: add AI Agent reading guide + audit progress index + 
 - `lombok.config`（项目根目录新建）— `config.stopBubbling=true` + `lombok.addLombokGeneratedAnnotation=true`
 - `agent-task-orchestrator/scripts/run-mvn.ps1` — PowerShell 调用 mvn.cmd 的 helper 脚本（解决 PATH 噪音）
 
+---
+
+## T13: 端到端集成测试（2026-06-29）
+
+### 任务概述
+P6-6 T13：在 agent-task-orchestrator 模块实现端到端集成测试，覆盖 6 个 E2E 场景。
+
+### 创建文件
+- `agent-task-orchestrator/src/test/java/com/agent/orchestrator/integration/TaskOrchestratorIntegrationTest.java` — 6 个 @Test 端到端集成测试
+
+### 测试结果
+- `mvn -pl agent-task-orchestrator -am test -Dtest=TaskOrchestratorIntegrationTest` → Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+- 全量回归：`mvn -pl agent-task-orchestrator -am test` → agent-task-orchestrator 模块 Tests run: 160, Failures: 0, Errors: 0, Skipped: 0 → BUILD SUCCESS
+
+### 6 个 E2E 场景
+1. **E2E-1**: L1 任务提交应直接进入 SUBTASK_RUNNING（跳过 PLANNING）— 新建任务，assessComplexity 返回 1，走 L1 路径 PENDING→RUNNING→SUBTASK_RUNNING
+2. **E2E-2**: L2 任务应走完整 PLANNING → VALIDATE → RUNNING 流程 — 预存 complexity=2 的任务（因 assessComplexity 硬返回 1），stub PlanValidator.validate 返回 pass()
+3. **E2E-3**: 子任务失败上报应触发 REPLANNING 状态 — 预存 SUBTASK_RUNNING 任务，reportSubtaskResult(status=failed, errorCode=MAX_RETRY_EXCEEDED)
+4. **E2E-4**: 取消运行中任务应转为 CANCELLED — 预存 RUNNING 任务，cancelTask 转 CANCELLED
+5. **E2E-5**: GetTaskStatus 应返回 DB 中真实任务状态 — 预存 PLANNING 任务，查询返回 PLANNING
+6. **E2E-6**: 查询不存在的任务应返回 gRPC NOT_FOUND 错误 — BusinessException(TASK_NOT_FOUND) → GrpcExceptionAdvice.translate → Status.NOT_FOUND → StatusRuntimeException
+
+### 关键设计决策
+1. **基础设施**：H2（MODE=MySQL）+ jedis-mock（`RedisServer.newRedisServer().start()`）+ InProcess gRPC Server（grpc-testing），无需 Docker
+2. **事务处理**：GrpcService 标注了 @Transactional 但测试不启动 Spring 容器，直接 new 不会触发代理。且 gRPC bindService() 生成的方法处理器引用 this（真实对象），CGLIB 代理自调用会绕过切面。故采用**子类覆盖每个 RPC 方法 + TransactionTemplate 包裹 super.xxx()** 的方式显式管理事务边界
+3. **Repository**：JpaRepositoryFactory + SharedEntityManagerCreator.createSharedEntityManager(emf)，配合 TransactionTemplate 可让 repository.save() 真正落库
+4. **Mock 策略**：跨模块下游（PlanValidator / TemplateMatcher / BatchPartitioner）用 Mockito.mock() stub；本模块组件（Repository / StateMachine / Mapper / GrpcExceptionAdvice）使用真实实现
+
+### 修正 Plan 04 骨架的 4 处 API 不匹配
+1. `planValidator.validate(any(), any())` → `planValidator.validate(any())`（单参数 ValidationContext）
+2. `new ValidationResult(true, List.of(), List.of())` → `ValidationResult.pass()`（静态工厂）
+3. `vr.isPassed()` → `vr.isAllPass()`（GrpcService 源码已正确使用）
+4. `new RedisServer(0)` → `RedisServer.newRedisServer().start()`（jedis-mock 1.1.12 正确 API，参考 agent-session EndToEndTest）
+5. E2E-2 需预存 complexity=2 的任务（assessComplexity 硬返回 1，不预存则无法走 L2 路径）
+
+### 已知 WARN（不影响测试）
+- Hibernate DDL 建表时 `idx_dag_id` 索引重复创建（DagNode 实体 @Index 注解 + Hibernate 自动外键索引冲突），WARN 级别不阻塞测试执行
+- `H2Dialect does not need to be specified explicitly` WARN（Hibernate 6.x 自动检测方言）
+
+### 验收标准达成
+- [x] TaskOrchestratorIntegrationTest.java 创建完成
+- [x] 6 个 @Test 全绿（Tests run: 6, Failures: 0, Errors: 0, Skipped: 0）
+- [x] 不破坏既有测试（全量回归 BUILD SUCCESS，agent-task-orchestrator 模块 160 测试全绿）
+- [x] 真实 Repository（H2 MySQL 模式）+ 真实 StateMachine + 真实 Mapper，跨模块下游 Mockito stub
+- [x] InProcess gRPC Server（grpc-testing）无需真实端口
+
 ### 验证结果
 ```
 mvn clean test jacoco:check@jacoco-check -pl agent-task-orchestrator -am -B -ntp
