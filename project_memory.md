@@ -1778,6 +1778,95 @@ odes 为空但 deliverables 非空时失败。
 
 ### 主 Agent 后续动作
 - 统一 mvn install 验证
-- 统一 commit（建议 commit message：eat(orchestrator): T9 实现 5 维度 DAG 校验 PlanValidator（UT-PLAN-009/010））
+- 统一 commit（建议 commit message：feat(orchestrator): T9 实现 5 维度 DAG 校验 PlanValidator（UT-PLAN-009/010））
+- 已完成（commit 4784f57，2026-06-29）
+
+---
+
+## 2026-06-29 子 Agent：撰写 04-task-orchestrator-planning-plan.md 编码计划文档
+
+**作用**：记录为 agent-task-orchestrator 模块 Wave 2（T5/T7/T11/T13）撰写编码计划文档的子 Agent 任务，供后续主 Agent 派发实施参考。
+
+### 任务范围
+- 撰写 `e:\git\Agent-Platform-Prototype\docs\plans\04-task-orchestrator-planning-plan.md`
+- 风格参考 02-agent-gateway-session-plan.md（标题 + Goal/Architecture/Tech Stack + 设计文档对齐表 + 文件结构总览 + 每个 Task 详细 Step）
+- 聚焦 T5/T7/T11/T13 四个待做 Task（gRPC 服务 / RocketMQ / 集成测试），已完成 Task（T1-T4/T6/T8-T10/T12）仅简表
+- 对齐 v5 审核报告 §6 P6-6 整改项（D2 +1.0）
+
+### 参考文档（已读取确认）
+1. `docs/plans/02-agent-gateway-session-plan.md`（风格参考，Step 结构 + 代码骨架 + 验收清单）
+2. `docs/03-task-engine/task-orchestration-and-planning.md` §7 RocketMQ（719-808 行）/ §8.1 task-orchestrator 核心（895-1219 行）/ §8.2 planning-service（1219-1493 行）/ §10 异常处理（1621-1691 行）
+3. `docs/tests/unit-test-cases.md` §5 UT-ORCH-001~013（102-120 行）/ §6 UT-PLAN-001~010（126-141 行）
+4. `docs/plans/00-coding-plans-overview.md` L22 T1-T13 大纲
+5. `docs/tests/tdd-audit-report-v5.md` §6 P6-6（L270）
+6. `agent-proto/src/main/proto/task.proto`（4 RPC + 7 message，java_package=agentplatform.task.v1）
+7. `agent-proto/src/main/proto/planning.proto`（4 RPC + 9 message，java_package=agentplatform.planning.v1）
+8. `agent-proto/src/main/proto/common.proto`（TraceContext）
+
+### 现状确认（读取代码）
+执行 `Get-ChildItem -Recurse -Filter *.java` 确认已完成 25 个 Java 文件：
+- T1: OrchestratorApplication.java
+- T2: model/TaskInstance.java + repository/TaskInstanceRepository.java
+- T3: dag/DagGraph+DagValidator+TopologicalSorter + model/DagNode/DagEdge/DagElement/BaseEntity
+- T4: statemachine/TaskStateMachine.java
+- T6: assessor/ComplexityLevel+ComplexityDimensions+ComplexityScorer+RuleFilter
+- T8: template/TaskTemplate+PlanMode+TemplateMatcher
+- T9: validator/ValidationDimension+ValidationResult+ValidationContext+PlanValidator
+- T10: dispatcher/Batch+BatchPartitioner
+- T12: replanner/ReplanMode+ReplanModeSelector
+
+### 产出
+- **文件**：`e:\git\Agent-Platform-Prototype\docs\plans\04-task-orchestrator-planning-plan.md`
+- **总行数**：2791 行（略超 1500-2500 上限，因 4 个待做 Task 代码骨架详尽）
+- **章节起始行号**：
+  - 设计文档对齐：L13
+  - 文件结构总览：L39
+  - 已完成 Task 简表：L98
+  - 依赖添加顺序（pom.xml 变更）：L116（Step P.1-P.5）
+  - Task 5 TaskOrchestrator gRPC：L213（Step 5.1-5.8，13 测试）
+  - Task 7 PlanningService gRPC：L896（Step 7.1-7.7，11 测试）
+  - Task 11 RocketMQ 集成：L1458（Step 11.1-11.11，10 测试）
+  - Task 13 集成测试：L2304（Step 13.1-13.6，6 测试）
+  - 实施顺序建议（Wave 2 推荐路径）：L2631
+  - 自审清单：L2701
+  - 执行 Handoff：L2789
+- **未 commit**（留给主 Agent）
+- **未运行 mvn**（避免与其他 Agent 冲突）
+
+### 关键设计决策摘要
+| 决策项 | 选择 | 理由 |
+|---|---|---|
+| proto 包名 | `agentplatform.task.v1` / `agentplatform.planning.v1`（实际生成） | 设计文档 §8.1 写的 `com.agentplatform.task.orchestrator.api` 仅为示意，以 proto `java_package` 为准 |
+| proto TaskInstance 与 JPA TaskInstance 同名 | `TaskInstanceMapper` 用 FQN 消歧义 | 避免改类名破坏既有 T2 实体 |
+| gRPC server 端口 | 9090（TaskOrchestrator + PlanningService 共用） | 单 Spring Boot 应用，net.devh 单 server 多 service |
+| rocketmq-spring 版本 | 2.3.0（继承父 pom `rocketmq-spring.version`） | 设计文档 §11 提 2.3.1，父 pom 已声明 2.3.0，对齐父 pom 避免引入未管理版本 |
+| **T13 基础设施** | **H2（MySQL 模式）+ jedis-mock + InProcess gRPC Server 作为主路径（无需 Docker）**；Testcontainers MySQL+Redis 作为 `-Pdocker` profile 下可选真实集成路径 | 与 agent-session EndToEndTest 一致；当前环境无 Docker；父 pom 已有 `no-docker` profile；orchestrator pom 已含 H2 + jedis-mock 测试依赖 |
+| T13 Mock 策略 | 本模块组件真实（Repository/StateMachine/Mapper），跨模块下游 stub（PlanValidator/TemplateMatcher/BatchPartitioner） | 保证 E2E 真实性同时避免跨进程依赖 |
+| T11 RocketMQ 测试 | Mockito mock `RocketMQTemplate`，不启动真实 Broker | 单测聚焦消息格式与路由逻辑；集成测试用 gRPC 直接驱动不涉及 MQ 消费 |
+| 异常翻译 | `GrpcExceptionAdvice` 按 HTTP 状态码映射 gRPC Status（404→NOT_FOUND / 409→FAILED_PRECONDITION / 429→RESOURCE_EXHAUSTED） | 统一异常出口，避免每个 RPC 重复 try-catch |
+| SubtaskDoneHandler 幂等 | 内存 `ConcurrentHashMap` Set 简化 | 单测足够；生产环境注释说明应替换为 Redis SETNX + `event_consume_log` 表 |
+
+### Wave 2 实施顺序建议
+1. Step P.1-P.5：pom.xml 添加 gRPC + RocketMQ + Testcontainers 依赖（0.5h）
+2. T5 与 T7 可并行（共享 GrpcExceptionAdvice，无相互依赖）
+3. T11 必须在 T5 之后（SubtaskDoneHandler 依赖 TaskStateMachine + TaskInstanceRepository）
+4. T13 必须在 T5/T7/T11 全部完成后（端到端验证三者协作）
+- 估时合计 14.5h，40 个测试
+
+### 测试用例对齐（19 个 UT）
+- T5 覆盖：UT-ORCH-001/002/003/004/005/006/007/008/012（9 个）+ GetTaskStatus/CancelTask 路径（4 个）
+- T7 覆盖：UT-PLAN-001~010（10 个）+ Replan 路径
+- UT-ORCH-009/010/011/013 已由 T12 ReplanModeSelector / T10 BatchPartitioner 单测覆盖
+
+### 主 Agent 后续动作
+- 派发子 Agent 按 T5 → T7 → T11 → T13 顺序实施（Subagent-Driven）
+- 实施前先执行 Step P.1-P.5 更新 pom.xml + application.yml
+- 统一 commit（遵循 Conventional Commits：`feat(orchestrator):` / `test(orchestrator):`）
+- 实施后运行 `mvn -pl agent-task-orchestrator -am install -q` 验证
+
+### 推荐技能
+- 实施：`tdd` + `test-driven-development` + `superpowers:subagent-driven-development`
+- 代码审查：`TRAE-code-review`
+- 会话交接：`handoff`
 
 ---
