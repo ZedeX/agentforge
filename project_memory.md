@@ -1981,3 +1981,80 @@ T7 子 Agent（agentId c7c6c048）在输出"现在我已经掌握了所有必要
 4. commit 0210c56
 
 ---
+
+## 2026-06-29 19:41 — P6-6 T11: RocketMQ 集成实现（Plan 04 Step 11.1-11.11）
+
+**执行者**: Sub Agent (GLM-5.2)
+**任务**: 实现 T11 RocketMQ 集成（4 Topic + 4 Producer/Consumer/Handler + 配置 + 单测），严格按 Plan 04 Step 11.1-11.11 执行。
+
+### 创建文件（11 个，未 commit）
+
+**main 文件（10 个）**:
+1. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/event/SubtaskExecuteEvent.java` — 子任务分发事件 POJO（含 SubtaskConfig 嵌套类）
+2. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/event/SubtaskDoneEvent.java` — 子任务完成事件 POJO
+3. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/event/StateChangeEvent.java` — 状态变更广播事件 POJO
+4. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/event/SubtaskCancelEvent.java` — 子任务取消事件 POJO
+5. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/config/RocketMqProperties.java` — @ConfigurationProperties(prefix="rocketmq.orchestrator") Topic/Group 绑定
+6. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/SubtaskExecuteProducer.java` — 分发子任务到 task.subtask.execute（key={taskId}:{nodeId}, tag={tenantId}）
+7. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/SubtaskCancelProducer.java` — 取消子任务到 task.subtask.cancel
+8. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/StateChangeProducer.java` — 广播状态变更到 task.state.change
+9. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/SubtaskDoneHandler.java` — 回调处理（幂等+成本累加+状态推进+重规划触发）
+10. `agent-task-orchestrator/src/main/java/com/agent/orchestrator/mq/SubtaskDoneConsumer.java` — @RocketMQMessageListener 消费 task.subtask.done
+
+**test 文件（1 个）**:
+11. `agent-task-orchestrator/src/test/java/com/agent/orchestrator/mq/SubtaskDoneHandlerTest.java` — 10 个 @Test（UT-MQ-001~010），@MockitoSettings(strictness=LENIENT)
+
+**配置更新**:
+- `agent-task-orchestrator/src/main/resources/application.yml` — 末尾追加 rocketmq 配置块（name-server + producer + orchestrator.topics/groups）
+
+### 编译验证
+
+```
+mvn -pl agent-task-orchestrator -am test-compile -B -ntp
+[INFO] Compiling 42 source files ... (main)
+[INFO] Compiling 15 source files ... (test)
+[INFO] BUILD SUCCESS (18.332s)
+```
+
+### 10 @Test 方法清单
+
+| # | 方法 | 场景 |
+|---|---|---|
+| 1 | should_SkipProcessing_When_EventAlreadyConsumed | UT-MQ-001: 幂等校验（重复 eventId 跳过） |
+| 2 | should_ThrowTaskNotFound_When_TaskNotExists | UT-MQ-002: 任务不存在抛 TASK_NOT_FOUND |
+| 3 | should_AccumulateCost_When_SubtaskSucceedsWithCost | UT-MQ-003: 成本累加 |
+| 4 | should_ThrowCostBudgetExceeded_When_CostExceedsLimit | UT-MQ-004: 成本超限转 TIMEOUT + 抛 COST_BUDGET_EXCEEDED |
+| 5 | should_AccumulateTokenUsed_When_TokenReported | UT-MQ-005: token 累加 |
+| 6 | should_NotTransitState_When_StatusIsSuccess | UT-MQ-006: success 分支不触发状态流转 |
+| 7 | should_TransitToReplanning_When_MaxRetryExceeded | UT-MQ-007: failed+MAX_RETRY_EXCEEDED → REPLANNING |
+| 8 | should_TransitToWaitingHuman_When_AgentNotFound | UT-MQ-008: failed+AGENT_NOT_FOUND → WAITING_HUMAN |
+| 9 | should_TransitToWaitingHuman_When_UnknownErrorCode | UT-MQ-009: failed+未知错误码 → WAITING_HUMAN |
+| 10 | should_TransitToWaitingHuman_When_RequireReview | UT-MQ-010: require_review → WAITING_HUMAN |
+
+### 关键设计决策
+
+1. **Plan 04 代码骨架基本对齐**: T11 的代码骨架与实际现有类 API 签名完全匹配，无需修正（与 T5 不同）。TaskStateMachine.transit(TaskStatus, TaskStatus)、TaskInstanceRepository.findByTaskId(String)、TaskInstance 字段（costUsedCent/costLimitCent/tokenUsed/status/finishedAt）均一致。
+
+2. **@MockitoSettings 注解语法修正**: 首次编译失败，因 `@MockitoSettings(Strictness.LENIENT)` 使用了不存在的 `value()` 属性。修正为 `@MockitoSettings(strictness = Strictness.LENIENT)`（与 T5 TaskOrchestratorGrpcServiceTest 一致）。
+
+3. **SubtaskDoneHandler 幂等实现**: 内存 `ConcurrentHashMap.newKeySet()` 简化（Plan 注释说明生产应用 Redis SETNX + event_consume_log 表）。对 null eventId 做了防御性检查（跳过去重逻辑避免 NPE）。
+
+4. **SubtaskDoneHandler 失败分支**: MAX_RETRY_EXCEEDED → REPLANNING；AGENT_NOT_FOUND → WAITING_HUMAN；其他未知错误码 → WAITING_HUMAN（默认转人工）。replanModeSelector 字段已注入但未在当前实现中调用（留作后续重规划触发扩展点，与 Plan 一致）。
+
+5. **测试文件选择**: 用户任务明确要求 1 个测试文件 SubtaskDoneHandlerTest.java（10 个 @Test），而非 Plan 04 Step 11.1 的 4 个 Producer/Consumer 测试文件。按用户指令执行，聚焦 Handler 核心回调逻辑（幂等+成本+状态推进+重规划触发）。
+
+6. **未修改 pom.xml**: Step P.3 已添加 rocketmq-spring-boot-starter 依赖（2.3.0），无需改动。application.yml 仅追加 rocketmq 配置块，未动 gRPC 部分。
+
+### 与 Plan 04 的一致性
+
+- 4 个 Topic 名完全对齐：task.subtask.execute / task.subtask.done / task.state.change / task.subtask.cancel
+- 消息格式：key=`{taskId}:{nodeId}` / tag=`{tenantId}` / payload=Event POJO
+- SubtaskDoneHandler 回调逻辑：幂等校验 → 成本累加 → 状态推进 → 重规划触发
+- application.yml 含 rocketmq.name-server + rocketmq.orchestrator.topics.*
+- 未 commit，留给主 Agent 统一处理
+
+### 推荐技能
+- 后续 T13 集成测试: `tdd` + `test-driven-development`
+- 代码审查: `TRAE-code-review`
+
+---
