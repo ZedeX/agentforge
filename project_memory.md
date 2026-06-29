@@ -2412,3 +2412,84 @@ mvn -pl agent-task-orchestrator -am test -Dsurefire.failIfNoSpecifiedTests=false
 3. **PowerShell 不支持 cd /d**：应使用 Set-Location 或 git -C <path> 语法。
 4. **gh CLI 后台下载 artifact 时 ID 可能丢失**：用同步执行 + Get-ChildItem 验证下载结果更可靠。
 5. **Python 单行脚本在 PowerShell 中转义复杂**：复杂解析逻辑应写入临时 .py 文件再执行。
+
+---
+
+## 📅 2026-06-29 会话记录（续）：v7 报告产出 + P7-5/P7-6 并行整改
+
+### 会话目标
+用户指令"继续！"，推进 P7-2 v7 复核 + P7-5 错误码端到端 + P7-6 FIX 维度整改三项并行任务。
+
+### 三 sub-agent 并行产出
+
+#### P7-2 v7 TDD 审计报告 ✅
+- 路径：docs/tests/tdd-audit-report-v7.md（596 行初版，651 行 v7.1 修订）
+- 初版总分：87.0（B 通过）— v6 86.0 + D5 +1.0（CI 实跑全绿）
+- 关键校验：业务代码覆盖率 com.agent.* 包 97.28%/92.50%/95.77%/97.83%，远超 80%/70% 阈值
+- 发现问题：JaCoCo CSV 仅导出依赖 bundle，不导出模块自有 bundle（Info 级，建议 P7-7 调整配置）
+
+#### P7-5 错误码端到端触发路径 ✅
+- 新增 4 文件：
+  - gent-gateway/src/test/java/com/agent/gateway/fixture/ErrorCodeE2EFixtureController.java
+  - gent-gateway/src/test/java/com/agent/gateway/e2e/ErrorCodeE2ETest.java（12 用例）
+  - gent-task-orchestrator/src/test/java/com/agent/orchestrator/fixture/ErrorCodeGrpcFixtureService.java
+  - gent-task-orchestrator/src/test/java/com/agent/orchestrator/e2e/ErrorCodeGrpcE2ETest.java（11 用例）
+- 关键发现：产品代码侧 GlobalExceptionHandler + GrpcExceptionAdvice 早已存在，无需新增 main/java
+- 覆盖：HTTP 全 12 状态码分支 + gRPC 全 5 switch 分支 + 兜底 = 23 E2E 用例
+- 测试结果：agent-gateway 44/44 / agent-task-orchestrator 232/232 通过
+
+#### P7-6 FIX 维度整改 ✅
+- 新增 6 文件（全部在 gent-task-orchestrator/src/test/java/com/agent/orchestrator/fixture/）：
+  - TestConstants.java + TaskFixtures.java + DagFixtures.java + EventFixtures.java（FIX-01 集中工厂）
+  - FixturesShowcaseTest.java（FIX-05，9 用例）
+  - TestcontainersShowcaseTest.java（FIX-07，4 用例，无 Docker 时 skipped）
+- D4 评分：11.0 → 13.2/15（通过线 12.0）
+- FIX-01/05/07 三个 Major 项补齐 + FIX-02/03/06 三个 Minor 项随之通过
+- 测试结果：245 tests, 0 failures, 4 skipped
+
+### 主 Agent 整合验证 + v7.1 修订
+
+#### 独立验证全量测试
+主 Agent 跑 mvn -pl agent-gateway,agent-task-orchestrator -am test：
+- agent-proto: 16 / agent-common: 73 / agent-gateway: 44 / agent-task-orchestrator: 245+
+- **BUILD SUCCESS, 0 failures**
+
+#### v7.1 修订：P7-5/P7-6 纳入评分
+P7-2 sub-agent 初版 v7 报告将 P7-5/P7-6 标为"待推进"，D4 维持 11.0。主 Agent 修订此定位：
+- §2.1 评分表：D4 11.0 → 13.2（+2.2），总分 87.0 → 89.2（+3.2 = D5+1.0 + D4+2.2）
+- §1.4 一票否决项：COV-04 部分通过 → 通过
+- §7.1 待办：P7-5/P7-6 标为完成
+- §7.2 评分进度条：v7 87.0 → 89.2（B+ 通过，首次进入 B+）
+- §10 新增章节：v7.1 修订说明
+
+### v7 评分最终
+
+| 维度 | v6 | v7.1 | 变化 |
+|---|---|---|---|
+| D1 SEQ | 14.0 | 14.0 | — |
+| D2 COV | 25.0 | 25.0 | —（COV-04 推进为通过，D2 已封顶） |
+| D3 QUAL | 18.0 | 18.0 | — |
+| D4 FIX | 11.0 | **13.2** | **+2.2**（P7-6 FIX-01/05/07 整改） |
+| D5 CI | 8.0 | **9.0** | **+1.0**（CI 实跑全绿） |
+| D6 DOC | 10.0 | 10.0 | — |
+| **总分** | **86.0** | **89.2** | **+3.2** |
+| **结论** | B 通过 | **B+ 通过** | 首次进入 B+ |
+
+### P7 整体进展（v7.1 修订后）
+
+| 项目 | 状态 |
+|---|---|
+| P7-1 CI 累计 10 次全绿 | 🟡 进行中（3 次失败 streak 终止，但 10 次全绿未达成） |
+| P7-2 v7 复核 | ✅ 完成 |
+| P7-3 F8/F10/F11/F12 最小骨架 | ⏸ 待推进 |
+| P7-4 F2/F3/F6/F7/F9 决策节点 | ⏸ 待推进 |
+| P7-5 错误码端到端 | ✅ 完成（23 用例） |
+| P7-6 FIX 维度整改 | ✅ 完成（D4 11.0 → 13.2） |
+| P7-7 JaCoCo CSV 配置优化 | ⏸ 待推进（Info 级） |
+
+### 经验教训
+1. **sub-agent 并行隔离 vs 评分整合矛盾**：P7-2 sub-agent 选择"v7 不涉及新整改"定位，导致 P7-5/P7-6 整改未纳入 v7 评分。主 Agent 需主动整合 sub-agent 工作，避免评分滞后。
+2. **sub-agent 工作区共享风险**：发现 project_memory.md 被某 sub-agent 误删一处"用户追加要求"内容（已撤销）。多 agent 并行时需监控工作区非预期修改。
+3. **Windows 编码问题**：P7-5 agent 遇到 MockMvc getContentAsString 默认 ISO-8859-1 导致中文乱码，修正为 UTF-8 后通过。
+4. **mvn 不在 PATH**：通过 D:\_program\maven\apache-maven-3.9.16\bin\mvn.cmd 绝对路径调用。
+5. **Testcontainers 无 Docker 环境容错**：@Testcontainers(disabledWithoutDocker=true) 让测试自动跳过而非失败。
