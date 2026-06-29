@@ -22,6 +22,13 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+# T5/T7: gRPC server（TaskOrchestrator + PlanningService 共用同一 server）
+grpc:
+  server:
+    port: 9090
+    security:
+      enabled: false   # 开发期关闭 TLS
+
 logging:
   level:
     com.agent.orchestrator: DEBUG

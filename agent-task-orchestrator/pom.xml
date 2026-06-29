@@ -22,6 +22,10 @@
              T2-T4 测试齐全后 line>=0.80 / branch>=0.70 即可达标。 -->
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
         <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
+        <!-- T5/T7: gRPC Spring Boot Starter（与 agent-gateway 一致） -->
+        <grpc.spring.boot.starter.version>3.1.0.RELEASE</grpc.spring.boot.starter.version>
+        <!-- T11: RocketMQ Spring Boot Starter（版本对齐父 pom rocketmq-spring.version=2.3.0） -->
+        <!-- T13: Testcontainers（版本继承父 pom testcontainers.version=1.19.7） -->
     </properties>
 
     <dependencies>
@@ -47,6 +51,31 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- T5/T7: gRPC server (net.devh) — 暴露 TaskOrchestrator + PlanningService -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.starter.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.grpc</groupId>
+                    <artifactId>grpc-netty-shaded</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- T5/T7: gRPC client (net.devh) — 预留调用 agent-repo / model-gateway -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-client-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.starter.version}</version>
+        </dependency>
+        <!-- T11: RocketMQ Spring Boot Starter -->
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-spring-boot-starter</artifactId>
+            <version>${rocketmq-spring.version}</version>
         </dependency>
 
         <!-- Lombok -->
@@ -86,6 +115,37 @@
             <groupId>com.github.fppt</groupId>
             <artifactId>jedis-mock</artifactId>
             <version>1.1.12</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- T13: gRPC InProcess Server 测试支持 -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- T13: Testcontainers（Docker 可用时的真实集成路径；no-docker profile 下跳过） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- AssertJ：显式声明（虽由 spring-boot-starter-test 传递，按 Plan 04 显式声明便于版本对齐） -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
