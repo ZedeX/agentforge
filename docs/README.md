@@ -2,7 +2,7 @@
 
 > 生成日期：2026-06-26  |  基于需求文档：[PRD.md](../PRD.md)  |  技术栈：Java 17 / Spring Cloud Alibaba / Milvus / MySQL / RocketMQ
 
-本目录包含 Agent 智能体平台系统的工程级设计文档，共 28 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 3 份编码计划 + 1 份前端控制台详设 + 9 份测试文档）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录 / 独立审核框架与首轮报告。
+本目录包含 Agent 智能体平台系统的工程级设计文档，共 30 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 3 份编码计划 + 1 份前端控制台详设 + 11 份测试文档）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录 / 独立审核框架与 v1~v7 共 7 轮审核报告。
 
 ## 文档导航
 
@@ -83,10 +83,12 @@
 | 29 | [tests/tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) | v3.0 | 第 3 轮复核报告（P2 整改后）：总分 65.0 → 74.0（C+ 不通过，接近 80），P2 全 5 项完成；FIX-04 一票否决项移除；CI 已实跑 1 次 success；含 P3 整改建议 8 项 | — |
 | 30 | [tests/tdd-audit-report-v4.md](./tests/tdd-audit-report-v4.md) | v4.0 | 第 4 轮复核报告（P3 部分整改后）：总分 74.0 → 80.5（B- 通过，首次过线），P3 完成 2/8（P3-1 agent-task-orchestrator + P3-6 agent-common branch 27%→92.5%）；**SEQ-02 一票否决正式解除**；含 P5 整改建议 8 项 | — |
 | 31 | [tests/tdd-audit-report-v5.md](./tests/tdd-audit-report-v5.md) | v5.0 | 第 5 轮复核报告（P5 部分整改后）：总分 80.5 → 81.5（B- 通过，一票否决归零），P5 完成 1/8 + 验证 1 项非问题（P5-1 agent-gateway SessionStreamController SSE 测试 line 79.9%→85.7% / branch 66%→77.4% + P5-3 jacoco-check 继承验证为非问题）；**COV-01 一票否决正式解除**；项目已无任何部分通过状态的硬性一票否决项；含 P6 整改建议 7 项 | — |
+| 32 | [tests/tdd-audit-report-v6.md](./tests/tdd-audit-report-v6.md) | v6.0 | 第 6 轮复核报告（P6 主要整改后）：总分 81.5 → 86.0（B 通过），agent-task-orchestrator T5~T13 全实现 + 错误码触发路径覆盖 29 错误码 × 3 维度 + 测试命名/AssertJ/@DisplayName 三项整改（P6-3/4/5）+ P6-6 T6~T12 复杂度/规划/校验实现；含 P7 整改建议 7 项 | — |
+| 33 | [tests/tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md) | v7.5 | 第 7 轮复核报告（v6 + JaCoCo 实测校验 + P7-3/4/5/6/7 整改）：总分 86.0 → 89.2（B+ 通过），JaCoCo 实测业务代码 line 95.77% / branch 92.50% + P7-5 错误码端到端 23 用例 + P7-6 FIX 维度 D4 11.0→13.2 + P7-3 F8/F10/F11/F12 骨架 34 用例 + P7-4 F6/F7/F9 骨架 26 用例，**COV-03 一票否决项正式解除（12/12 节点组全覆盖）**；距 A-（90+）差 0.8 分，唯一路径 P7-1 CI 累计 10 次全绿 | — |
 
-> **测试统计**：11 份文档，覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **181 测试方法全绿**（v5 较 v4 净增 5 方法：P5-1 补 agent-gateway SessionStreamController SSE 透传 4 路径测试），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（26+ 错误码）+ 100% 状态机非法流转覆盖（10 状态）。
+> **测试统计**：13 份文档（含 v6/v7 审计报告），覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **464+ 测试方法全绿**（v7.5：agent-proto/common/gateway/session/task-orchestrator 5 模块 407 + P7-3/4 骨架 60 用例 + P7-5 端到端 23 用例 - 重叠部分），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（29 错误码 ×3 维度）+ 100% 状态机非法流转覆盖（10 状态）。
 >
-> **第 5 轮审核结论**：v4 仅余 1 项部分一票否决 → v5 **COV-01 一票否决正式解除**（P5-1 补 agent-gateway SessionStreamController SSE 测试 5 方法，line 79.9% → 85.7% / branch 66% → 77.4%，回调阈值 0.79/0.66 → 0.80/0.70 解除豁免）；总分 80.5 → **81.5（B-，一票否决项部分通过数归零）**。P5 部分整改完成 1 项 + 验证 1 项非问题：P5-1 补 agent-gateway SSE 测试（SessionStreamController line 0% → 94.1%）+ P5-3 验证子模块 jacoco-check execution 继承为非问题（父 pom 双声明机制工作正常，子 Agent 误判）。下一步 P6 整改 7 项：网络恢复后 push 触发 CI 实跑累计 10 次 + 补 F1~F12 决策节点代码层用例（198 双分支，建议拆子 Agent 并行）+ 命名统一 + AssertJ + @DisplayName + 实现 agent-task-orchestrator T5-T13 + 错误码触发路径覆盖。
+> **第 7 轮审核结论（v7.5）**：v6 → v7 通过 JaCoCo 实测校验 + P7-3/4/5/6/7 整改，总分 86.0 → **89.2（B+ 通过）**。**COV-03 一票否决项正式解除**（P7-3 F8/F10/F11/F12 + P7-4 F6/F7/F9 骨架补齐，12/12 节点组全覆盖）；D4 FIX 维度 11.0 → 13.2（P7-6 整改）；D5 CI 维度 8.0 → 9.0（CI 实跑全绿，3 次失败 streak 终止）。距 A-（90+）差 0.8 分，唯一路径 P7-1 CI 累计 10 次全绿（当前 streak=5/10）。详见 [tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
 
 ### TDD 审核整改进度索引
 
@@ -97,6 +99,8 @@
 | v3（P2 整改复核，目标 75+） | 74.0 | C+ 不通过 | 2 项（SEQ-02 / COV-01 部分） | ✅ 完成 | [tdd-audit-report-v3.md](./tests/tdd-audit-report-v3.md) |
 | v4（P3 部分整改复核，目标 80 通过） | 80.5 | B- 通过 | 1 项（COV-01 部分） | ✅ 完成 | [tdd-audit-report-v4.md](./tests/tdd-audit-report-v4.md) |
 | v5（P5 部分整改复核，一票否决归零） | 81.5 | B- 通过 | 0 项（COV-01 正式解除） | ✅ 完成 | [tdd-audit-report-v5.md](./tests/tdd-audit-report-v5.md) |
+| v6（P6 主要整改复核） | 86.0 | B 通过 | 0 项（保持） | ✅ 完成 | [tdd-audit-report-v6.md](./tests/tdd-audit-report-v6.md) |
+| v7（JaCoCo 实测 + P7 整改，目标 A-） | **89.2** | **B+ 通过** | 0 项硬性 / 2 项软性（COV-03 已解除 / CI-01 进行中） | 🔄 进行中 | [tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md) |
 
 ### 九、基础设施脚本（DDL 初始化）
 
@@ -215,7 +219,7 @@
 │
 ├─ 「代码审查 / 安全审查」
 │   ├─ 审查规范：docs/tests/tdd-audit-framework.md（6 维度 42 检查项 + 评分模型）
-│   ├─ 历史报告：docs/tests/tdd-audit-report-v1.md（首轮 23 项发现）→ docs/tests/tdd-audit-report-v2.md（第 2 轮复核，整改后总分 65.0）→ docs/tests/tdd-audit-report-v3.md（第 3 轮复核，P2 整改后 74.0）
+│   ├─ 历史报告：docs/tests/tdd-audit-report-v1.md（首轮 23 项发现）→ v2.md（65.0）→ v3.md（74.0）→ v4.md（80.5）→ v5.md（81.5）→ v6.md（86.0）→ v7.md（89.2 B+，COV-03 解除，距 A- 差 0.8）
 │   ├─ 整改进度索引：见下方「TDD 审核整改进度索引」表
 │   └─ 风险分级：docs/05-tool-engine/tool-and-invocation-system.md §3（R1/R2/R3 工具风险）
 │
