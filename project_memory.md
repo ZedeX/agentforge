@@ -432,3 +432,54 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - Docker/K8s 部署（Plan 09）
 
 **Task #60 正式关闭。**
+
+---
+
+## Wave 21：v8 持久化深化期启动 — model-gateway T2-T3（2026-07-01）
+
+**时间**：2026-07-01 04:15 CST
+**任务**：Task #79 (Plan 07 T2-T3 JPA 持久化层)
+**目标**：为 agent-model-gateway 添加 JPA Entity + Repository，从内存 POJO 升级为持久化层
+
+### 本轮交付
+
+1. **3 JPA Entity** — ModelProvider / ModelRouteRule / ModelUsageLog 从 POJO 加 @Entity / @Table / @Column / @Enumerated / @PrePersist / @PreUpdate 注解
+2. **3 Spring Data JPA Repository** — ModelProviderRepository / ModelRouteRuleRepository / ModelUsageLogRepository，含自定义查询方法（findByProviderCode / findBySceneAndEnabledTrueOrderByPriorityAsc / sumTotalCostByTenantAndDateRange @Query）
+3. **18 repository 测试** — @DataJpaTest + @ActiveProfiles("test") + H2 (MODE=MySQL)，覆盖 CRUD / 唯一约束 / 排序 / 聚合查询 / 时间戳自动填充
+4. **DDL 对齐** — `infra/sql/mysql/05-agent-model.sql` 重写，对齐 Plan 07 设计（cost_per_input_1k / cost_per_output_1k / weight / max_qps / max_concurrency）
+5. **配置文件** — `application.yml`（MySQL 生产配置）+ `application-test.yml`（H2 测试配置，ddl-auto=create-drop）
+
+### 验证
+
+- **本地 mvn verify**：74 tests（56 existing + 18 new），0 failures，coverage met
+- **CI streak=12**：`28473145320` ✅ SUCCESS
+- **远端**：`4103ba78`（gh-api-push 创建）
+
+### 关键技术点
+
+1. **@DataJpaTest + H2 MODE=MySQL**：H2 以 MySQL 兼容模式运行，支持 `DATETIME(3)` / `DECIMAL(10,6)` 等 MySQL 类型
+2. **@ActiveProfiles("test")** 加载 `application-test.yml`：解决 `ddl-auto: validate`（生产配置）在测试中导致 `Schema-validation: missing table` 错误的问题
+3. **application-test.yml 放在 src/test/resources/**：避免测试配置被打入生产 JAR
+4. **JaCoCo excludes 保留 `**/model/**`**：JPA Entity 的 @PrePersist/@PreUpdate 逻辑简单，仍排除覆盖率校验；Repository 是接口（Spring Data 运行时生成实现），无需覆盖率
+
+### Plan 07 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 骨架 | ✅ | Wave 18 完成 |
+| T2 ModelProvider Entity + Repository | ✅ | Wave 21 |
+| T3 ModelRouteRule Entity + Repository | ✅ | Wave 21 |
+| T4 OpenAI Adapter | ✅ | Wave 18 骨架 |
+| T5-T7 Anthropic/Gemini/DeepSeek Adapter | ✅ | Wave 20 骨架（mock） |
+| T8 Chat gRPC | ⏳ | 待 v8 后续 |
+| T9 StreamChat gRPC | ⏳ | 待 v8 后续 |
+| T10 CountTokens | ✅ | Wave 18 骨架（TokenCounterImpl） |
+| T11 PromptCache | ✅ | Wave 18 骨架（PromptCacheImpl） |
+| T12 CostMeter + JPA | 🔄 | Entity+Repository 已有，CostMeterImpl → JPA 集成待做 |
+| T13 ModelDegradationManager | ✅ | Wave 18 骨架 |
+| T14 集成测试 | ⏳ | 待 v8 后续 |
+
+### 下一波（Wave 22）计划
+
+- agent-repo JPA 持久化（7 models → JPA Entity + Repository）
+- 或 model-gateway T12 CostMeter → JPA 集成深化
