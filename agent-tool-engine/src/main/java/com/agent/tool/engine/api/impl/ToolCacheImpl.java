@@ -1,1 +1,83 @@
-package com.agent.tool.engine.api.impl;  import com.agent.tool.engine.api.ToolCache; import com.agent.tool.engine.model.ToolCallResult; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.stereotype.Component;  import java.util.Map; import java.util.Optional; import java.util.concurrent.ConcurrentHashMap;  /**  * F8 工具结果缓存实现 (input-hash keyed + TTL 过期)。  *  * <p>骨架阶段使用 ConcurrentHashMap + 过期时间戳, 默认 TTL 5 分钟。  * lookup 命中时返回副本并标记 fromCache=true, 避免外部修改污染缓存。  * 生产实现应替换为 Redis / Caffeine。</p>  */ @Component public class ToolCacheImpl implements ToolCache {      private static final Logger log = LoggerFactory.getLogger(ToolCacheImpl.class);      /** 默认 TTL 5 分钟。 */     private static final long DEFAULT_TTL_MS = 5 * 60 * 1000L;      private static final class CacheEntry {         final ToolCallResult result;         final long expireAt;          CacheEntry(ToolCallResult result, long expireAt) {             this.result = result;             this.expireAt = expireAt;         }     }      private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();      @Override     public Optional<ToolCallResult> lookup(String inputHash) {         if (inputHash == null || inputHash.isBlank()) {             return Optional.empty();         }         CacheEntry entry = cache.get(inputHash);         if (entry == null) {             log.debug("缓存未命中: hash={}", inputHash);             return Optional.empty();         }         if (System.currentTimeMillis() > entry.expireAt) {             log.debug("缓存已过期: hash={}", inputHash);             cache.remove(inputHash);             return Optional.empty();         }         ToolCallResult copy = copyWithCacheFlag(entry.result);         log.debug("缓存命中: hash={}", inputHash);         return Optional.of(copy);     }      @Override     public void cache(String inputHash, ToolCallResult result) {         if (inputHash == null || inputHash.isBlank() || result == null) {             log.warn("缓存写入参数非法 (hash={}, result={}), 跳过", inputHash, result == null ? "null" : "present");             return;         }         long expireAt = System.currentTimeMillis() + DEFAULT_TTL_MS;         cache.put(inputHash, new CacheEntry(result, expireAt));         log.debug("写入缓存: hash={}, toolId={}", inputHash, result.getToolId());     }      private ToolCallResult copyWithCacheFlag(ToolCallResult src) {         ToolCallResult copy = new ToolCallResult(src.getToolId(), src.getOutput(), src.getStatus());         copy.setOutputTokens(src.getOutputTokens());         copy.setErrorStack(src.getErrorStack());         copy.setFromCache(true);         return copy;     }      /** 当前缓存条目数 (供测试 / 监控使用)。 */     public int size() {         return cache.size();     } }
+package com.agent.tool.engine.api.impl;
+
+import com.agent.tool.engine.api.ToolCache;
+import com.agent.tool.engine.model.ToolCallResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * F8 工具结果缓存实现 (input-hash keyed + TTL 过期)。
+ *
+ * <p>骨架阶段使用 ConcurrentHashMap + 过期时间戳, 默认 TTL 5 分钟。
+ * lookup 命中时返回副本并标记 fromCache=true, 避免外部修改污染缓存。
+ * 生产实现应替换为 Redis / Caffeine。</p>
+ */
+@Component
+public class ToolCacheImpl implements ToolCache {
+
+    private static final Logger log = LoggerFactory.getLogger(ToolCacheImpl.class);
+
+    /** 默认 TTL 5 分钟。 */
+    private static final long DEFAULT_TTL_MS = 5 * 60 * 1000L;
+
+    private static final class CacheEntry {
+        final ToolCallResult result;
+        final long expireAt;
+
+        CacheEntry(ToolCallResult result, long expireAt) {
+            this.result = result;
+            this.expireAt = expireAt;
+        }
+    }
+
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+
+    @Override
+    public Optional<ToolCallResult> lookup(String inputHash) {
+        if (inputHash == null || inputHash.isBlank()) {
+            return Optional.empty();
+        }
+        CacheEntry entry = cache.get(inputHash);
+        if (entry == null) {
+            log.debug("缓存未命中: hash={}", inputHash);
+            return Optional.empty();
+        }
+        if (System.currentTimeMillis() > entry.expireAt) {
+            log.debug("缓存已过期: hash={}", inputHash);
+            cache.remove(inputHash);
+            return Optional.empty();
+        }
+        ToolCallResult copy = copyWithCacheFlag(entry.result);
+        log.debug("缓存命中: hash={}", inputHash);
+        return Optional.of(copy);
+    }
+
+    @Override
+    public void cache(String inputHash, ToolCallResult result) {
+        if (inputHash == null || inputHash.isBlank() || result == null) {
+            log.warn("缓存写入参数非法 (hash={}, result={}), 跳过", inputHash, result == null ? "null" : "present");
+            return;
+        }
+        long expireAt = System.currentTimeMillis() + DEFAULT_TTL_MS;
+        cache.put(inputHash, new CacheEntry(result, expireAt));
+        log.debug("写入缓存: hash={}, toolId={}", inputHash, result.getToolId());
+    }
+
+    private ToolCallResult copyWithCacheFlag(ToolCallResult src) {
+        ToolCallResult copy = new ToolCallResult(src.getToolId(), src.getOutput(), src.getStatus());
+        copy.setOutputTokens(src.getOutputTokens());
+        copy.setErrorStack(src.getErrorStack());
+        copy.setFromCache(true);
+        return copy;
+    }
+
+    /** 当前缓存条目数 (供测试 / 监控使用)。 */
+    public int size() {
+        return cache.size();
+    }
+}

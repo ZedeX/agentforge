@@ -1,1 +1,101 @@
-package com.agent.tool.engine.api.impl;  import com.agent.tool.engine.enums.ExecutorType; import com.agent.tool.engine.enums.SideEffect; import com.agent.tool.engine.model.ToolMeta; import com.agent.tool.engine.model.ToolRecallResult; import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import java.util.List;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link ToolSemanticRecallerImpl} 单元测试。  */ class ToolSemanticRecallerImplTest {      private final ToolSemanticRecallerImpl recaller = new ToolSemanticRecallerImpl();      @Test     @DisplayName("无匹配工具时: 返回空列表")     void should_ReturnEmpty_When_NoMatch() {         ToolMeta meta = new ToolMeta("tool_weather", "天气查询", ExecutorType.GENERAL, SideEffect.NONE);         meta.setDescription("查询天气预报");         recaller.index(meta);          List<ToolRecallResult> results = recaller.recall("订单", 3);          assertThat(results).isEmpty();     }      @Test     @DisplayName("名称完全匹配: 返回结果且 score >= 0.3 阈值")     void should_ReturnMatch_When_NameMatches() {         ToolMeta meta = new ToolMeta("tool_order", "查询订单", ExecutorType.GENERAL, SideEffect.NONE);         recaller.index(meta);          List<ToolRecallResult> results = recaller.recall("查询订单", 3);          assertThat(results).hasSize(1);         assertThat(results.get(0).getToolId()).isEqualTo("tool_order");         assertThat(results.get(0).getScore()).isGreaterThanOrEqualTo(0.3);     }      @Test     @DisplayName("多工具匹配: 按 score 降序重排取 Top-K")     void should_RerankByScore_When_MultipleMatch() {         ToolMeta metaA = new ToolMeta("tool_a", "查询订单A", ExecutorType.GENERAL, SideEffect.NONE);         ToolMeta metaB = new ToolMeta("tool_b", "查询订单B", ExecutorType.GENERAL, SideEffect.NONE);         metaB.setDescription("查询订单 高级版");         ToolMeta metaC = new ToolMeta("tool_c", "无关工具", ExecutorType.GENERAL, SideEffect.NONE);         recaller.index(metaA);         recaller.index(metaB);         recaller.index(metaC);          List<ToolRecallResult> results = recaller.recall("查询订单", 2);          assertThat(results).hasSize(2);         assertThat(results.get(0).getScore()).isGreaterThanOrEqualTo(results.get(1).getScore());         assertThat(results).extracting(ToolRecallResult::getToolId)                 .doesNotContain("tool_c");     }      @Test     @DisplayName("空 query 或 topK<=0: 返回空列表")     void should_ReturnEmpty_When_QueryBlank() {         ToolMeta meta = new ToolMeta("tool_x", "x", ExecutorType.GENERAL, SideEffect.NONE);         recaller.index(meta);          assertThat(recaller.recall(null, 3)).isEmpty();         assertThat(recaller.recall("  ", 3)).isEmpty();         assertThat(recaller.recall("x", 0)).isEmpty();         assertThat(recaller.recall("x", -1)).isEmpty();     }      @Test     @DisplayName("匹配数超过 topK: 仅返回 Top-K 条")     void should_RespectTopK_When_MoreMatchesThanK() {         ToolMeta m1 = new ToolMeta("t1", "search", ExecutorType.GENERAL, SideEffect.NONE);         ToolMeta m2 = new ToolMeta("t2", "search", ExecutorType.GENERAL, SideEffect.NONE);         ToolMeta m3 = new ToolMeta("t3", "search", ExecutorType.GENERAL, SideEffect.NONE);         recaller.index(m1);         recaller.index(m2);         recaller.index(m3);          List<ToolRecallResult> results = recaller.recall("search", 2);          assertThat(results).hasSize(2);     }      @Test     @DisplayName("index null 或无 toolId: 安全跳过")     void should_SkipIndex_When_NullOrNoToolId() {         recaller.index(null);         ToolMeta noId = new ToolMeta(null, "x", ExecutorType.GENERAL, SideEffect.NONE);         recaller.index(noId);          assertThat(recaller.size()).isZero();     } }
+package com.agent.tool.engine.api.impl;
+
+import com.agent.tool.engine.enums.ExecutorType;
+import com.agent.tool.engine.enums.SideEffect;
+import com.agent.tool.engine.model.ToolMeta;
+import com.agent.tool.engine.model.ToolRecallResult;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link ToolSemanticRecallerImpl} 单元测试。
+ */
+class ToolSemanticRecallerImplTest {
+
+    private final ToolSemanticRecallerImpl recaller = new ToolSemanticRecallerImpl();
+
+    @Test
+    @DisplayName("无匹配工具时: 返回空列表")
+    void should_ReturnEmpty_When_NoMatch() {
+        ToolMeta meta = new ToolMeta("tool_weather", "天气查询", ExecutorType.GENERAL, SideEffect.NONE);
+        meta.setDescription("查询天气预报");
+        recaller.index(meta);
+
+        List<ToolRecallResult> results = recaller.recall("订单", 3);
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    @DisplayName("名称完全匹配: 返回结果且 score >= 0.3 阈值")
+    void should_ReturnMatch_When_NameMatches() {
+        ToolMeta meta = new ToolMeta("tool_order", "查询订单", ExecutorType.GENERAL, SideEffect.NONE);
+        recaller.index(meta);
+
+        List<ToolRecallResult> results = recaller.recall("查询订单", 3);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getToolId()).isEqualTo("tool_order");
+        assertThat(results.get(0).getScore()).isGreaterThanOrEqualTo(0.3);
+    }
+
+    @Test
+    @DisplayName("多工具匹配: 按 score 降序重排取 Top-K")
+    void should_RerankByScore_When_MultipleMatch() {
+        ToolMeta metaA = new ToolMeta("tool_a", "查询订单A", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta metaB = new ToolMeta("tool_b", "查询订单B", ExecutorType.GENERAL, SideEffect.NONE);
+        metaB.setDescription("查询订单 高级版");
+        ToolMeta metaC = new ToolMeta("tool_c", "无关工具", ExecutorType.GENERAL, SideEffect.NONE);
+        recaller.index(metaA);
+        recaller.index(metaB);
+        recaller.index(metaC);
+
+        List<ToolRecallResult> results = recaller.recall("查询订单", 2);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).getScore()).isGreaterThanOrEqualTo(results.get(1).getScore());
+        assertThat(results).extracting(ToolRecallResult::getToolId)
+                .doesNotContain("tool_c");
+    }
+
+    @Test
+    @DisplayName("空 query 或 topK<=0: 返回空列表")
+    void should_ReturnEmpty_When_QueryBlank() {
+        ToolMeta meta = new ToolMeta("tool_x", "x", ExecutorType.GENERAL, SideEffect.NONE);
+        recaller.index(meta);
+
+        assertThat(recaller.recall(null, 3)).isEmpty();
+        assertThat(recaller.recall("  ", 3)).isEmpty();
+        assertThat(recaller.recall("x", 0)).isEmpty();
+        assertThat(recaller.recall("x", -1)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("匹配数超过 topK: 仅返回 Top-K 条")
+    void should_RespectTopK_When_MoreMatchesThanK() {
+        ToolMeta m1 = new ToolMeta("t1", "search", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta m2 = new ToolMeta("t2", "search", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta m3 = new ToolMeta("t3", "search", ExecutorType.GENERAL, SideEffect.NONE);
+        recaller.index(m1);
+        recaller.index(m2);
+        recaller.index(m3);
+
+        List<ToolRecallResult> results = recaller.recall("search", 2);
+
+        assertThat(results).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("index null 或无 toolId: 安全跳过")
+    void should_SkipIndex_When_NullOrNoToolId() {
+        recaller.index(null);
+        ToolMeta noId = new ToolMeta(null, "x", ExecutorType.GENERAL, SideEffect.NONE);
+        recaller.index(noId);
+
+        assertThat(recaller.size()).isZero();
+    }
+}

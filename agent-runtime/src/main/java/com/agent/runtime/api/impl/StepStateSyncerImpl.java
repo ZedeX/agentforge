@@ -1,1 +1,59 @@
-package com.agent.runtime.api.impl;  import com.agent.runtime.api.StepStateSyncer; import com.agent.runtime.enums.ReActPhaseType; import com.agent.runtime.model.StepState; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.stereotype.Component;  import java.util.concurrent.ConcurrentHashMap; import java.util.concurrent.ConcurrentMap;  /**  * 步骤状态同步器默认实现 (doc 11-detail-flow F6, UT-RT-008/010).  *  * <p>骨架阶段使用 ConcurrentHashMap 内存存储 checkpoint, 真实实现应路由到 Redis.</p>  */ @Component public class StepStateSyncerImpl implements StepStateSyncer {      private static final Logger log = LoggerFactory.getLogger(StepStateSyncerImpl.class);      /** 内存存储 checkpoint, key=agentId, value=最新 StepState */     private final ConcurrentMap<String, StepState> checkpointStore = new ConcurrentHashMap<>();      @Override     public void syncStepState(String agentId, int stepNo, ReActPhaseType phase) {         log.info("同步步骤状态到存储: agentId={}, stepNo={}, phase={}", agentId, stepNo, phase);          StepState stepState = new StepState(agentId, stepNo, phase);         // 同步时也更新 checkpointStore, 保持内存状态最新         checkpointStore.put(agentId, stepState);     }      @Override     public void checkpoint(String agentId, int stepNo, String checkpointData) {         log.info("写入检查点: agentId={}, stepNo={}, dataLen={}",                 agentId, stepNo, checkpointData == null ? 0 : checkpointData.length());          StepState stepState = checkpointStore.getOrDefault(agentId, new StepState(agentId, stepNo, null));         stepState.setAgentId(agentId);         stepState.setStepNo(stepNo);         stepState.setCheckpointData(checkpointData);         checkpointStore.put(agentId, stepState);     }      @Override     public StepState loadCheckpoint(String agentId) {         log.info("加载检查点: agentId={}", agentId);         StepState stepState = checkpointStore.get(agentId);         if (stepState == null) {             log.warn("未找到检查点: agentId={}", agentId);             return null;         }         log.debug("检查点加载成功: agentId={}, stepNo={}, phase={}",                 agentId, stepState.getStepNo(), stepState.getPhase());         return stepState;     } }
+package com.agent.runtime.api.impl;
+
+import com.agent.runtime.api.StepStateSyncer;
+import com.agent.runtime.enums.ReActPhaseType;
+import com.agent.runtime.model.StepState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+/**
+ * 步骤状态同步器默认实现 (doc 11-detail-flow F6, UT-RT-008/010).
+ *
+ * <p>骨架阶段使用 ConcurrentHashMap 内存存储 checkpoint, 真实实现应路由到 Redis.</p>
+ */
+@Component
+public class StepStateSyncerImpl implements StepStateSyncer {
+
+    private static final Logger log = LoggerFactory.getLogger(StepStateSyncerImpl.class);
+
+    /** 内存存储 checkpoint, key=agentId, value=最新 StepState */
+    private final ConcurrentMap<String, StepState> checkpointStore = new ConcurrentHashMap<>();
+
+    @Override
+    public void syncStepState(String agentId, int stepNo, ReActPhaseType phase) {
+        log.info("同步步骤状态到存储: agentId={}, stepNo={}, phase={}", agentId, stepNo, phase);
+
+        StepState stepState = new StepState(agentId, stepNo, phase);
+        // 同步时也更新 checkpointStore, 保持内存状态最新
+        checkpointStore.put(agentId, stepState);
+    }
+
+    @Override
+    public void checkpoint(String agentId, int stepNo, String checkpointData) {
+        log.info("写入检查点: agentId={}, stepNo={}, dataLen={}",
+                agentId, stepNo, checkpointData == null ? 0 : checkpointData.length());
+
+        StepState stepState = checkpointStore.getOrDefault(agentId, new StepState(agentId, stepNo, null));
+        stepState.setAgentId(agentId);
+        stepState.setStepNo(stepNo);
+        stepState.setCheckpointData(checkpointData);
+        checkpointStore.put(agentId, stepState);
+    }
+
+    @Override
+    public StepState loadCheckpoint(String agentId) {
+        log.info("加载检查点: agentId={}", agentId);
+        StepState stepState = checkpointStore.get(agentId);
+        if (stepState == null) {
+            log.warn("未找到检查点: agentId={}", agentId);
+            return null;
+        }
+        log.debug("检查点加载成功: agentId={}, stepNo={}, phase={}",
+                agentId, stepState.getStepNo(), stepState.getPhase());
+        return stepState;
+    }
+}

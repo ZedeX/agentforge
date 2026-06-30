@@ -1,1 +1,91 @@
-package com.agent.tool.engine.api.impl;  import com.agent.tool.engine.model.ApprovalRecord; import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import java.time.Duration; import java.time.Instant; import java.util.Optional;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link ApprovalStoreImpl} 单元测试。  */ class ApprovalStoreImplTest {      private final ApprovalStoreImpl store = new ApprovalStoreImpl();      @Test     @DisplayName("无审批记录时: findValid 返回 empty")     void should_ReturnEmpty_When_NoRecordExists() {         Optional<ApprovalRecord> found = store.findValid("tool_no_exist");          assertThat(found).isEmpty();         assertThat(store.size()).isZero();     }      @Test     @DisplayName("状态 APPROVED 且未过期: findValid 返回该记录")     void should_ReturnRecord_When_StatusApprovedAndNotExpired() {         ApprovalRecord record = new ApprovalRecord();         record.setToolId("tool_r3");         record.setStatus(ApprovalRecord.STATUS_APPROVED);         record.setPrimaryApprover("u_p");         record.setSecondaryApprover("u_s");         record.setExpireAt(Instant.now().plus(Duration.ofHours(1)));         store.save(record);          Optional<ApprovalRecord> found = store.findValid("tool_r3");          assertThat(found).isPresent();         assertThat(found.get().getStatus()).isEqualTo(ApprovalRecord.STATUS_APPROVED);         assertThat(found.get().getPrimaryApprover()).isEqualTo("u_p");         assertThat(store.size()).isEqualTo(1);     }      @Test     @DisplayName("状态 PARTIALLY_APPROVED (仅单审批人): findValid 返回 empty")     void should_ReturnEmpty_When_StatusNotApproved() {         ApprovalRecord record = new ApprovalRecord();         record.setToolId("tool_partial");         record.setStatus(ApprovalRecord.STATUS_PARTIALLY_APPROVED);         record.setPrimaryApprover("u_p");         record.setSecondaryApprover(null);         record.setExpireAt(Instant.now().plus(Duration.ofHours(1)));         store.save(record);          Optional<ApprovalRecord> found = store.findValid("tool_partial");          assertThat(found).isEmpty();     }      @Test     @DisplayName("状态 APPROVED 但已过期: findValid 返回 empty 且标记 EXPIRED")     void should_ReturnEmpty_When_Expired() {         ApprovalRecord record = new ApprovalRecord();         record.setToolId("tool_expired");         record.setStatus(ApprovalRecord.STATUS_APPROVED);         record.setExpireAt(Instant.now().minus(Duration.ofHours(1)));         store.save(record);          Optional<ApprovalRecord> found = store.findValid("tool_expired");          assertThat(found).isEmpty();     }      @Test     @DisplayName("空 toolId 或 null 记录: findValid / save 容错")     void should_HandleNullAndBlankSafely() {         assertThat(store.findValid(null)).isEmpty();         assertThat(store.findValid("  ")).isEmpty();          store.save(null);         ApprovalRecord noToolId = new ApprovalRecord();         noToolId.setStatus(ApprovalRecord.STATUS_APPROVED);         store.save(noToolId);          assertThat(store.size()).isZero();     } }
+package com.agent.tool.engine.api.impl;
+
+import com.agent.tool.engine.model.ApprovalRecord;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link ApprovalStoreImpl} 单元测试。
+ */
+class ApprovalStoreImplTest {
+
+    private final ApprovalStoreImpl store = new ApprovalStoreImpl();
+
+    @Test
+    @DisplayName("无审批记录时: findValid 返回 empty")
+    void should_ReturnEmpty_When_NoRecordExists() {
+        Optional<ApprovalRecord> found = store.findValid("tool_no_exist");
+
+        assertThat(found).isEmpty();
+        assertThat(store.size()).isZero();
+    }
+
+    @Test
+    @DisplayName("状态 APPROVED 且未过期: findValid 返回该记录")
+    void should_ReturnRecord_When_StatusApprovedAndNotExpired() {
+        ApprovalRecord record = new ApprovalRecord();
+        record.setToolId("tool_r3");
+        record.setStatus(ApprovalRecord.STATUS_APPROVED);
+        record.setPrimaryApprover("u_p");
+        record.setSecondaryApprover("u_s");
+        record.setExpireAt(Instant.now().plus(Duration.ofHours(1)));
+        store.save(record);
+
+        Optional<ApprovalRecord> found = store.findValid("tool_r3");
+
+        assertThat(found).isPresent();
+        assertThat(found.get().getStatus()).isEqualTo(ApprovalRecord.STATUS_APPROVED);
+        assertThat(found.get().getPrimaryApprover()).isEqualTo("u_p");
+        assertThat(store.size()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("状态 PARTIALLY_APPROVED (仅单审批人): findValid 返回 empty")
+    void should_ReturnEmpty_When_StatusNotApproved() {
+        ApprovalRecord record = new ApprovalRecord();
+        record.setToolId("tool_partial");
+        record.setStatus(ApprovalRecord.STATUS_PARTIALLY_APPROVED);
+        record.setPrimaryApprover("u_p");
+        record.setSecondaryApprover(null);
+        record.setExpireAt(Instant.now().plus(Duration.ofHours(1)));
+        store.save(record);
+
+        Optional<ApprovalRecord> found = store.findValid("tool_partial");
+
+        assertThat(found).isEmpty();
+    }
+
+    @Test
+    @DisplayName("状态 APPROVED 但已过期: findValid 返回 empty 且标记 EXPIRED")
+    void should_ReturnEmpty_When_Expired() {
+        ApprovalRecord record = new ApprovalRecord();
+        record.setToolId("tool_expired");
+        record.setStatus(ApprovalRecord.STATUS_APPROVED);
+        record.setExpireAt(Instant.now().minus(Duration.ofHours(1)));
+        store.save(record);
+
+        Optional<ApprovalRecord> found = store.findValid("tool_expired");
+
+        assertThat(found).isEmpty();
+    }
+
+    @Test
+    @DisplayName("空 toolId 或 null 记录: findValid / save 容错")
+    void should_HandleNullAndBlankSafely() {
+        assertThat(store.findValid(null)).isEmpty();
+        assertThat(store.findValid("  ")).isEmpty();
+
+        store.save(null);
+        ApprovalRecord noToolId = new ApprovalRecord();
+        noToolId.setStatus(ApprovalRecord.STATUS_APPROVED);
+        store.save(noToolId);
+
+        assertThat(store.size()).isZero();
+    }
+}

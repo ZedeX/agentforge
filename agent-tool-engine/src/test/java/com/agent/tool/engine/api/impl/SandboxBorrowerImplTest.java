@@ -1,1 +1,77 @@
-package com.agent.tool.engine.api.impl;  import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link SandboxBorrowerImpl} 单元测试。  */ class SandboxBorrowerImplTest {      private final SandboxBorrowerImpl borrower = new SandboxBorrowerImpl();      @Test     @DisplayName("borrow 多次: 返回递增的唯一 sandboxId")     void should_ReturnIncrementalIds_When_BorrowMultiple() {         String id1 = borrower.borrow();         String id2 = borrower.borrow();         String id3 = borrower.borrow();          assertThat(id1).isNotBlank();         assertThat(id2).isNotBlank().isNotEqualTo(id1);         assertThat(id3).isNotBlank().isNotEqualTo(id2);         assertThat(borrower.activeCount()).isEqualTo(3);         assertThat(borrower.isActive(id1)).isTrue();     }      @Test     @DisplayName("recycle 已借用的沙箱: 活跃数减少")     void should_DecreaseActiveCount_When_Recycle() {         String id1 = borrower.borrow();         String id2 = borrower.borrow();         assertThat(borrower.activeCount()).isEqualTo(2);          borrower.recycle(id1);          assertThat(borrower.activeCount()).isEqualTo(1);         assertThat(borrower.isActive(id1)).isFalse();         assertThat(borrower.isActive(id2)).isTrue();     }      @Test     @DisplayName("recycle 未知 sandboxId: 不抛异常, 活跃数不变")     void should_DoNothing_When_RecycleUnknownId() {         borrower.borrow();         assertThat(borrower.activeCount()).isEqualTo(1);          borrower.recycle("sb-unknown");          assertThat(borrower.activeCount()).isEqualTo(1);     }      @Test     @DisplayName("recycle null 或空白 id: 安全跳过")     void should_SkipRecycle_When_NullOrBlankId() {         borrower.borrow();         assertThat(borrower.activeCount()).isEqualTo(1);          borrower.recycle(null);         borrower.recycle("  ");          assertThat(borrower.activeCount()).isEqualTo(1);     }      @Test     @DisplayName("borrow + recycle 完整循环: 借用后归还, 活跃数归零")     void should_BorrowAndRecycleCorrectly() {         String sandboxId = borrower.borrow();         assertThat(borrower.activeCount()).isEqualTo(1);          borrower.recycle(sandboxId);          assertThat(borrower.activeCount()).isZero();         assertThat(borrower.isActive(sandboxId)).isFalse();     } }
+package com.agent.tool.engine.api.impl;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link SandboxBorrowerImpl} 单元测试。
+ */
+class SandboxBorrowerImplTest {
+
+    private final SandboxBorrowerImpl borrower = new SandboxBorrowerImpl();
+
+    @Test
+    @DisplayName("borrow 多次: 返回递增的唯一 sandboxId")
+    void should_ReturnIncrementalIds_When_BorrowMultiple() {
+        String id1 = borrower.borrow();
+        String id2 = borrower.borrow();
+        String id3 = borrower.borrow();
+
+        assertThat(id1).isNotBlank();
+        assertThat(id2).isNotBlank().isNotEqualTo(id1);
+        assertThat(id3).isNotBlank().isNotEqualTo(id2);
+        assertThat(borrower.activeCount()).isEqualTo(3);
+        assertThat(borrower.isActive(id1)).isTrue();
+    }
+
+    @Test
+    @DisplayName("recycle 已借用的沙箱: 活跃数减少")
+    void should_DecreaseActiveCount_When_Recycle() {
+        String id1 = borrower.borrow();
+        String id2 = borrower.borrow();
+        assertThat(borrower.activeCount()).isEqualTo(2);
+
+        borrower.recycle(id1);
+
+        assertThat(borrower.activeCount()).isEqualTo(1);
+        assertThat(borrower.isActive(id1)).isFalse();
+        assertThat(borrower.isActive(id2)).isTrue();
+    }
+
+    @Test
+    @DisplayName("recycle 未知 sandboxId: 不抛异常, 活跃数不变")
+    void should_DoNothing_When_RecycleUnknownId() {
+        borrower.borrow();
+        assertThat(borrower.activeCount()).isEqualTo(1);
+
+        borrower.recycle("sb-unknown");
+
+        assertThat(borrower.activeCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("recycle null 或空白 id: 安全跳过")
+    void should_SkipRecycle_When_NullOrBlankId() {
+        borrower.borrow();
+        assertThat(borrower.activeCount()).isEqualTo(1);
+
+        borrower.recycle(null);
+        borrower.recycle("  ");
+
+        assertThat(borrower.activeCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("borrow + recycle 完整循环: 借用后归还, 活跃数归零")
+    void should_BorrowAndRecycleCorrectly() {
+        String sandboxId = borrower.borrow();
+        assertThat(borrower.activeCount()).isEqualTo(1);
+
+        borrower.recycle(sandboxId);
+
+        assertThat(borrower.activeCount()).isZero();
+        assertThat(borrower.isActive(sandboxId)).isFalse();
+    }
+}

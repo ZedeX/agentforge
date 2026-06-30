@@ -1,1 +1,81 @@
-package com.agent.tool.engine.api.impl;  import com.agent.tool.engine.api.ApprovalStore; import com.agent.tool.engine.model.ApprovalRecord; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.stereotype.Component;  import java.time.Instant; import java.util.Map; import java.util.Optional; import java.util.concurrent.ConcurrentHashMap; import java.util.concurrent.atomic.AtomicLong;  /**  * F8 R3 审批存储实现 (approval state machine lookup)。  *  * <p>骨架阶段使用 ConcurrentHashMap 在内存中按 toolId 保存最新审批记录,  * findValid 返回状态为 APPROVED 且未过期的记录。生产实现应替换为 Redis / RDBMS。</p>  */ @Component public class ApprovalStoreImpl implements ApprovalStore {      private static final Logger log = LoggerFactory.getLogger(ApprovalStoreImpl.class);      /** 内存审批存储: key = toolId, value = 最新审批记录。 */     private final Map<String, ApprovalRecord> store = new ConcurrentHashMap<>();     private final AtomicLong idSeq = new AtomicLong(0);      @Override     public Optional<ApprovalRecord> findValid(String toolId) {         if (toolId == null || toolId.isBlank()) {             log.warn("审批查询收到空 toolId, 返回 empty");             return Optional.empty();         }         ApprovalRecord record = store.get(toolId);         if (record == null) {             log.debug("工具 [{}] 无审批记录", toolId);             return Optional.empty();         }         // 过期判断         if (record.getExpireAt() != null && Instant.now().isAfter(record.getExpireAt())) {             log.debug("工具 [{}] 审批记录已过期", toolId);             record.setStatus(ApprovalRecord.STATUS_EXPIRED);             return Optional.empty();         }         // 仅 APPROVED 状态视为有效         if (!ApprovalRecord.STATUS_APPROVED.equals(record.getStatus())) {             log.debug("工具 [{}] 审批状态非 APPROVED (当前: {})", toolId, record.getStatus());             return Optional.empty();         }         return Optional.of(record);     }      /**      * 保存 / 更新审批记录 (供测试 / 上层审批流写入)。      *      * @param record 审批记录, 必须携带 toolId      */     public void save(ApprovalRecord record) {         if (record == null) {             log.warn("保存审批记录收到 null, 跳过");             return;         }         if (record.getToolId() == null || record.getToolId().isBlank()) {             log.warn("审批记录缺少 toolId, 跳过");             return;         }         if (record.getApprovalId() == null || record.getApprovalId().isBlank()) {             record.setApprovalId("apr-" + idSeq.incrementAndGet());         }         store.put(record.getToolId(), record);         log.debug("保存审批记录: toolId={}, approvalId={}, status={}",                 record.getToolId(), record.getApprovalId(), record.getStatus());     }      /** 当前内存存储的记录数 (供测试 / 监控使用)。 */     public int size() {         return store.size();     } }
+package com.agent.tool.engine.api.impl;
+
+import com.agent.tool.engine.api.ApprovalStore;
+import com.agent.tool.engine.model.ApprovalRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * F8 R3 审批存储实现 (approval state machine lookup)。
+ *
+ * <p>骨架阶段使用 ConcurrentHashMap 在内存中按 toolId 保存最新审批记录,
+ * findValid 返回状态为 APPROVED 且未过期的记录。生产实现应替换为 Redis / RDBMS。</p>
+ */
+@Component
+public class ApprovalStoreImpl implements ApprovalStore {
+
+    private static final Logger log = LoggerFactory.getLogger(ApprovalStoreImpl.class);
+
+    /** 内存审批存储: key = toolId, value = 最新审批记录。 */
+    private final Map<String, ApprovalRecord> store = new ConcurrentHashMap<>();
+    private final AtomicLong idSeq = new AtomicLong(0);
+
+    @Override
+    public Optional<ApprovalRecord> findValid(String toolId) {
+        if (toolId == null || toolId.isBlank()) {
+            log.warn("审批查询收到空 toolId, 返回 empty");
+            return Optional.empty();
+        }
+        ApprovalRecord record = store.get(toolId);
+        if (record == null) {
+            log.debug("工具 [{}] 无审批记录", toolId);
+            return Optional.empty();
+        }
+        // 过期判断
+        if (record.getExpireAt() != null && Instant.now().isAfter(record.getExpireAt())) {
+            log.debug("工具 [{}] 审批记录已过期", toolId);
+            record.setStatus(ApprovalRecord.STATUS_EXPIRED);
+            return Optional.empty();
+        }
+        // 仅 APPROVED 状态视为有效
+        if (!ApprovalRecord.STATUS_APPROVED.equals(record.getStatus())) {
+            log.debug("工具 [{}] 审批状态非 APPROVED (当前: {})", toolId, record.getStatus());
+            return Optional.empty();
+        }
+        return Optional.of(record);
+    }
+
+    /**
+     * 保存 / 更新审批记录 (供测试 / 上层审批流写入)。
+     *
+     * @param record 审批记录, 必须携带 toolId
+     */
+    public void save(ApprovalRecord record) {
+        if (record == null) {
+            log.warn("保存审批记录收到 null, 跳过");
+            return;
+        }
+        if (record.getToolId() == null || record.getToolId().isBlank()) {
+            log.warn("审批记录缺少 toolId, 跳过");
+            return;
+        }
+        if (record.getApprovalId() == null || record.getApprovalId().isBlank()) {
+            record.setApprovalId("apr-" + idSeq.incrementAndGet());
+        }
+        store.put(record.getToolId(), record);
+        log.debug("保存审批记录: toolId={}, approvalId={}, status={}",
+                record.getToolId(), record.getApprovalId(), record.getStatus());
+    }
+
+    /** 当前内存存储的记录数 (供测试 / 监控使用)。 */
+    public int size() {
+        return store.size();
+    }
+}

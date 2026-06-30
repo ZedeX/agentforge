@@ -1,1 +1,105 @@
-package com.agent.runtime.api.impl;  import com.agent.runtime.api.ModelGatewayClient; import com.agent.runtime.api.ToolEngineClient; import com.agent.runtime.enums.ReActPhaseType; import com.agent.runtime.model.ReActContext; import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import static org.assertj.core.api.Assertions.assertThat; import static org.mockito.ArgumentMatchers.anyString; import static org.mockito.Mockito.mock; import static org.mockito.Mockito.when;  /**  * ReActLoopImpl 单元测试.  *  * <p>覆盖 start() 和 transit() 方法的正常/边界/异常分支:  * <ul>  *   <li>正常: 模型返回 final_answer → FINISH</li>  *   <li>边界: 模型返回 tool_call → ACT</li>  *   <li>异常: 模型输出为 null → 默认转 FINISH</li>  * </ul>  */ class ReActLoopImplTest {      @Test     @DisplayName("正常场景: 模型返回 final_answer, 循环应在 FINISH 阶段终止并产出最终答案")     void should_TerminateWithFinalAnswer_When_ModelReturnsFinalAnswer() {         // 给定 ModelGateway 返回包含 final_answer 的输出         ModelGatewayClient gateway = mock(ModelGatewayClient.class);         when(gateway.chat(anyString())).thenReturn("final_answer:42");         ToolEngineClient toolEngine = mock(ToolEngineClient.class);          ReActLoopImpl loop = new ReActLoopImpl(gateway, toolEngine);         ReActContext context = new ReActContext("ag_001", "tk_001");          // 调用 start         String finalAnswer = loop.start(context);          // 验证最终答案非空且阶段为 FINISH         assertThat(finalAnswer)                 .as("最终答案应包含 final_answer")                 .isNotNull()                 .contains("final_answer");         assertThat(context.getPhase())                 .as("循环终止后 phase 应为 FINISH")                 .isEqualTo(ReActPhaseType.FINISH);         assertThat(context.getFinalAnswer())                 .as("context.finalAnswer 应被设置")                 .isNotNull();     }      @Test     @DisplayName("边界场景: 模型输出包含 tool_call, transit 应转入 ACT 阶段")     void should_TransitToAct_When_ModelOutputContainsToolCall() {         // 给定 ModelGateway 返回 tool_call         ModelGatewayClient gateway = mock(ModelGatewayClient.class);         when(gateway.chat(anyString())).thenReturn("tool_call(tool_search, {q:订单})");         ToolEngineClient toolEngine = mock(ToolEngineClient.class);         when(toolEngine.invoke(anyString(), anyString())).thenReturn("result:订单 od_001 金额 99 元");          ReActLoopImpl loop = new ReActLoopImpl(gateway, toolEngine);         ReActContext context = new ReActContext("ag_001", "tk_001");          // 调用 start, 应进入 ACT 后再 OBSERVE         String finalAnswer = loop.start(context);          // 验证 context.memory 中存入工具结果         assertThat(finalAnswer)                 .as("骨架循环最终应产出答案")                 .isNotNull();         assertThat(context.getMemory().get("last_tool_result"))                 .as("工具结果应注入 context.memory")                 .isNotNull()                 .asString()                 .contains("result:订单");     }      @Test     @DisplayName("异常场景: modelOutput 为 null, transit 应默认转 FINISH")     void should_TransitToFinish_When_ModelOutputIsNull() {         // 给定 ModelGateway 返回 null         ModelGatewayClient gateway = mock(ModelGatewayClient.class);         when(gateway.chat(anyString())).thenReturn(null);         ToolEngineClient toolEngine = mock(ToolEngineClient.class);          ReActLoopImpl loop = new ReActLoopImpl(gateway, toolEngine);         ReActContext context = new ReActContext("ag_002", "tk_002");          // 直接调用 transit         ReActPhaseType next = loop.transit(context, null);          // 验证返回 FINISH         assertThat(next)                 .as("modelOutput 为 null 应默认转 FINISH")                 .isEqualTo(ReActPhaseType.FINISH);          // 验证 start 不抛异常并产出默认答案         String finalAnswer = loop.start(context);         assertThat(finalAnswer)                 .as("循环最终应产出默认答案")                 .isNotNull();     } }
+package com.agent.runtime.api.impl;
+
+import com.agent.runtime.api.ModelGatewayClient;
+import com.agent.runtime.api.ToolEngineClient;
+import com.agent.runtime.enums.ReActPhaseType;
+import com.agent.runtime.model.ReActContext;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * ReActLoopImpl 单元测试.
+ *
+ * <p>覆盖 start() 和 transit() 方法的正常/边界/异常分支:
+ * <ul>
+ *   <li>正常: 模型返回 final_answer → FINISH</li>
+ *   <li>边界: 模型返回 tool_call → ACT</li>
+ *   <li>异常: 模型输出为 null → 默认转 FINISH</li>
+ * </ul>
+ */
+class ReActLoopImplTest {
+
+    @Test
+    @DisplayName("正常场景: 模型返回 final_answer, 循环应在 FINISH 阶段终止并产出最终答案")
+    void should_TerminateWithFinalAnswer_When_ModelReturnsFinalAnswer() {
+        // 给定 ModelGateway 返回包含 final_answer 的输出
+        ModelGatewayClient gateway = mock(ModelGatewayClient.class);
+        when(gateway.chat(anyString())).thenReturn("final_answer:42");
+        ToolEngineClient toolEngine = mock(ToolEngineClient.class);
+
+        ReActLoopImpl loop = new ReActLoopImpl(gateway, toolEngine);
+        ReActContext context = new ReActContext("ag_001", "tk_001");
+
+        // 调用 start
+        String finalAnswer = loop.start(context);
+
+        // 验证最终答案非空且阶段为 FINISH
+        assertThat(finalAnswer)
+                .as("最终答案应包含 final_answer")
+                .isNotNull()
+                .contains("final_answer");
+        assertThat(context.getPhase())
+                .as("循环终止后 phase 应为 FINISH")
+                .isEqualTo(ReActPhaseType.FINISH);
+        assertThat(context.getFinalAnswer())
+                .as("context.finalAnswer 应被设置")
+                .isNotNull();
+    }
+
+    @Test
+    @DisplayName("边界场景: 模型输出包含 tool_call, transit 应转入 ACT 阶段")
+    void should_TransitToAct_When_ModelOutputContainsToolCall() {
+        // 给定 ModelGateway 返回 tool_call
+        ModelGatewayClient gateway = mock(ModelGatewayClient.class);
+        when(gateway.chat(anyString())).thenReturn("tool_call(tool_search, {q:订单})");
+        ToolEngineClient toolEngine = mock(ToolEngineClient.class);
+        when(toolEngine.invoke(anyString(), anyString())).thenReturn("result:订单 od_001 金额 99 元");
+
+        ReActLoopImpl loop = new ReActLoopImpl(gateway, toolEngine);
+        ReActContext context = new ReActContext("ag_001", "tk_001");
+
+        // 调用 start, 应进入 ACT 后再 OBSERVE
+        String finalAnswer = loop.start(context);
+
+        // 验证 context.memory 中存入工具结果
+        assertThat(finalAnswer)
+                .as("骨架循环最终应产出答案")
+                .isNotNull();
+        assertThat(context.getMemory().get("last_tool_result"))
+                .as("工具结果应注入 context.memory")
+                .isNotNull()
+                .asString()
+                .contains("result:订单");
+    }
+
+    @Test
+    @DisplayName("异常场景: modelOutput 为 null, transit 应默认转 FINISH")
+    void should_TransitToFinish_When_ModelOutputIsNull() {
+        // 给定 ModelGateway 返回 null
+        ModelGatewayClient gateway = mock(ModelGatewayClient.class);
+        when(gateway.chat(anyString())).thenReturn(null);
+        ToolEngineClient toolEngine = mock(ToolEngineClient.class);
+
+        ReActLoopImpl loop = new ReActLoopImpl(gateway, toolEngine);
+        ReActContext context = new ReActContext("ag_002", "tk_002");
+
+        // 直接调用 transit
+        ReActPhaseType next = loop.transit(context, null);
+
+        // 验证返回 FINISH
+        assertThat(next)
+                .as("modelOutput 为 null 应默认转 FINISH")
+                .isEqualTo(ReActPhaseType.FINISH);
+
+        // 验证 start 不抛异常并产出默认答案
+        String finalAnswer = loop.start(context);
+        assertThat(finalAnswer)
+                .as("循环最终应产出默认答案")
+                .isNotNull();
+    }
+}

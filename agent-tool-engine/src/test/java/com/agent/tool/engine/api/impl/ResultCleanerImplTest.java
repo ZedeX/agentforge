@@ -1,1 +1,76 @@
-package com.agent.tool.engine.api.impl;  import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link ResultCleanerImpl} 单元测试。  */ class ResultCleanerImplTest {      private final ResultCleanerImpl cleaner = new ResultCleanerImpl();      @Test     @DisplayName("null 或空输入: 返回空串")     void should_ReturnEmpty_When_NullOrEmptyInput() {         assertThat(cleaner.clean(null, 100)).isEmpty();         assertThat(cleaner.clean("", 100)).isEmpty();     }      @Test     @DisplayName("输出在限内: 原样返回 (无脱敏无截断)")     void should_ReturnOriginal_When_WithinLimit() {         String output = "short output without sensitive info";          String result = cleaner.clean(output, 2000);          assertThat(result).isEqualTo(output);     }      @Test     @DisplayName("输出超限: 截断并追加摘要标注")     void should_TruncateWithSummary_When_ExceedsLimit() {         String longOutput = "x".repeat(8001);          String result = cleaner.clean(longOutput, 2000);          assertThat(result.length()).isLessThanOrEqualTo(8000);         assertThat(result).contains("已截断");         assertThat(result).contains("8001");     }      @Test     @DisplayName("包含邮箱: 脱敏为 ***@***.***")     void should_MaskEmail_When_ContainsEmail() {         String output = "contact: user@example.com done";          String result = cleaner.clean(output, 2000);          assertThat(result).contains("***@***.***");         assertThat(result).doesNotContain("user@example.com");     }      @Test     @DisplayName("包含手机号: 脱敏为 1**********")     void should_MaskPhone_When_ContainsPhone() {         String output = "phone: 13812345678 done";          String result = cleaner.clean(output, 2000);          assertThat(result).contains("1**********");         assertThat(result).doesNotContain("13812345678");     }      @Test     @DisplayName("包含身份证号: 脱敏为 18 个星号")     void should_MaskIdCard_When_ContainsIdCard() {         String output = "id: 110101199001011234 done";          String result = cleaner.clean(output, 2000);          assertThat(result).contains("******************");         assertThat(result).doesNotContain("110101199001011234");     } }
+package com.agent.tool.engine.api.impl;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link ResultCleanerImpl} 单元测试。
+ */
+class ResultCleanerImplTest {
+
+    private final ResultCleanerImpl cleaner = new ResultCleanerImpl();
+
+    @Test
+    @DisplayName("null 或空输入: 返回空串")
+    void should_ReturnEmpty_When_NullOrEmptyInput() {
+        assertThat(cleaner.clean(null, 100)).isEmpty();
+        assertThat(cleaner.clean("", 100)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("输出在限内: 原样返回 (无脱敏无截断)")
+    void should_ReturnOriginal_When_WithinLimit() {
+        String output = "short output without sensitive info";
+
+        String result = cleaner.clean(output, 2000);
+
+        assertThat(result).isEqualTo(output);
+    }
+
+    @Test
+    @DisplayName("输出超限: 截断并追加摘要标注")
+    void should_TruncateWithSummary_When_ExceedsLimit() {
+        String longOutput = "x".repeat(8001);
+
+        String result = cleaner.clean(longOutput, 2000);
+
+        assertThat(result.length()).isLessThanOrEqualTo(8000);
+        assertThat(result).contains("已截断");
+        assertThat(result).contains("8001");
+    }
+
+    @Test
+    @DisplayName("包含邮箱: 脱敏为 ***@***.***")
+    void should_MaskEmail_When_ContainsEmail() {
+        String output = "contact: user@example.com done";
+
+        String result = cleaner.clean(output, 2000);
+
+        assertThat(result).contains("***@***.***");
+        assertThat(result).doesNotContain("user@example.com");
+    }
+
+    @Test
+    @DisplayName("包含手机号: 脱敏为 1**********")
+    void should_MaskPhone_When_ContainsPhone() {
+        String output = "phone: 13812345678 done";
+
+        String result = cleaner.clean(output, 2000);
+
+        assertThat(result).contains("1**********");
+        assertThat(result).doesNotContain("13812345678");
+    }
+
+    @Test
+    @DisplayName("包含身份证号: 脱敏为 18 个星号")
+    void should_MaskIdCard_When_ContainsIdCard() {
+        String output = "id: 110101199001011234 done";
+
+        String result = cleaner.clean(output, 2000);
+
+        assertThat(result).contains("******************");
+        assertThat(result).doesNotContain("110101199001011234");
+    }
+}

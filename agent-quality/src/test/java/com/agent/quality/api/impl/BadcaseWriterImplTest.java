@@ -1,1 +1,73 @@
-package com.agent.quality.api.impl;  import com.agent.quality.enums.BadcaseCategory; import com.agent.quality.enums.BadcaseSeverity; import com.agent.quality.model.BadcaseRecord; import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link BadcaseWriterImpl} 单元测试。  */ class BadcaseWriterImplTest {      private final BadcaseWriterImpl writer = new BadcaseWriterImpl();      @Test     @DisplayName("写入有效 Badcase 记录: 存储成功且可按 ID 查询")     void should_WriteRecord_When_ValidInput() {         BadcaseRecord record = new BadcaseRecord("bc-001", "task-001", BadcaseCategory.HALLUCINATION);         record.setSeverity(BadcaseSeverity.HIGH);         record.setSeverityScore(0.85);         record.setContent("幻觉输出样例");         record.setFailureReason("缺来源标签");          writer.write(record);          assertThat(writer.size()).isEqualTo(1);         BadcaseRecord found = writer.findById("bc-001");         assertThat(found).isNotNull();         assertThat(found.getTaskId()).isEqualTo("task-001");         assertThat(found.getCategory()).isEqualTo(BadcaseCategory.HALLUCINATION);         assertThat(found.getSeverity()).isEqualTo(BadcaseSeverity.HIGH);         assertThat(found.getSeverityScore()).isEqualTo(0.85);         assertThat(writer.findAll()).hasSize(1);     }      @Test     @DisplayName("写入 null 记录: 跳过, 存储为空")     void should_Skip_When_RecordIsNull() {         writer.write(null);          assertThat(writer.size()).isZero();         assertThat(writer.findAll()).isEmpty();     }      @Test     @DisplayName("写入缺失 badcaseId 的记录: 自动补建 ID 并存储")     void should_AutoGenerateBadcaseId_When_MissingId() {         BadcaseRecord record = new BadcaseRecord();         record.setTaskId("task-002");         record.setCategory(BadcaseCategory.FORMAT_ERROR);         record.setSeverity(BadcaseSeverity.MEDIUM);          writer.write(record);          assertThat(writer.size()).isEqualTo(1);         BadcaseRecord stored = writer.findAll().get(0);         assertThat(stored.getBadcaseId()).isNotNull().isNotBlank();         assertThat(stored.getTaskId()).isEqualTo("task-002");     }      @Test     @DisplayName("findById 查询未命中: 返回 null")     void should_ReturnNull_When_BadcaseIdNotFound() {         BadcaseRecord record = new BadcaseRecord("bc-100", "task-100", BadcaseCategory.OTHER);         writer.write(record);          BadcaseRecord found = writer.findById("bc-not-exists");         assertThat(found).isNull();     } }
+package com.agent.quality.api.impl;
+
+import com.agent.quality.enums.BadcaseCategory;
+import com.agent.quality.enums.BadcaseSeverity;
+import com.agent.quality.model.BadcaseRecord;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link BadcaseWriterImpl} 单元测试。
+ */
+class BadcaseWriterImplTest {
+
+    private final BadcaseWriterImpl writer = new BadcaseWriterImpl();
+
+    @Test
+    @DisplayName("写入有效 Badcase 记录: 存储成功且可按 ID 查询")
+    void should_WriteRecord_When_ValidInput() {
+        BadcaseRecord record = new BadcaseRecord("bc-001", "task-001", BadcaseCategory.HALLUCINATION);
+        record.setSeverity(BadcaseSeverity.HIGH);
+        record.setSeverityScore(0.85);
+        record.setContent("幻觉输出样例");
+        record.setFailureReason("缺来源标签");
+
+        writer.write(record);
+
+        assertThat(writer.size()).isEqualTo(1);
+        BadcaseRecord found = writer.findById("bc-001");
+        assertThat(found).isNotNull();
+        assertThat(found.getTaskId()).isEqualTo("task-001");
+        assertThat(found.getCategory()).isEqualTo(BadcaseCategory.HALLUCINATION);
+        assertThat(found.getSeverity()).isEqualTo(BadcaseSeverity.HIGH);
+        assertThat(found.getSeverityScore()).isEqualTo(0.85);
+        assertThat(writer.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("写入 null 记录: 跳过, 存储为空")
+    void should_Skip_When_RecordIsNull() {
+        writer.write(null);
+
+        assertThat(writer.size()).isZero();
+        assertThat(writer.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("写入缺失 badcaseId 的记录: 自动补建 ID 并存储")
+    void should_AutoGenerateBadcaseId_When_MissingId() {
+        BadcaseRecord record = new BadcaseRecord();
+        record.setTaskId("task-002");
+        record.setCategory(BadcaseCategory.FORMAT_ERROR);
+        record.setSeverity(BadcaseSeverity.MEDIUM);
+
+        writer.write(record);
+
+        assertThat(writer.size()).isEqualTo(1);
+        BadcaseRecord stored = writer.findAll().get(0);
+        assertThat(stored.getBadcaseId()).isNotNull().isNotBlank();
+        assertThat(stored.getTaskId()).isEqualTo("task-002");
+    }
+
+    @Test
+    @DisplayName("findById 查询未命中: 返回 null")
+    void should_ReturnNull_When_BadcaseIdNotFound() {
+        BadcaseRecord record = new BadcaseRecord("bc-100", "task-100", BadcaseCategory.OTHER);
+        writer.write(record);
+
+        BadcaseRecord found = writer.findById("bc-not-exists");
+        assertThat(found).isNull();
+    }
+}
