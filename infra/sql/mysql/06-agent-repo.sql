@@ -1,8 +1,9 @@
 -- =====================================================================
 -- File: 06-agent-repo.sql
 -- Domain: agent_repo (agent-repo)
--- Source: docs/01-database/database-schema-design.md §6
+-- Source: docs/01-database/database-schema-design.md §6 + docs/06-agent-repo
 -- Engine: InnoDB / Charset: utf8mb4 / Collate: utf8mb4_unicode_ci
+-- Plan: 08 T2-T4 (aligned with POJO design - simplified columns)
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS agent_repo
@@ -12,81 +13,82 @@ CREATE DATABASE IF NOT EXISTS agent_repo
 USE agent_repo;
 
 -- ---------------------------------------------------------------------
--- Table: agent_definition  (Agent 定义表, doc §6.1)
--- 含 system_prompt / core_constraints / reflection_mode / max_steps
+-- Table: agent_definition  (Agent 定义表, doc §6.1, Plan 08 T2)
+-- POJO 字段: agentId / name / description / abilityTags(List) / systemPrompt /
+--           agentTier(enum) / maxSteps / maxToken / status(enum) / version /
+--           boundTools(List) / boundKnowledgeIds(List) / createdAt(long) / updatedAt(long)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `agent_definition` (
-    `id`                   BIGINT UNSIGNED  NOT NULL                COMMENT '主键, 雪花算法生成',
-    `agent_id`             VARCHAR(32)      NOT NULL                COMMENT 'Agent 业务 ID',
-    `name`                 VARCHAR(128)    NOT NULL                COMMENT '名称',
+    `id`                   BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT  COMMENT '主键自增',
+    `agent_id`             VARCHAR(64)      NOT NULL                COMMENT 'Agent 业务 ID',
+    `name`                 VARCHAR(128)     NOT NULL                COMMENT '名称',
     `description`          TEXT             NOT NULL                COMMENT '描述',
-    `ability_tags`         JSON             NOT NULL                COMMENT '能力标签',
-    `scene_tags`           JSON             NOT NULL                COMMENT '场景标签',
+    `ability_tags`         TEXT             NOT NULL                COMMENT '能力标签 (JSON 数组, JsonListConverter)',
     `system_prompt`        TEXT             NOT NULL                COMMENT '系统提示词',
-    `core_constraints`     TEXT             NOT NULL                COMMENT '核心约束区 (压缩优先保留)',
-    `business_config`      JSON             NOT NULL                COMMENT '业务配置区',
-    `model_tier`           VARCHAR(16)      NOT NULL                COMMENT 'light/middle/strong',
-    `max_steps`            INT UNSIGNED     NOT NULL                COMMENT '最大循环步数熔断',
-    `max_token`            INT UNSIGNED     NOT NULL                COMMENT 'Token 上限',
-    `bound_tools`          JSON             NOT NULL                COMMENT '绑定工具 ID 数组',
-    `bound_knowledge_ids`  JSON             NOT NULL                COMMENT '绑定知识库',
-    `reflection_mode`      VARCHAR(16)      NOT NULL                COMMENT 'none=禁用 single=单轮 multi=多轮',
-    `status`               TINYINT          NOT NULL DEFAULT 1      COMMENT '1=草稿 2=启用 3=下线',
-    `version`              INT UNSIGNED     NOT NULL DEFAULT 1      COMMENT '版本号',
-    `created_at`           DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3)          COMMENT '创建时间',
-    `updated_at`           DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
-    `created_by`           VARCHAR(64)      NULL                    COMMENT '创建人',
-    `updated_by`           VARCHAR(64)      NULL                    COMMENT '更新人',
-    `deleted`              TINYINT(1)       NOT NULL DEFAULT 0      COMMENT '逻辑删除: 0=未删 1=已删',
-    `version_lock`         INT UNSIGNED     NOT NULL DEFAULT 0      COMMENT '乐观锁版本号',
+    `agent_tier`           VARCHAR(16)      NOT NULL                COMMENT 'Agent 等级 (LITE/STANDARD/ADVANCED)',
+    `max_steps`            INT              NOT NULL                COMMENT '最大循环步数熔断',
+    `max_token`            INT              NOT NULL                COMMENT 'Token 上限',
+    `bound_tools`          TEXT             NOT NULL                COMMENT '绑定工具 ID 数组 (JSON)',
+    `bound_knowledge_ids`  TEXT             NOT NULL                COMMENT '绑定知识库 ID 数组 (JSON)',
+    `status`               VARCHAR(16)      NOT NULL                COMMENT '状态 (DRAFT/PUBLISHED/DEPRECATED/ARCHIVED)',
+    `version`              INT              NOT NULL DEFAULT 1      COMMENT '版本号',
+    `created_at`           BIGINT           NOT NULL                COMMENT '创建时间 (epoch millis)',
+    `updated_at`           BIGINT           NOT NULL                COMMENT '更新时间 (epoch millis)',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_agent_id` (`agent_id`),
     KEY `idx_status` (`status`),
-    KEY `idx_ability_tags` ((CAST(`ability_tags` AS CHAR(64) ARRAY))),
+    KEY `idx_agent_tier` (`agent_tier`),
     KEY `idx_version` (`version`),
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent 定义表';
 
 -- ---------------------------------------------------------------------
--- Table: agent_version  (Agent 版本表, doc §6.2, 含 is_stable)
+-- Table: agent_version  (Agent 版本表, doc §6.2, Plan 08 T3)
+-- POJO 字段: id / agentId / version / snapshot(String) / changeLog / createdAt(long)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `agent_version` (
-    `id`            BIGINT UNSIGNED  NOT NULL                COMMENT '主键, 雪花算法生成',
-    `agent_id`      VARCHAR(32)      NOT NULL                COMMENT 'Agent ID',
-    `version`       INT UNSIGNED     NOT NULL                COMMENT '版本号',
-    `snapshot`      JSON             NOT NULL                COMMENT '完整定义快照',
+    `id`            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT  COMMENT '主键自增',
+    `agent_id`      VARCHAR(64)      NOT NULL                COMMENT 'Agent ID',
+    `version`       INT              NOT NULL                COMMENT '版本号',
+    `snapshot`      LONGTEXT         NOT NULL                COMMENT '完整定义快照 (JSON)',
     `change_log`    TEXT             NOT NULL                COMMENT '变更说明',
-    `published_by`  VARCHAR(64)      NOT NULL                COMMENT '发布人',
-    `published_at`  DATETIME(3)      NOT NULL                COMMENT '发布时间',
-    `is_stable`     TINYINT(1)       NOT NULL DEFAULT 0      COMMENT '是否稳定版 (漂移回滚用)',
-    `created_at`    DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3)          COMMENT '创建时间',
-    `updated_at`    DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
-    `created_by`    VARCHAR(64)      NULL                    COMMENT '创建人',
-    `updated_by`    VARCHAR(64)      NULL                    COMMENT '更新人',
-    `deleted`       TINYINT(1)       NOT NULL DEFAULT 0      COMMENT '逻辑删除: 0=未删 1=已删',
-    `version_lock`  INT UNSIGNED     NOT NULL DEFAULT 0      COMMENT '乐观锁版本号',
+    `created_at`    BIGINT           NOT NULL                COMMENT '创建时间 (epoch millis)',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_agent_version` (`agent_id`, `version`),
     KEY `idx_agent_id` (`agent_id`),
-    KEY `idx_is_stable` (`is_stable`),
-    KEY `idx_published_at` (`published_at`)
+    KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent 版本表';
 
 -- ---------------------------------------------------------------------
--- Table: agent_metrics  (Agent 动态评分表, doc §6.3 agent_score)
--- 对齐 doc §6.3, 表名按 DBA 要求使用 agent_metrics
+-- Table: agent_rating  (Agent 用户评分表, doc 06-agent-repo §3.2, Plan 08 T4)
+-- POJO 字段: id / agentId / userId / score(int) / comment / createdAt(long)
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `agent_metrics` (
-    `id`             BIGINT UNSIGNED  NOT NULL                COMMENT '主键, 雪花算法生成',
-    `agent_id`       VARCHAR(32)      NOT NULL                COMMENT 'Agent',
-    `dimension`      VARCHAR(32)      NOT NULL                COMMENT 'success_rate/accuracy/hallucination/latency',
-    `score`          DECIMAL(5,4)     NOT NULL                COMMENT '得分 0~1',
-    `sample_count`   INT UNSIGNED     NOT NULL                COMMENT '样本量',
-    `period_start`   DATE             NOT NULL                COMMENT '统计周期开始',
-    `period_end`     DATE             NOT NULL                COMMENT '统计周期结束',
-    `created_at`     DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3)          COMMENT '创建时间',
+CREATE TABLE IF NOT EXISTS `agent_rating` (
+    `id`            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT  COMMENT '主键自增',
+    `agent_id`      VARCHAR(64)      NOT NULL                COMMENT 'Agent ID',
+    `user_id`       VARCHAR(64)      NOT NULL                COMMENT '用户 ID',
+    `score`         INT              NOT NULL                COMMENT '评分 [1,5]',
+    `comment`       TEXT             NULL                    COMMENT '评价内容',
+    `created_at`    BIGINT           NOT NULL                COMMENT '创建时间 (epoch millis)',
     PRIMARY KEY (`id`),
-    KEY `idx_agent_dim_period` (`agent_id`, `dimension`, `period_end`),
     KEY `idx_agent_id` (`agent_id`),
-    KEY `idx_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent 动态评分表';
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_agent_user` (`agent_id`, `user_id`),
+    KEY `idx_created_at` (`created_at`),
+    CONSTRAINT `chk_score_range` CHECK (`score` BETWEEN 1 AND 5)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent 用户评分表';
+
+-- ---------------------------------------------------------------------
+-- Table: capability  (Agent 能力描述表, doc 06-agent-repo §3.1, Plan 08 T4)
+-- POJO 字段: code(@Id natural key) / name / tag(enum) / description / enabled(boolean)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `capability` (
+    `code`         VARCHAR(64)     NOT NULL                COMMENT '能力代码 (自然键)',
+    `name`         VARCHAR(128)    NOT NULL                COMMENT '能力名称',
+    `tag`          VARCHAR(32)     NOT NULL                COMMENT '能力标签 (CapabilityTag enum)',
+    `description`  TEXT            NULL                    COMMENT '描述',
+    `enabled`      TINYINT(1)      NOT NULL DEFAULT 1      COMMENT '是否启用: 0=禁用 1=启用',
+    PRIMARY KEY (`code`),
+    KEY `idx_tag` (`tag`),
+    KEY `idx_enabled` (`enabled`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent 能力描述表';

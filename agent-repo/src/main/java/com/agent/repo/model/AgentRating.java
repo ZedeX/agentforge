@@ -1,18 +1,40 @@
 package com.agent.repo.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+
 /**
- * Agent user rating (doc 06-agent-repo §3.2 agent_rating table, skeleton).
+ * Agent user rating (doc 06-agent-repo §3.2 agent_rating table, Plan 08 T4).
  *
- * <p>Each rating has a score [1,5] + comment, submitted by a user for a specific agentId.
- * Skeleton stage: in-memory POJO. JPA Entity deferred to Plan 08 deepening.</p>
+ * <p>JPA Entity backing agent_rating table. Each rating has a score [1,5] + comment,
+ * submitted by a user for a specific agentId.</p>
  */
+@Entity
+@Table(name = "agent_rating")
 public class AgentRating {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "agent_id", nullable = false, length = 64)
     private String agentId;
+
+    @Column(name = "user_id", nullable = false, length = 64)
     private String userId;
+
+    @Column(name = "score", nullable = false)
     private int score;
+
+    @Column(name = "comment", length = 65535)
     private String comment;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
     private long createdAt;
 
     public AgentRating() {
@@ -23,6 +45,13 @@ public class AgentRating {
         this.userId = userId;
         this.score = score;
         this.comment = comment;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == 0) {
+            createdAt = System.currentTimeMillis();
+        }
     }
 
     public Long getId() { return id; }
