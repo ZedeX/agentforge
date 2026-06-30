@@ -189,3 +189,77 @@ A- 达成后，用户指示"这几个并行做"，并行启动 9 个 background 
 ### 经验教训 20
 
 20. **gh CLI 直连能力**：gh CLI（Go 二进制）能直连 GitHub API 绕过 GFW 间歇性阻断，而 git（C 实现）的 HTTPS push 被 GFW 持续阻断（"Recv failure: Connection was reset"）。当 git push 持续失败时，gh API REST push（blob→tree→commit→ref PATCH 6 步流程）是可靠备选通道。关键修复：PowerShell 中 `git log --format="%B"` 返回字符串数组，需 `-join "\n"` 合并为单字符串，否则 ConvertTo-Json 序列化为 JSON 数组导致 GitHub API HTTP 422。
+
+---
+
+## 📅 2026-07-01 会话记录：Wave 18 — agent-model-gateway 骨架（Plan 07 T1 级）
+
+**时间**：2026-07-01 01:09 ~ 01:25（约 16 分钟）
+**目标**：创建第 13 个活跃模块 `agent-model-gateway` 骨架（Plan 07 T1 级），推进 CI 连续全绿窗口。
+**作用**：补齐模型网关层骨架，为后续 Plan 07 T2-T14（JPA Entity / 多供应商适配器 / gRPC 服务 / Redis 缓存 / 故障降级）奠基；同时验证 gh-api-push.py（Python 版）在本地/远程分叉场景下的健壮性。
+
+### Wave 18 成果
+
+- **新模块**：`agent-model-gateway`（端口 8094 HTTP / 9094 gRPC，doc 02-api §5）
+- **文件数**：33 个（pom.xml + Application + 2 enums + 7 models + 7 interfaces + 7 Impl + 7 Tests）
+- **测试**：44 tests pass，0 failures，JaCoCo line ≥ 0.80 / branch ≥ 0.70 全部达标
+- **根 pom.xml**：取消注释 `<module>agent-model-gateway</module>`，成为第 13 个活跃模块
+
+### 组件清单
+
+| 层 | 类 | 说明 |
+|---|---|---|
+| enums | `Scene` (INTENT/AUDIT/GENERIC) | 路由场景，含 `fromCode()` 静态工厂 |
+| enums | `ProviderStatus` (ACTIVE/DEGRADED/RECOVERING) | 故障降级状态机 |
+| model | ModelProvider / ModelRouteRule / ModelUsageLog | provider 配置 + 路由规则 + 用量日志 POJO（JaCoCo excluded） |
+| model | RouteResult / AdapterContext / ProviderHealth / ChatReply | 路由结果 / 适配器上下文 / 健康快照 / 响应 |
+| api | ModelRouter / ModelProviderAdapter / CostMeter / PromptCache | 路由 / 适配器 / 计量 / 缓存 4 核心接口 |
+| api | ModelDegradationManager / AdapterRegistry / TokenCounter | 降级 / 注册中心 / Token 计数 3 辅助接口 |
+| impl | TokenCounterImpl | CJK 1.7x 系数，ASCII ~4 char/token |
+| impl | AdapterRegistryImpl | ConcurrentHashMap<code, Adapter>，null 安全 |
+| impl | ModelRouterImpl | CopyOnWriteArrayList 规则，3 默认规则（INTENT→openai-mini/qwen-turbo, AUDIT→anthropic/openai, GENERIC→openai/anthropic） |
+| impl | OpenAiAdapterImpl | mock chat 返回 `[openai:gpt-4o]` + prompt 前 64 字符 |
+| impl | CostMeterImpl | 5 预置 provider 单价，input/output 分开计费 |
+| impl | PromptCacheImpl | key=tenantId+md5(prompt前256)，TTL 24h |
+| impl | ModelDegradationManagerImpl | FAIL_THRESHOLD=3，COOLDOWN_MS=5min，ACTIVE→DEGRADED→RECOVERING→ACTIVE 状态机 |
+
+### 推送与 CI 验证
+
+- **本地 commit**：`e9c3955`（feat(model-gateway): add agent-model-gateway skeleton）
+- **gh-api 推送**：因本地/远程 SHA 分叉（远程 commit 由 gh API 创建，SHA 不在本地 git 对象库），使用 `python tmp/proxy-debug/gh-api-push.py --diff-base HEAD~1` 回退到 HEAD~1 作为 diff 基准
+- **远端 commit**：`89eb987a4ce65407b389ea73abf91cd4e9773e80`
+- **CI run**：`28462730157` ✅ SUCCESS（5m9s）
+  - Compile (skip tests) ✅
+  - Run unit tests ✅
+  - Run integration tests + JaCoCo coverage check ✅（line+branch 全达标）
+  - Aggregate JaCoCo report ✅
+
+### CI 连续全绿窗口进展（Task #60）
+
+| # | Run ID | 结果 | Wave |
+|---|---|---|---|
+| 1 | 28460812031 | ✅ | Wave 17 fix（38 文件换行符修复）|
+| 2 | 28461567076 | ✅ | Wave 17 docs（project_memory 更新）|
+| 3 | 28462730157 | ✅ | Wave 18 model-gateway 骨架 |
+
+- **当前 streak**：3
+- **目标**：10 连续全绿（D5 9.0→10.0，总分 90.2 = A-）
+- **剩余**：7 次连续成功 push
+
+### Plan 07 后续深化（T2-T14，待后续 Wave）
+
+骨架阶段已完成 Plan 07 T1 级（pom + Application + 接口 + 内存版 Impl + 测试）。后续深化项：
+- T2-T3：JPA Entity + Repository（model_provider / model_route_rule / model_usage_log 三表）
+- T4-T7：多供应商适配器（OpenAI/Anthropic/Gemini/Qwen/Ernie/DeepSeek，Spring AI + WebClient）
+- T8-T9：gRPC 服务（Chat / StreamChat server streaming）
+- T10：TokenCounter 集成 agent-common TokenEstimator
+- T11：PromptCache Redis 实现
+- T12：CostMeter JPA + Redis 配额计数器
+- T13：ModelDegradationManager 故障自动降级（主→备用→回切）
+- T14：WireMock 集成测试
+
+### 经验教训 21
+
+21. **Python 推送脚本 `--diff-base` 回退机制**：当远程 HEAD SHA 由 gh API 创建（不在本地 git 对象库）时，`git diff $remoteSha HEAD` 报 `fatal: bad object`。Python 脚本 `gh-api-push.py --diff-base HEAD~1` 显式指定本地已知 SHA 作为 diff 基准，绕过此问题。今后 GFW 阻断 + 本地/远程分叉场景的标准做法：`python tmp/proxy-debug/gh-api-push.py --diff-base HEAD~N`（N=本地领先远程的 commit 数）。
+
+22. **PowerShell 数组捕获 bug 根因（补遗）**：Wave 17 事故根因是 `git show "$sha:$file"` 多行输出被 PowerShell 捕获为数组，`[System.Text.Encoding]::UTF8.GetBytes($array)` 通过 `$OFS`（默认空格）连接数组元素，导致所有 `\n` 被替换为空格。修复方案有二：(a) PowerShell 用 `[System.IO.File]::ReadAllBytes()` 读磁盘原始字节（v5 脚本）；(b) 改用 Python `open(f,"rb").read()`（gh-api-push.py）。今后涉及二进制/文本字节完整性的场景，一律用 Python 读取，避免 PowerShell 字符串数组陷阱。
