@@ -112,7 +112,7 @@
         <module>agent-session</module>
         <!-- Phase C4: core engine layer (待后续编码) -->
         <module>agent-task-orchestrator</module>
-        <!-- <module>agent-planning</module> -->
+        <module>agent-planning</module>
         <!-- P7-3: F8/F10/F11/F12 决策节点最小骨架 (POJO + interface + 测试) -->
         <module>agent-tool-engine</module>
         <module>hallucination-governance</module>
