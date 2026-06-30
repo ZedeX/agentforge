@@ -122,7 +122,7 @@
         <module>agent-runtime</module>
         <module>agent-quality</module>
         <module>agent-model-gateway</module>
-        <!-- <module>agent-repo</module> -->
+        <module>agent-repo</module>
         <!-- <module>agent-knowledge</module> -->
     </modules>
 
