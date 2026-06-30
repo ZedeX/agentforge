@@ -54,9 +54,10 @@
 | # | 文档 | Task 数 | 行数 | 覆盖模块 | 状态 |
 |---|---|---|---|---|---|
 | 15 | [plans/00-coding-plans-overview.md](./plans/00-coding-plans-overview.md) | - | 180 | 10 个子系统总览 + 依赖图 + 执行顺序 + 关键约定 | ✅ |
-| 16 | [plans/01-agent-proto-and-common-plan.md](./plans/01-agent-proto-and-common-plan.md) | 8 | 2785 | agent-proto（8 .proto）+ agent-common（11 Java 类），47 测试用例 | ✅ |
-| 17 | [plans/02-agent-gateway-session-plan.md](./plans/02-agent-gateway-session-plan.md) | 10 | 4339 | agent-gateway(8080) + agent-session(8082)，43 Java 类 | ✅ |
-| - | plans/03~10（待生成） | 8 plans | - | task-orchestrator/memory/tool-engine/runtime/model-gateway/repo+knowledge+quality/infra | ⏸ 任务大纲见总览 |
+| 16 | [plans/01-agent-proto-and-common-plan.md](./plans/01-agent-proto-and-common-plan.md) | 8 | 2785 | agent-proto（8 .proto）+ agent-common（11 Java 类），47 测试用例 | ✅ 已实现 |
+| 17 | [plans/02-agent-gateway-session-plan.md](./plans/02-agent-gateway-session-plan.md) | 10 | 4339 | agent-gateway(8080) + agent-session(8082)，43 Java 类 | ✅ 已实现 |
+| 18 | [plans/04-task-orchestrator-planning-plan.md](./plans/04-task-orchestrator-planning-plan.md) | 13 | - | agent-task-orchestrator（T5~T13：gRPC 服务 + DAG 引擎 + RocketMQ + 集成测试） | ✅ 已实现 |
+| - | plans/03/05~10（待生成） | 7 plans | - | memory/tool-engine/runtime/model-gateway/repo+knowledge+quality/infra | ⏸ 任务大纲见总览 |
 
 ### 七、前端控制台详设
 
@@ -300,17 +301,16 @@ mvn -B -ntp clean package -Pquick
 
 ## 后续计划（coding plan）
 
-本轮交付为设计文档。下一步将基于 writing-plans 技能，按子系统拆分为独立编码计划：
+基于 writing-plans 技能，按子系统拆分为独立编码计划。截至 v7.5：
 
-1. `infra/sql/` DDL 脚本编写 plan
-2. `agent-proto/` Protobuf 定义 plan
-3. `agent-common/` 公共模块 plan
-4. `agent-task-orchestrator` + `agent-planning` 编码 plan
-5. `agent-memory` 编码 plan
-6. `agent-tool-engine` 编码 plan
-7. `agent-runtime` 编码 plan
-8. `agent-model-gateway` 编码 plan
-9. `agent-gateway` + `agent-session` 编码 plan
-10. 基础设施（K8s/Docker/Nacos）配置 plan
+1. ✅ `agent-proto/` + `agent-common/` — [Plan 01](./plans/01-agent-proto-and-common-plan.md)（已实现，47 测试用例）
+2. ✅ `agent-gateway/` + `agent-session/` — [Plan 02](./plans/02-agent-gateway-session-plan.md)（已实现，43 Java 类）
+3. ✅ `agent-task-orchestrator/` — [Plan 04](./plans/04-task-orchestrator-planning-plan.md)（已实现，T5~T13 全 13 task，含 gRPC + RocketMQ + 集成测试）
+4. ⏸ `agent-memory/` 编码 plan（骨架已建，业务实现待后续）
+5. ⏸ `agent-tool-engine/` 编码 plan（骨架已建，业务实现待后续）
+6. ⏸ `agent-runtime/` 编码 plan（骨架已建，业务实现待后续）
+7. ⏸ `agent-model-gateway/` 编码 plan（骨架未建）
+8. ⏸ `agent-repo/` + `agent-knowledge/` + `agent-quality/` 编码 plan（quality 骨架已建，repo/knowledge 待后续）
+9. ⏸ 基础设施（K8s/Docker/Nacos）配置 plan
 
-每个编码计划将保存至 `docs/plans/` 目录，采用 TDD 红绿循环逐步实现。
+每个编码计划保存至 `docs/plans/` 目录，采用 TDD 红绿循环逐步实现。已实现模块的测试覆盖详见 [tests/tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
