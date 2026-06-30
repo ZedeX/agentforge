@@ -65,7 +65,7 @@ AgentForge 是一个企业级多智能体平台，目标是把"声明式定义 A
 
 ```
 agentforge/
-├── pom.xml                          # Parent POM（11 模块激活 / 15 总计）
+├── pom.xml                          # Parent POM（15 模块激活 / 15 总计）
 ├── agent-proto/                     # Protobuf 契约层（8 .proto + 生成 stub）
 ├── agent-common/                    # 公共工具层（DTO/异常/工具类）
 ├── agent-gateway/                   # 接入网关（8080）
@@ -150,17 +150,19 @@ cd infra/sql
 
 ## Status
 
-当前阶段：**🎉 TDD 审计 A- 等级达成（v7.6，90.2 分）— 骨架模块业务逻辑补全 + 编码计划生成推进中**。
+当前阶段：**🎉 TDD 审计 A- 等级达成（v7.6，90.2 分）— 15 微服务骨架全部完成 + CI 10 连续全绿**。
 
 - ✅ 设计文档（19 份，覆盖 PRD 全部交付物）
 - ✅ DDL 脚本（16 文件，2158 行，9 MySQL 库 32 表 + Milvus + Neo4j + Redis）
-- ✅ 编码计划（agent-proto+common + agent-gateway+session + task-orchestrator，3 份已实现；Plan 03/05~10 生成中）
+- ✅ 编码计划（Plan 03/04/05/06/07/08/09 全部生成；3 份已实现 + 7 份骨架阶段完成）
 - ✅ Mermaid 语法校验（12/12 通过）
 - ✅ 核心模块编码（5 模块完整实现：agent-proto / agent-common / agent-gateway / agent-session / agent-task-orchestrator，464+ 测试用例）
 - ✅ 决策节点骨架（6 模块 POJO+interface+测试：agent-tool-engine / hallucination-governance / drift-monitor / agent-memory / agent-runtime / agent-quality，F1~F12 全 12 节点组覆盖）
-- 🔄 骨架模块业务逻辑补全（6 模块并行推进中）
+- ✅ **15 微服务骨架全部完成**（新增 4 模块：agent-planning / agent-model-gateway / agent-repo / agent-knowledge，全 15 模块 reactor 激活，750+ 测试用例）
+- ✅ model-gateway 深化（4 mock adapter：OpenAI / Anthropic / Gemini / DeepSeek）
 - ✅ **TDD 审计 A- 达成**（v7.6，90.2 分，CI-01 正式解除，D5 CI 维度满分 10.0，最近 10 次 CI 全绿）
-- ⏸ 其余 4 个微服务编码（agent-planning / agent-model-gateway / agent-repo / agent-knowledge，待后续）
+- ⏸ JPA Entity + Repository 持久化层（待后续）
+- ⏸ gRPC 服务层 + RocketMQ 集成（待后续）
 - ⏸ Docker / K8s 部署配置
 
 详见 [project_memory.md](./project_memory.md) 与 [docs/tests/tdd-audit-report-v7.md](./docs/tests/tdd-audit-report-v7.md)。
