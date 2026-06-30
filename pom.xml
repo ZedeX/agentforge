@@ -121,7 +121,7 @@
         <!-- P7-4: F6/F7/F9 决策节点最小骨架 (POJO + interface + 测试) -->
         <module>agent-runtime</module>
         <module>agent-quality</module>
-        <!-- <module>agent-model-gateway</module> -->
+        <module>agent-model-gateway</module>
         <!-- <module>agent-repo</module> -->
         <!-- <module>agent-knowledge</module> -->
     </modules>
