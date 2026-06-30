@@ -263,3 +263,95 @@ A- 达成后，用户指示"这几个并行做"，并行启动 9 个 background 
 21. **Python 推送脚本 `--diff-base` 回退机制**：当远程 HEAD SHA 由 gh API 创建（不在本地 git 对象库）时，`git diff $remoteSha HEAD` 报 `fatal: bad object`。Python 脚本 `gh-api-push.py --diff-base HEAD~1` 显式指定本地已知 SHA 作为 diff 基准，绕过此问题。今后 GFW 阻断 + 本地/远程分叉场景的标准做法：`python tmp/proxy-debug/gh-api-push.py --diff-base HEAD~N`（N=本地领先远程的 commit 数）。
 
 22. **PowerShell 数组捕获 bug 根因（补遗）**：Wave 17 事故根因是 `git show "$sha:$file"` 多行输出被 PowerShell 捕获为数组，`[System.Text.Encoding]::UTF8.GetBytes($array)` 通过 `$OFS`（默认空格）连接数组元素，导致所有 `\n` 被替换为空格。修复方案有二：(a) PowerShell 用 `[System.IO.File]::ReadAllBytes()` 读磁盘原始字节（v5 脚本）；(b) 改用 Python `open(f,"rb").read()`（gh-api-push.py）。今后涉及二进制/文本字节完整性的场景，一律用 Python 读取，避免 PowerShell 字符串数组陷阱。
+
+---
+
+## 📅 2026-07-01 会话记录：Wave 19 — 3 模块骨架并行创建（agent-repo + agent-knowledge + agent-planning）
+
+**时间**：2026-07-01 01:30 ~ 02:10（约 40 分钟）
+**目标**：并行创建最后 3 个模块骨架，补齐全部 15 个微服务的骨架层，推进 CI 连续全绿窗口。
+**作用**：完成 Plan 04（agent-planning）+ Plan 08（agent-repo + agent-knowledge）的 T1 骨架阶段；验证"主 Agent 监控 + 子 Agent 并行 TODO"模式的高效性。
+
+### Wave 19 执行模式
+
+按 handoff 指令"拆分子Agent运行"，主 Agent 启动 3 个并行 background 子 Agent：
+- 子 Agent #1（97f05635）：agent-planning 骨架（Plan 04）
+- 子 Agent #2（30d9e262）：agent-repo 骨架（Plan 08）
+- 子 Agent #3（984100e6）：agent-knowledge 骨架（Plan 08）
+
+每个子 Agent 指示：只修改各自模块目录；`DO NOT edit root pom.xml`；`DO NOT git commit/push`；本地 `mvn verify` 必须通过；报告文件列表 + 测试数。
+
+主 Agent 监控 + 串行 commit/push/CI 验证（避免 pom.xml 冲突 + 利用 CI 串行窗口）。
+
+### Wave 19 成果
+
+| 模块 | 子 Agent | 文件数 | 测试数 | 覆盖率 (line/branch) | CI Run | 结果 |
+|---|---|---|---|---|---|---|
+| agent-repo | #2 ✅ | 30 | 75 | 89.0% / 79.8% | 28464490875 | ✅ SUCCESS |
+| agent-knowledge | #3 ✅ | 35 | 61 | 94.9% / 87.9% | 28464849823 | ✅ SUCCESS |
+| agent-planning | #1 ⚠️→✅ | 34 | 97 | met | 28465329311 | ✅ SUCCESS |
+
+**子 Agent #1 (agent-planning) 故障与修复**：
+- 子 Agent 在 `mvn verify` 阶段陷入 PowerShell 重定向循环（`LifecyclePhaseNotFoundException` 误报，实为 `> build.log` 重定向未正确捕获全量输出）
+- 主 Agent 停止子 Agent，直接接管：注册模块 → `cmd /c mvn.cmd -pl agent-planning -am verify` → 发现 1 个测试 bug（`PlanValidatorImplTest.should_AddEfficiencyWarning_When_DagTooLarge` 忘记 `plan.setDagJson(sb.toString())`）→ 修复 → 97 tests pass, coverage met
+- 教训：子 Agent 在 Windows PowerShell 环境下处理 maven 输出重定向不可靠，遇 `cmd /c` 包装或 Python subprocess 更稳
+
+### 组件清单
+
+**agent-repo**（端口 8096，Agent 仓库服务）：
+- enums: AgentStatus (DRAFT/PUBLISHED/DEPRECATED/ARCHIVED 状态机) / AgentTier / CapabilityTag
+- model: AgentDefinition / AgentVersion / Capability / AgentRating / RepoQuery / BindingResult / PageResult
+- api: AgentRepository / AgentLifecycleManager / VersionControl / CapabilityRegistry / AgentRatingService / AgentQueryService
+- impl: 6 个 ConcurrentHashMap 实现（CRUD + 状态机 + 版本快照/回滚 + 多重过滤分页）
+
+**agent-knowledge**（端口 8098，知识服务）：
+- enums: KnowledgeStatus / IngestStatus / DocumentType / ChunkStrategyType
+- model: KnowledgeBase / KnowledgeDocument / DocumentChunk / KnowledgeVersion / KnowledgeQuery / IngestResult / SearchResult
+- api: KnowledgeService / DocumentParser / ChunkSplitter / KnowledgeRetriever / VersionManager / EmbeddingService / VectorStore
+- impl: 7 个内存实现（KB CRUD + Markdown/HTML 解析 + Token/段落/固定切分 + 关键词检索 + 版本快照 + hash 向量 + 余弦相似度 TopK）
+
+**agent-planning**（端口 8086，规划服务）：
+- enums: PlanStatus / PlanComplexity / ReplanMode
+- model: Plan / PlanStep / PlanTemplate / PlanningContext / PlanValidationResult / ComplexityDimensions / ReplanContext
+- api: PlanningService / PlanValidator / TemplateMatcher / ComplexityScorer / ReplanStrategy / PlanRepository
+- impl: 6 个内存实现（plan CRUD + 5 维度校验 + 模板匹配 + 6 维度复杂度评分 + 重规划策略 + DAG 操作）
+
+### CI 连续全绿窗口进展（Task #60）
+
+| # | Run ID | 结果 | Wave |
+|---|---|---|---|
+| 1 | 28460812031 | ✅ | Wave 17 fix（38 文件换行符修复）|
+| 2 | 28461567076 | ✅ | Wave 17 docs（project_memory 更新）|
+| 3 | 28462730157 | ✅ | Wave 18 model-gateway 骨架 |
+| 4 | 28463166865 | ✅ | Wave 18 docs（project_memory 更新）|
+| 5 | 28464490875 | ✅ | Wave 19 agent-repo 骨架 |
+| 6 | 28464849823 | ✅ | Wave 19 agent-knowledge 骨架 |
+| 7 | 28465329311 | ✅ | Wave 19 agent-planning 骨架 |
+
+- **当前 streak**：7
+- **目标**：10 连续全绿（D5 9.0→10.0，总分 90.2 = A-）
+- **剩余**：3 次连续成功 push
+
+### 平台模块全景（15 个微服务全部骨架完成）
+
+| 模块 | 端口 | 状态 | 测试数 |
+|---|---|---|---|
+| agent-proto | - | ✅ 完整实现 | - |
+| agent-common | - | ✅ 完整实现 | - |
+| agent-gateway | 8080 | ✅ 完整实现 | - |
+| agent-session | 8082 | ✅ 完整实现 | - |
+| agent-task-orchestrator | 8084 | ✅ T5-T13 实现 | - |
+| agent-planning | 8086 | ✅ 骨架 | 97 |
+| agent-tool-engine | 8090 | ✅ 骨架 | - |
+| hallucination-governance | - | ✅ 骨架 | - |
+| drift-monitor | - | ✅ 骨架 | - |
+| agent-memory | 8088 | ✅ 骨架 | - |
+| agent-runtime | 8092 | ✅ 骨架 | - |
+| agent-quality | 8100 | ✅ 骨架 | - |
+| agent-model-gateway | 8094 | ✅ 骨架 | 44 |
+| agent-repo | 8096 | ✅ 骨架 | 75 |
+| agent-knowledge | 8098 | ✅ 骨架 | 61 |
+
+### 经验教训 23
+
+23. **子 Agent Windows 环境适配性**：子 Agent（general-purpose）在 Windows PowerShell 环境下处理 maven 输出重定向（`> build.log 2>&1`）不可靠——PowerShell 会将 `>` 解释为文件重定向但捕获不全，或 `cmd /c` 触发 safe-rm wrapper 拦截。当子 Agent 报告 `LifecyclePhaseNotFoundException` 但 pom.xml 结构正确时，实际是输出捕获问题而非真正的构建失败。主 Agent 接管后用 `cmd /c "mvn.cmd ... 2>&1" | Select-Object -Last 25` 一次性获取完整尾部输出，3 秒定位真实问题（1 个测试 bug）。今后子 Agent 验证构建应直接用 Python `subprocess.run(capture_output=True)` 或指示子 Agent 用 `-f module/pom.xml` 而非 `-pl module -am`。
