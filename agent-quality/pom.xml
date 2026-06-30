@@ -23,6 +23,12 @@
     </properties>
 
     <dependencies>
+        <!-- spring-boot-starter (compile scope): 提供 spring-context (@Component/@Service 注解)
+             + spring-boot-starter-logging (SLF4J). 与 agent-common 模式一致, 版本由根 BOM 管理. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

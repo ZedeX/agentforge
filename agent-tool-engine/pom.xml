@@ -18,19 +18,20 @@
     <description>Agent Platform Tool Engine (F8 tool invoke: registry / risk / sandbox / audit)</description>
 
     <properties>
-        <!-- P7-3 skeleton: F8 decision node minimal skeleton, threshold aligned with root pom -->
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
         <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
     </properties>
 
     <dependencies>
-        <!-- Test dependencies: junit5 + mockito + assertj bundled in starter-test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- AssertJ: explicit declaration for fluent assertions (aligned with agent-common pattern) -->
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -40,12 +41,6 @@
 
     <build>
         <plugins>
-            <!-- P7-3 骨架阶段扩展 JaCoCo excludes (ref tdd-audit-report-v7.md §12 P7-3 整改):
-                 model POJO (getter/setter/equals/hashCode 无业务逻辑, 行业惯例不测试) +
-                 exception (构造方法无逻辑) 暂时排除覆盖率校验.
-                 enums 保留 (含 ToolRiskLevel.fromCode 分支逻辑, 应被测试覆盖).
-                 combine.children="append" 追加到根 pom excludes (proto/Grpc 生成的代码) 后面.
-                 后续 P7-4 决策节点补齐 + 业务实现注入后, 视情况恢复 model/exception 校验. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

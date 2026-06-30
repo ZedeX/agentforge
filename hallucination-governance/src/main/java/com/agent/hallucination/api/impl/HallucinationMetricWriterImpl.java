@@ -1,1 +1,77 @@
-package com.agent.hallucination.api.impl;  import com.agent.hallucination.api.HallucinationMetricWriter; import com.agent.hallucination.model.HallucinationMetric; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.stereotype.Component;  import java.time.LocalDate; import java.util.Map; import java.util.concurrent.ConcurrentHashMap;  /**  * Layer 6 幻觉率指标写入实现 (F10 L6: agent_metrics_daily 指标落库)。  *  * <p>简单实现策略：使用 ConcurrentHashMap 在内存中按 (tenantId, agentId, statDate)  * 聚合指标快照, 累加 totalClaims / hallucinationCount 并重算 hallucinationRate,  * 供离线分析或告警消费。生产实现应替换为 ClickHouse / RDBMS 落库。</p>  */ @Component public class HallucinationMetricWriterImpl implements HallucinationMetricWriter {      private static final Logger log = LoggerFactory.getLogger(HallucinationMetricWriterImpl.class);      /** 内存指标快照: key = tenantId|agentId|statDate。 */     private final Map<String, HallucinationMetric> snapshot = new ConcurrentHashMap<>();      @Override     public void write(HallucinationMetric metric) {         if (metric == null) {             log.warn("L6 指标写入收到空 metric, 跳过");             return;         }         String key = buildKey(metric);         long incTotal = safe(metric.getTotalClaims());         long incHalluc = safe(metric.getHallucinationCount());         HallucinationMetric merged = snapshot.compute(key, (k, existing) -> {             if (existing == null) {                 // 首次写入: 归一化负数计数后落库                 metric.setTotalClaims(incTotal);                 metric.setHallucinationCount(incHalluc);                 metric.setHallucinationRate(incTotal == 0 ? 0.0 : (double) incHalluc / incTotal);                 return metric;             }             long total = safe(existing.getTotalClaims()) + incTotal;             long halluc = safe(existing.getHallucinationCount()) + incHalluc;             existing.setTotalClaims(total);             existing.setHallucinationCount(halluc);             existing.setHallucinationRate(total == 0 ? 0.0 : (double) halluc / total);             return existing;         });         log.debug("L6 指标写入: key={}, totalClaims={}, hallucinationCount={}, rate={}",                 key, merged.getTotalClaims(), merged.getHallucinationCount(), merged.getHallucinationRate());     }      /** 读取当前内存快照 (供测试 / 离线读取使用)。 */     public HallucinationMetric getSnapshot(String tenantId, String agentId, LocalDate statDate) {         return snapshot.get(buildKey(tenantId, agentId, statDate));     }      public int snapshotSize() {         return snapshot.size();     }      private long safe(long v) {         return v < 0 ? 0 : v;     }      private String buildKey(HallucinationMetric m) {         return buildKey(m.getTenantId(), m.getAgentId(), m.getStatDate());     }      private String buildKey(String tenantId, String agentId, LocalDate statDate) {         LocalDate date = statDate == null ? LocalDate.now() : statDate;         return tenantId + "|" + agentId + "|" + date;     } }
+package com.agent.hallucination.api.impl;
+
+import com.agent.hallucination.api.HallucinationMetricWriter;
+import com.agent.hallucination.model.HallucinationMetric;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Layer 6 幻觉率指标写入实现 (F10 L6: agent_metrics_daily 指标落库)。
+ *
+ * <p>简单实现策略：使用 ConcurrentHashMap 在内存中按 (tenantId, agentId, statDate)
+ * 聚合指标快照, 累加 totalClaims / hallucinationCount 并重算 hallucinationRate,
+ * 供离线分析或告警消费。生产实现应替换为 ClickHouse / RDBMS 落库。</p>
+ */
+@Component
+public class HallucinationMetricWriterImpl implements HallucinationMetricWriter {
+
+    private static final Logger log = LoggerFactory.getLogger(HallucinationMetricWriterImpl.class);
+
+    /** 内存指标快照: key = tenantId|agentId|statDate。 */
+    private final Map<String, HallucinationMetric> snapshot = new ConcurrentHashMap<>();
+
+    @Override
+    public void write(HallucinationMetric metric) {
+        if (metric == null) {
+            log.warn("L6 指标写入收到空 metric, 跳过");
+            return;
+        }
+        String key = buildKey(metric);
+        long incTotal = safe(metric.getTotalClaims());
+        long incHalluc = safe(metric.getHallucinationCount());
+        HallucinationMetric merged = snapshot.compute(key, (k, existing) -> {
+            if (existing == null) {
+                // 首次写入: 归一化负数计数后落库
+                metric.setTotalClaims(incTotal);
+                metric.setHallucinationCount(incHalluc);
+                metric.setHallucinationRate(incTotal == 0 ? 0.0 : (double) incHalluc / incTotal);
+                return metric;
+            }
+            long total = safe(existing.getTotalClaims()) + incTotal;
+            long halluc = safe(existing.getHallucinationCount()) + incHalluc;
+            existing.setTotalClaims(total);
+            existing.setHallucinationCount(halluc);
+            existing.setHallucinationRate(total == 0 ? 0.0 : (double) halluc / total);
+            return existing;
+        });
+        log.debug("L6 指标写入: key={}, totalClaims={}, hallucinationCount={}, rate={}",
+                key, merged.getTotalClaims(), merged.getHallucinationCount(), merged.getHallucinationRate());
+    }
+
+    /** 读取当前内存快照 (供测试 / 离线读取使用)。 */
+    public HallucinationMetric getSnapshot(String tenantId, String agentId, LocalDate statDate) {
+        return snapshot.get(buildKey(tenantId, agentId, statDate));
+    }
+
+    public int snapshotSize() {
+        return snapshot.size();
+    }
+
+    private long safe(long v) {
+        return v < 0 ? 0 : v;
+    }
+
+    private String buildKey(HallucinationMetric m) {
+        return buildKey(m.getTenantId(), m.getAgentId(), m.getStatDate());
+    }
+
+    private String buildKey(String tenantId, String agentId, LocalDate statDate) {
+        LocalDate date = statDate == null ? LocalDate.now() : statDate;
+        return tenantId + "|" + agentId + "|" + date;
+    }
+}

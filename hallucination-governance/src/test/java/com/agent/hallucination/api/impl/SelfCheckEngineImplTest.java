@@ -1,1 +1,43 @@
-package com.agent.hallucination.api.impl;  import com.agent.hallucination.enums.SelfCheckResult; import com.agent.hallucination.model.Claim; import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link SelfCheckEngineImpl} 单元测试。  */ class SelfCheckEngineImplTest {      private final SelfCheckEngineImpl engine = new SelfCheckEngineImpl();      @Test     @DisplayName("claim 带来源标签且无幻觉关键词: PASS")     void shouldPassWhenClaimHasSourceTag() {         Claim claim = new Claim("据文档显示数据增长 5%", true);         assertThat(engine.check(claim)).isEqualTo(SelfCheckResult.PASS);     }      @Test     @DisplayName("claim 无来源标签: SUSPECTED 并触发自反思")     void shouldSuspectWhenClaimLacksSourceTag() {         Claim claim = new Claim("数据增长 5%", false);         assertThat(engine.check(claim)).isEqualTo(SelfCheckResult.SUSPECTED);     }      @Test     @DisplayName("claim 带来源标签但命中幻觉关键词: SUSPECTED")     void shouldSuspectWhenHallucinationKeywordPresent() {         Claim claim = new Claim("保证 100% 准确", true);         assertThat(engine.check(claim)).isEqualTo(SelfCheckResult.SUSPECTED);     }      @Test     @DisplayName("null claim: REFUSE")     void shouldRefuseWhenClaimIsNull() {         assertThat(engine.check(null)).isEqualTo(SelfCheckResult.REFUSE);     } }
+package com.agent.hallucination.api.impl;
+
+import com.agent.hallucination.enums.SelfCheckResult;
+import com.agent.hallucination.model.Claim;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link SelfCheckEngineImpl} 单元测试。
+ */
+class SelfCheckEngineImplTest {
+
+    private final SelfCheckEngineImpl engine = new SelfCheckEngineImpl();
+
+    @Test
+    @DisplayName("claim 带来源标签且无幻觉关键词: PASS")
+    void shouldPassWhenClaimHasSourceTag() {
+        Claim claim = new Claim("据文档显示数据增长 5%", true);
+        assertThat(engine.check(claim)).isEqualTo(SelfCheckResult.PASS);
+    }
+
+    @Test
+    @DisplayName("claim 无来源标签: SUSPECTED 并触发自反思")
+    void shouldSuspectWhenClaimLacksSourceTag() {
+        Claim claim = new Claim("数据增长 5%", false);
+        assertThat(engine.check(claim)).isEqualTo(SelfCheckResult.SUSPECTED);
+    }
+
+    @Test
+    @DisplayName("claim 带来源标签但命中幻觉关键词: SUSPECTED")
+    void shouldSuspectWhenHallucinationKeywordPresent() {
+        Claim claim = new Claim("保证 100% 准确", true);
+        assertThat(engine.check(claim)).isEqualTo(SelfCheckResult.SUSPECTED);
+    }
+
+    @Test
+    @DisplayName("null claim: REFUSE")
+    void shouldRefuseWhenClaimIsNull() {
+        assertThat(engine.check(null)).isEqualTo(SelfCheckResult.REFUSE);
+    }
+}

@@ -1,1 +1,60 @@
-package com.agent.drift.api.impl;  import com.agent.drift.model.MemoryRecord; import org.junit.jupiter.api.DisplayName; import org.junit.jupiter.api.Test;  import static org.assertj.core.api.Assertions.assertThat;  /**  * {@link MemoryDriftHandlerImpl} 单元测试。  */ class MemoryDriftHandlerImplTest {      private final MemoryDriftHandlerImpl handler = new MemoryDriftHandlerImpl();      @Test     @DisplayName("markInvalid: 预置记录被标记失效")     void shouldMarkExistingRecordInvalid() {         MemoryRecord record = new MemoryRecord("m1", 0.8);         handler.putRecord(record);          handler.markInvalid("m1");          MemoryRecord updated = handler.getRecord("m1");         assertThat(updated.isInvalid()).isTrue();     }      @Test     @DisplayName("markInvalid: 不存在记录时创建占位并标记失效")     void shouldCreatePlaceholderWhenMarkInvalid() {         handler.markInvalid("m2");          MemoryRecord created = handler.getRecord("m2");         assertThat(created).isNotNull();         assertThat(created.isInvalid()).isTrue();         assertThat(created.getMemoryId()).isEqualTo("m2");     }      @Test     @DisplayName("archive: 设置归档位置与过期时间")     void shouldArchiveRecord() {         handler.archive("m3");          MemoryRecord archived = handler.getRecord("m3");         assertThat(archived).isNotNull();         assertThat(archived.getExpiredAt()).isNotNull();         assertThat(archived.getArchiveLocation()).startsWith("memory-archive://");     }      @Test     @DisplayName("空 memoryId / null 记录: 跳过, 快照为空")     void shouldSkipBlankMemoryId() {         handler.markInvalid("");         handler.archive(null);         handler.putRecord(null);         MemoryRecord noId = new MemoryRecord();         handler.putRecord(noId);         assertThat(handler.snapshotSize()).isZero();     } }
+package com.agent.drift.api.impl;
+
+import com.agent.drift.model.MemoryRecord;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * {@link MemoryDriftHandlerImpl} 单元测试。
+ */
+class MemoryDriftHandlerImplTest {
+
+    private final MemoryDriftHandlerImpl handler = new MemoryDriftHandlerImpl();
+
+    @Test
+    @DisplayName("markInvalid: 预置记录被标记失效")
+    void shouldMarkExistingRecordInvalid() {
+        MemoryRecord record = new MemoryRecord("m1", 0.8);
+        handler.putRecord(record);
+
+        handler.markInvalid("m1");
+
+        MemoryRecord updated = handler.getRecord("m1");
+        assertThat(updated.isInvalid()).isTrue();
+    }
+
+    @Test
+    @DisplayName("markInvalid: 不存在记录时创建占位并标记失效")
+    void shouldCreatePlaceholderWhenMarkInvalid() {
+        handler.markInvalid("m2");
+
+        MemoryRecord created = handler.getRecord("m2");
+        assertThat(created).isNotNull();
+        assertThat(created.isInvalid()).isTrue();
+        assertThat(created.getMemoryId()).isEqualTo("m2");
+    }
+
+    @Test
+    @DisplayName("archive: 设置归档位置与过期时间")
+    void shouldArchiveRecord() {
+        handler.archive("m3");
+
+        MemoryRecord archived = handler.getRecord("m3");
+        assertThat(archived).isNotNull();
+        assertThat(archived.getExpiredAt()).isNotNull();
+        assertThat(archived.getArchiveLocation()).startsWith("memory-archive://");
+    }
+
+    @Test
+    @DisplayName("空 memoryId / null 记录: 跳过, 快照为空")
+    void shouldSkipBlankMemoryId() {
+        handler.markInvalid("");
+        handler.archive(null);
+        handler.putRecord(null);
+        MemoryRecord noId = new MemoryRecord();
+        handler.putRecord(noId);
+        assertThat(handler.snapshotSize()).isZero();
+    }
+}

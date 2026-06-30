@@ -1,1 +1,68 @@
-package com.agent.hallucination.api.impl;  import com.agent.hallucination.api.SelfCheckEngine; import com.agent.hallucination.enums.SelfCheckResult; import com.agent.hallucination.model.Claim; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.stereotype.Component;  import java.util.Set;  /**  * Layer 2 自检引擎实现 (F10 L2: 步骤级幻觉自检 + 自反思触发)。  *  * <p>简单实现策略：</p>  * <ul>  *   <li>入参为 {@code null} → 信息不足, 返回 {@link SelfCheckResult#REFUSE}；</li>  *   <li>claim 无来源标签 → 返回 {@link SelfCheckResult#SUSPECTED} 并触发自反思；</li>  *   <li>claim 文本命中幻觉高风险关键词 (绝对 / 100% / 保证 等) → 返回 {@link SelfCheckResult#SUSPECTED} 并触发自反思；</li>  *   <li>其余返回 {@link SelfCheckResult#PASS}。</li>  * </ul>  * <p>当判定为 SUSPECTED 时触发自反思: 此处仅记录告警日志, 真实场景应触发模型二次反思链路并产出修正 claim。</p>  */ @Component public class SelfCheckEngineImpl implements SelfCheckEngine {      private static final Logger log = LoggerFactory.getLogger(SelfCheckEngineImpl.class);      /** 幻觉高风险关键词 (与 L4-1 黑名单保持一致, 复用 doc 11 F9.D2 定义)。 */     private static final Set<String> HALLUCINATION_KEYWORDS = Set.of("绝对", "100%", "保证", "一定", "毫无疑问");      @Override     public SelfCheckResult check(Claim claim) {         if (claim == null) {             log.warn("L2 自检引擎收到空 claim, 信息不足, 返回 REFUSE");             return SelfCheckResult.REFUSE;         }         if (!claim.isHasSourceTag()) {             triggerSelfReflection(claim, "缺失来源标签");             return SelfCheckResult.SUSPECTED;         }         String text = claim.getText();         if (text != null && containsHallucinationKeyword(text)) {             triggerSelfReflection(claim, "命中幻觉高风险关键词");             return SelfCheckResult.SUSPECTED;         }         log.debug("L2 自检通过: claimId={}", claim.getClaimId());         return SelfCheckResult.PASS;     }      /** 简单关键词匹配: 命中任一幻觉关键词即判定为可疑。 */     private boolean containsHallucinationKeyword(String text) {         for (String keyword : HALLUCINATION_KEYWORDS) {             if (text.contains(keyword)) {                 return true;             }         }         return false;     }      /**      * 触发自反思: 检测到幻觉标记 (SUSPECTED) 时调用。      * <p>简单实现仅记录告警日志; 生产实现应触发模型二次反思链路并产出修正 claim。</p>      */     private void triggerSelfReflection(Claim claim, String reason) {         log.warn("L2 触发自反思: claimId={}, 原因={}", claim.getClaimId(), reason);     } }
+package com.agent.hallucination.api.impl;
+
+import com.agent.hallucination.api.SelfCheckEngine;
+import com.agent.hallucination.enums.SelfCheckResult;
+import com.agent.hallucination.model.Claim;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.Set;
+
+/**
+ * Layer 2 自检引擎实现 (F10 L2: 步骤级幻觉自检 + 自反思触发)。
+ *
+ * <p>简单实现策略：</p>
+ * <ul>
+ *   <li>入参为 {@code null} → 信息不足, 返回 {@link SelfCheckResult#REFUSE}；</li>
+ *   <li>claim 无来源标签 → 返回 {@link SelfCheckResult#SUSPECTED} 并触发自反思；</li>
+ *   <li>claim 文本命中幻觉高风险关键词 (绝对 / 100% / 保证 等) → 返回 {@link SelfCheckResult#SUSPECTED} 并触发自反思；</li>
+ *   <li>其余返回 {@link SelfCheckResult#PASS}。</li>
+ * </ul>
+ * <p>当判定为 SUSPECTED 时触发自反思: 此处仅记录告警日志, 真实场景应触发模型二次反思链路并产出修正 claim。</p>
+ */
+@Component
+public class SelfCheckEngineImpl implements SelfCheckEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(SelfCheckEngineImpl.class);
+
+    /** 幻觉高风险关键词 (与 L4-1 黑名单保持一致, 复用 doc 11 F9.D2 定义)。 */
+    private static final Set<String> HALLUCINATION_KEYWORDS = Set.of("绝对", "100%", "保证", "一定", "毫无疑问");
+
+    @Override
+    public SelfCheckResult check(Claim claim) {
+        if (claim == null) {
+            log.warn("L2 自检引擎收到空 claim, 信息不足, 返回 REFUSE");
+            return SelfCheckResult.REFUSE;
+        }
+        if (!claim.isHasSourceTag()) {
+            triggerSelfReflection(claim, "缺失来源标签");
+            return SelfCheckResult.SUSPECTED;
+        }
+        String text = claim.getText();
+        if (text != null && containsHallucinationKeyword(text)) {
+            triggerSelfReflection(claim, "命中幻觉高风险关键词");
+            return SelfCheckResult.SUSPECTED;
+        }
+        log.debug("L2 自检通过: claimId={}", claim.getClaimId());
+        return SelfCheckResult.PASS;
+    }
+
+    /** 简单关键词匹配: 命中任一幻觉关键词即判定为可疑。 */
+    private boolean containsHallucinationKeyword(String text) {
+        for (String keyword : HALLUCINATION_KEYWORDS) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 触发自反思: 检测到幻觉标记 (SUSPECTED) 时调用。
+     * <p>简单实现仅记录告警日志; 生产实现应触发模型二次反思链路并产出修正 claim。</p>
+     */
+    private void triggerSelfReflection(Claim claim, String reason) {
+        log.warn("L2 触发自反思: claimId={}, 原因={}", claim.getClaimId(), reason);
+    }
+}

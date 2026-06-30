@@ -1,1 +1,50 @@
-package com.agent.hallucination.api.impl;  import com.agent.hallucination.api.RagAnchor; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.stereotype.Component;  import java.util.Set;  /**  * Layer 3 RAG 锚定实现 (F10 L3: 事实型任务强制 RAG 召回 + 来源标签 + 交叉验证)。  *  * <p>简单实现策略：</p>  * <ul>  *   <li>任务描述为空 → 召回信息不足, 返回 {@code false} (agent 应拒答)；</li>  *   <li>任务描述命中事实型关键词 (数据 / 统计 / 时间 / 定义 / 来源 / 事实) → 视为召回充分, 返回 {@code true}；</li>  *   <li>其余非空任务 → 返回 {@code true} (无需强制召回)。</li>  * </ul>  */ @Component public class RagAnchorImpl implements RagAnchor {      private static final Logger log = LoggerFactory.getLogger(RagAnchorImpl.class);      /** 事实型任务关键词, 命中即触发 RAG 召回判定 (仅用于日志区分, 不改变返回值)。 */     private static final Set<String> FACTUAL_KEYWORDS = Set.of("数据", "统计", "时间", "定义", "来源", "事实");      @Override     public boolean anchor(String factualTask) {         if (factualTask == null || factualTask.isBlank()) {             log.warn("L3 RAG 锚定收到空任务描述, 召回信息不足, 返回 false");             return false;         }         if (containsAny(factualTask, FACTUAL_KEYWORDS)) {             log.debug("L3 RAG 锚定: 命中事实型关键词, 视为召回充分, 返回 true");         } else {             log.debug("L3 RAG 锚定: 非事实型任务, 返回 true");         }         return true;     }      private boolean containsAny(String text, Set<String> keywords) {         for (String k : keywords) {             if (text.contains(k)) {                 return true;             }         }         return false;     } }
+package com.agent.hallucination.api.impl;
+
+import com.agent.hallucination.api.RagAnchor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.Set;
+
+/**
+ * Layer 3 RAG 锚定实现 (F10 L3: 事实型任务强制 RAG 召回 + 来源标签 + 交叉验证)。
+ *
+ * <p>简单实现策略：</p>
+ * <ul>
+ *   <li>任务描述为空 → 召回信息不足, 返回 {@code false} (agent 应拒答)；</li>
+ *   <li>任务描述命中事实型关键词 (数据 / 统计 / 时间 / 定义 / 来源 / 事实) → 视为召回充分, 返回 {@code true}；</li>
+ *   <li>其余非空任务 → 返回 {@code true} (无需强制召回)。</li>
+ * </ul>
+ */
+@Component
+public class RagAnchorImpl implements RagAnchor {
+
+    private static final Logger log = LoggerFactory.getLogger(RagAnchorImpl.class);
+
+    /** 事实型任务关键词, 命中即触发 RAG 召回判定 (仅用于日志区分, 不改变返回值)。 */
+    private static final Set<String> FACTUAL_KEYWORDS = Set.of("数据", "统计", "时间", "定义", "来源", "事实");
+
+    @Override
+    public boolean anchor(String factualTask) {
+        if (factualTask == null || factualTask.isBlank()) {
+            log.warn("L3 RAG 锚定收到空任务描述, 召回信息不足, 返回 false");
+            return false;
+        }
+        if (containsAny(factualTask, FACTUAL_KEYWORDS)) {
+            log.debug("L3 RAG 锚定: 命中事实型关键词, 视为召回充分, 返回 true");
+        } else {
+            log.debug("L3 RAG 锚定: 非事实型任务, 返回 true");
+        }
+        return true;
+    }
+
+    private boolean containsAny(String text, Set<String> keywords) {
+        for (String k : keywords) {
+            if (text.contains(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
