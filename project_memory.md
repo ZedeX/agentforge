@@ -483,3 +483,74 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 
 - agent-repo JPA 持久化（7 models → JPA Entity + Repository）
 - 或 model-gateway T12 CostMeter → JPA 集成深化
+
+---
+
+## Wave 22：agent-repo JPA 持久化 — T2-T4（2026-07-01）
+
+**时间**：2026-07-01 04:32 CST
+**任务**：Task #80-#82 (Plan 08 T2-T4 JPA 持久化层)
+**目标**：为 agent-repo 添加 JPA Entity + Repository，从内存 POJO 升级为持久化层
+
+### 本轮交付
+
+1. **4 JPA Entity** — AgentDefinition / AgentVersion / AgentRating / Capability 从 POJO 加 @Entity / @Table / @Column / @Enumerated(EnumType.STRING) / @PrePersist / @PreUpdate / @Convert 注解
+2. **JsonListConverter** — `List<String>` ↔ JSON string AttributeConverter，用于 AgentDefinition 的 abilityTags / boundTools / boundKnowledgeIds 三个 List 字段（存为 `["a","b"]` JSON 字符串）
+3. **4 Spring Data JPA Repository**：
+   - AgentDefinitionRepository：findByAgentId / existsByAgentId / findByStatus / findByAgentTier / findByStatusAndAgentTier / deleteByAgentId
+   - AgentVersionRepository：findByAgentIdOrderByVersionDesc / findTopByAgentIdOrderByVersionDesc / findByAgentIdAndVersion / existsByAgentIdAndVersion / countByAgentId
+   - AgentRatingRepository：findByAgentIdOrderByCreatedAtDesc / findByAgentIdAndUserId / countByAgentId / avgScoreByAgentId(@Query COALESCE AVG)
+   - CapabilityRepository：findByTag / findByEnabledTrue / findByTagAndEnabledTrue / existsByCode（自然键 code 作为 @Id）
+4. **31 repository 测试** — @DataJpaTest + @ActiveProfiles("test") + H2 (MODE=MySQL)，覆盖 CRUD / 唯一约束 / 排序 / 聚合查询 / JsonListConverter 往返 / 时间戳自动填充
+5. **DDL 对齐** — `infra/sql/mysql/06-agent-repo.sql` 重写，4 表（agent_definition / agent_version / agent_rating / capability）对齐 POJO 设计，移除旧列（core_constraints / business_config / scene_tags / reflection_mode 等），createdAt 改为 BIGINT（epoch millis）
+6. **配置文件** — `application.yml`（MySQL agent_repo 库，端口 8096）+ `application-test.yml`（H2 MODE=MySQL，ddl-auto=create-drop）
+
+### 验证
+
+- **本地 mvn verify**：106 tests（75 existing 内存 Impl + 31 new JPA），0 failures，JaCoCo coverage met，14.4s
+- **CI streak=15**：`28474044759` ✅ SUCCESS
+- **远端**：`192355c8`（gh-api-push 创建，对应本地 `262a544`）
+
+### 关键技术点
+
+1. **JsonListConverter**：将 `List<String>` 序列化为 JSON 数组字符串存入 TEXT 列，兼容 MySQL 和 H2；@Convert 注解在字段上声明
+2. **Capability 自然键**：code 字段作为 @Id（不用 @GeneratedValue），是 4 个 Entity 中唯一不以 Long 自增为主键的实体；JpaRepository<Capability, String>
+3. **AgentDefinition createdAt/updatedAt 用 long**：epoch millis 映射 BIGINT 列（与 model-gateway 的 ModelUsageLog 一致），@PrePersist 中 `if (createdAt == 0) createdAt = System.currentTimeMillis()`
+4. **唯一约束测试**：agent_id unique + (agent_id, version) unique 都有重复插入抛 DataIntegrityViolationException 测试
+5. **avgScoreByAgentId @Query**：`SELECT COALESCE(AVG(r.score), 0.0) FROM AgentRating r WHERE r.agentId = :agentId`，无评分时返回 0.0
+6. **H2Dialect WARN 无害**：`HHH90000025: H2Dialect does not need to be specified explicitly`，仅警告，不影响功能
+7. **SQL Error 23505 预期**：唯一约束违反测试用例中 H2 抛 23505 是预期行为（测试通过）
+
+### Plan 08 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 agent-repo 骨架 | ✅ | Wave 18 完成 |
+| T2 AgentDefinition Entity + Repository | ✅ | Wave 22 |
+| T3 AgentVersion Entity + Repository | ✅ | Wave 22（AgentVersionService 待 v8 后续） |
+| T4 AgentRepo gRPC 服务（4 RPC） | ⏳ | 待 v8 后续 |
+| T5 Agent 绑定工具/知识库 JSON | ✅ | Wave 22（JsonListConverter 已实现 bound_tools/bound_knowledge_ids） |
+| T6 agent-repo 集成测试 | ⏳ | 待 v8 后续（Testcontainers MySQL） |
+| T7-T12 agent-knowledge 模块 | ⏳ | 待 v8 后续 |
+
+### CI 连续全绿记录（streak 15）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 11 | 28466515463 | docs(readme) A- 封顶 | 4m36s | ✅ |
+| 12 | 28471967548 | docs(memory) Wave 20 | 4m37s | ✅ |
+| 13 | 28473145320 | feat(model-gateway) T2-T3 | 5m25s | ✅ |
+| 14 | 28473534645 | docs(memory) Wave 21 | 3m35s | ✅ |
+| 15 | 28474044759 | feat(agent-repo) T2-T4 | ~5m | ✅ |
+
+### 经验教训
+
+25. **maven 不在 PATH 中时用完整路径**：`cmd /c "D:\_program\maven\apache-maven-3.9.16\bin\mvn.cmd ..."`，PowerShell 的 `mvn.cmd` 直接调用会报 "not recognized"
+26. **gh run watch 可能因网络中断退出**：--exit-status 在网络断开时也会返回非零，需用 `gh run view --json status,conclusion` 确认真实 CI 状态
+27. **JsonListConverter 设计模式**：对 List<String> 字段统一用 AttributeConverter 序列化为 JSON 字符串，比 @ElementCollection 更简单（无关联表），且能通过 @Query 查询
+
+### 下一波（Wave 23）计划
+
+- model-gateway T12 CostMeter → JPA 集成深化（CostMeterImpl 接入 ModelUsageLogRepository）
+- 或 agent-knowledge 模块骨架启动（Plan 08 T7-T12）
+- 或 agent-repo T4 AgentRepo gRPC 服务
