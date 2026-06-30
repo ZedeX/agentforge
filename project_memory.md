@@ -83,6 +83,84 @@ Wave 8 之后，git push 被 GFW 持续阻断（"Recv failure: Connection was re
 
 **P7 整改清单全部完成，无任何待整改项。项目从 v7 的 89.2 分（B+）提升至 v7.6 的 90.2 分（A-）。**
 
+---
+
+## Wave 17（2026-06-30 23:30 ~ 2026-07-01 00:50）：3 模块骨架补全 + GFW gh-api 推送换行符事故修复
+
+### 背景与目标
+A- 达成后，用户要求"继续推进"，并行补全 6 个骨架模块业务逻辑（agent-memory/runtime/quality/tool-engine/hallucination/drift）。
+本轮聚焦其中 3 个模块的 Impl+Test 补全，恢复被中断的 CI 绿色窗口。
+
+### 本轮完成工作
+
+**3 模块骨架补全（19 Impl + 19 Test = 38 文件，3324 行）**：
+
+| 模块 | Impl | Test | 测试用例 | 覆盖率 |
+|------|------|------|---------|--------|
+| agent-runtime | 5 (ModelGatewayClient/ReActLoop/ReflexionEngine/StepStateSyncer/TokenWatermarkMonitor) | 5 | 30 tests | Line 89.7% / Branch 83.0%（从 75% 提升，修复 CI 覆盖率失败） |
+| agent-quality | 5 (BadcaseWriter/L4HardValidator/L4ConsistencyValidator/L4AuditValidator/ManualReviewQueue) | 5 | 32 tests | 阈值达标 |
+| agent-tool-engine | 9 (ToolGateway + ApprovalStore/ResultCleaner/RiskClassifier/SandboxBorrower/ToolCache/ToolCallAuditor/ToolRegistry/ToolSemanticRecaller) | 9 | 68 tests | 阈值达标 |
+
+本地 `mvn -B -ntp clean compile -DskipTests` 全 12 模块 BUILD SUCCESS。
+
+### 关键事故：gh-api 推送换行符损坏
+
+**症状**：第一次推送（commit `3b9e2b8` → 远端 `e7a444e`）后 CI run 28460061431 在
+"Compile (skip tests)" 步骤 49s 失败，5 个 agent-tool-engine 文件报
+`reached end of file while parsing`（ApprovalStoreImpl/ResultCleanerImpl/RiskClassifierImpl/
+ToolGatewayImpl/ToolSemanticRecallerImpl）。
+
+**误诊过程**：最初以为是文件损坏，本地 mvn verify 却全部通过。怀疑过 JaCoCo 覆盖率、
+JDK 版本差异、缓存污染等，均不成立。
+
+**根因定位**：用 Python 下载 CI 日志 zip（`gh api repos/.../actions/runs/{id}/logs`
+返回二进制 zip，PowerShell `>` 重定向会损坏，必须用 `subprocess.run(capture_output=True)`
++ `zipfile.ZipFile`），发现 5 个文件全在 line 1 column ~1341~3538 报 EOF。
+
+进一步用 `gh api repos/.../contents/{file}?ref=main --jq .content` + base64 解码对比，
+发现 **所有 38 个推送的文件在远端都是 0 个换行符**（本地 81~233 个）。即 PowerShell
+`git show "$localHead`:$file"` 把多行输出捕获为数组，随后
+`[System.Text.Encoding]::UTF8.GetBytes($array)` 把数组转字符串时用空格连接（默认 $OFS），
+导致所有 `\n` 被替换为空格。其中 5 个文件因 `//` 行注释中的 `{` 被吞入注释导致花括号
+不平衡，触发 EOF parse error；其余 33 个文件因花括号恰好平衡而侥幸通过编译。
+
+**修复**：新建 `tmp/proxy-debug/git-push-via-gh-api-v5.ps1`，将
+`$content = git show ...` + `UTF8.GetBytes($content)` 替换为
+`[System.IO.File]::ReadAllBytes((Resolve-Path $file))` 直接从磁盘读取原始字节，
+完整保留换行符。本地 commit amend 为 `b3ab1da`，重新推送得到远端 commit `379132a6`。
+验证 4 个代表文件（含曾失败和曾侥幸通过的）远端字节与本地完全一致。
+
+### 关键文件清单
+- `tmp/proxy-debug/git-push-via-gh-api.ps1`（v4，有 bug，保留作历史参考）
+- `tmp/proxy-debug/git-push-via-gh-api-v5.ps1`（修复版，raw bytes from disk）
+- `tmp/_dl_logs4.py`（gh api 二进制安全下载 CI 日志 zip + 解析）
+- `tmp/_compare_remote.py` / `tmp/_verify_newlines.py`（对比远端 blob 与本地字节）
+- `tmp/_ci_compile_*.log`（CI 失败步骤完整日志）
+
+### 教训
+1. **PowerShell `git show` 多行输出捕获为数组**：必须 `-join \"\`n\"` 或用
+   `[System.IO.File]::ReadAllBytes()` 读磁盘。`UTF8.GetBytes($array)` 不会保留换行符。
+2. **GFW 导致 git push 直连和 3 个代理（1082/7892/1089）全部失败**时，
+   `gh api` REST 方案仍可用（gh CLI 走自己的认证通道），但脚本必须二进制安全。
+3. **CI 日志下载**：`gh run view --log-failed` 仅返回摘要行（1 行），需用
+   `gh api repos/.../actions/runs/{id}/logs` + Python `zipfile` 才能拿到完整步骤日志。
+4. **"reached end of file while parsing at line 1"** 是换行符丢失的典型信号 —
+   Java 编译器把整个文件当成一行，遇到 `//` 注释吞掉后续 `}` 导致花括号不平衡。
+
+### 待办
+- ~~等待 CI run 28460812031 结果~~ → ✅ **CI SUCCESS**（5 min，2026-06-30 16:43:53 → 16:48:47）
+- 本轮 Wave 17 完成，CI 恢复绿色（streak=1，前 3 次 failure 已翻篇）
+- 验证：earlier wave 15/16 文件（hallucination-governance 5 个 + agent-memory 4 个）
+  在远端均完好（newlines 与本地一致），bug 仅影响 wave 17 第一次推送。
+- 仍有 3 个骨架模块待补全（hallucination-governance + drift-monitor + agent-memory 的
+  后续深度实现，当前仅有最小骨架）
+
+### Wave 17 最终成果
+- 远端 commit：`379132a6`（修复版，含 38 个正确文件）
+- 本地 HEAD：`b3ab1da`
+- CI run 28460812031：✅ success
+- 修复后的 gh-api 推送脚本：`tmp/proxy-debug/git-push-via-gh-api-v5.ps1`（今后 GFW 阻断时使用）
+
 ### 并行启动 9 个子 Agent（A- 达成后）
 
 A- 达成后，用户指示"这几个并行做"，并行启动 9 个 background 子 Agent：
