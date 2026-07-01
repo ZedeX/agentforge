@@ -627,3 +627,78 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - agent-knowledge 模块 JPA 持久化启动（Plan 08 T7-T12）
 - 或 agent-repo T4 AgentRepo gRPC 服务
 - 或 model-gateway T8-T9 gRPC 服务
+
+---
+
+## Wave 24：agent-knowledge JPA 持久化 — T8（2026-07-01）
+
+**时间**：2026-07-01 21:57 CST
+**任务**：Task #85-#90 (Plan 08 T8 knowledge_base + knowledge_chunk JPA Entity + Repository)
+**目标**：将 agent-knowledge 4 个 POJO 升级为 JPA Entity，创建 4 个 Repository + 33 个测试
+
+### 本轮交付
+
+1. **pom.xml 升级** — 添加 spring-boot-starter-data-jpa / jackson-databind / mysql-connector-j / h2 依赖（对齐 agent-repo 模式）
+2. **application.yml + application-test.yml** — 新建主配置（MySQL agent_knowledge / port 8098 / ddl-auto: validate）+ 测试配置（H2 MODE=MySQL / ddl-auto: create-drop）
+3. **07-agent-knowledge.sql 重写** — 4 表对齐 4 POJO（BIGINT id 主键 + uk_xxx_id 唯一约束），createdAt/updatedAt 用 BIGINT (epoch millis) 对齐 POJO 字段类型
+4. **4 Entity JPA 注解升级**：
+   - KnowledgeBase：@Table uk_kb_id / @Enumerated(STRING) for KnowledgeStatus / @PrePersist @PreUpdate
+   - KnowledgeDocument：@Table uk_doc_id / @Enumerated(STRING) for DocumentType / @PrePersist
+   - DocumentChunk：@Table uk_chunk_id / @Enumerated(STRING) for IngestStatus / @PrePersist
+   - KnowledgeVersion：**重构** final 字段 → mutable + 无参构造 + setter（满足 JPA 规范，保留全参构造）
+5. **4 Repository**：
+   - KnowledgeBaseRepository：findByKbId / existsByKbId / findByStatus / findByStatusOrderByCreatedAtDesc / deleteByKbId
+   - KnowledgeDocumentRepository：findByDocId / findByKbId / findByKbIdOrderByCreatedAtDesc / existsByDocId / deleteByKbId
+   - DocumentChunkRepository：findByChunkId / findByKbIdAndDocId / findByKbId / findByDocId / countByKbId / deleteByKbIdAndDocId / deleteByKbId
+   - KnowledgeVersionRepository：findByVersionId / findByKbIdOrderByVersionDesc / findTopByKbIdOrderByVersionDesc / countByKbId / deleteByKbId
+6. **4 RepositoryTest**（33 tests）— @DataJpaTest + @ActiveProfiles("test") + H2 MODE=MySQL：
+   - KnowledgeBaseRepositoryTest：8 tests（CRUD + 状态过滤 + 默认值 + 唯一约束 + 时间戳 + 删除）
+   - KnowledgeDocumentRepositoryTest：8 tests（CRUD + kbId 过滤 + 枚举往返 + 批量删除）
+   - DocumentChunkRepositoryTest：9 tests（CRUD + kbId+docId 组合查询 + count + 幂等删除 + 枚举往返 + 批量删除）
+   - KnowledgeVersionRepositoryTest：8 tests（CRUD + 版本降序历史 + 最新版本 + count + 批量删除）
+
+### 设计决策
+
+- **尊重现有 POJO 设计扩展**：Plan 08 T8 原文只提 KnowledgeBase + KnowledgeChunk 两表，但 Wave 18 骨架阶段扩展为 4 POJO（+KnowledgeDocument +KnowledgeVersion）。Wave 24 尊重现有设计全部升级，而非削足适履
+- **KnowledgeVersion final 字段重构**：原 POJO 所有字段是 final（immutable），JPA 需要无参构造 + setter。重构为 mutable + 保留全参构造 + 添加 @PrePersist
+- **BIGINT id 主键 + uk_xxx_id 唯一约束**：对齐 agent-repo 模式（AgentDefinition），而非用业务键作 @Id（Capability 模式）。便于 JpaRepository<Xxx, Long> 统一
+- **@Enumerated(EnumType.STRING)**：status/type/status 枚举存为 STRING，DB 中可读（CREATING/READY/TEXT/MARKDOWN/PENDING/VECTORIZED）
+
+### 验证
+
+- **本地 mvn verify**：94 tests（61 existing + 33 new），0 failures，BUILD SUCCESS
+- **CI streak=18**：`28522990941` ✅ SUCCESS
+- **远端**：`2f2e097`（gh-api-push 创建，对应本地 `02155ba`）
+
+### Plan 08 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1-T6 agent-repo | ✅ | Wave 19 骨架 + Wave 22 JPA |
+| T7 agent-knowledge 骨架 | ✅ | Wave 18 |
+| **T8 knowledge_base + knowledge_chunk JPA** | ✅ | **Wave 24 完成**（扩展为 4 Entity） |
+| T9 DocumentIngestor + ChunkStrategy | ⏳ | 待 v8 后续 |
+| T10 EmbeddingService + MilvusVectorStore | ⏳ | 待 v8 后续 |
+| T11 KnowledgeBase gRPC 服务 | ⏳ | 待 v8 后续 |
+| T12 集成测试 | ⏳ | 待 v8 后续 |
+
+### CI 连续全绿记录（streak 18）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 15 | 28474044759 | feat(agent-repo) T2-T4 | 5m28s | ✅ |
+| 16 | 28474482353 | docs(memory) Wave 22 | 5m6s | ✅ |
+| 17 | 28501512818 | feat(model-gateway) T12 | 5m26s | ✅ |
+| 18 | 28522990941 | feat(agent-knowledge) T8 | ~7m | ✅ |
+
+### 经验教训
+
+31. **JPA Entity 从 immutable POJO 升级**：final 字段需改为 mutable + 添加无参构造 + setter 才能被 JPA 使用；保留全参构造方便业务代码使用，@PrePersist 钩子处理 createdAt 默认值
+32. **尊重现有 POJO 设计扩展**：Plan 原文可能只提 N 个表，但骨架阶段可能扩展为 N+M 个。深化时应尊重现有设计全部升级，而非削足适履回到 Plan 原文
+33. **@DataJpaTest H2 唯一约束测试**：H2 MODE=MySQL 下唯一约束违反抛 DataIntegrityViolationException，测试中 assertThatThrownBy 可靠捕获，但会输出 ERROR 日志（SqlExceptionHelper），这是预期行为不影响测试通过
+
+### 下一波（Wave 25）计划
+
+- agent-knowledge T9 DocumentIngestor + TokenChunkStrategy（文档导入与分块）
+- 或 agent-repo T4 AgentRepo gRPC 服务
+- 或 model-gateway T8-T9 gRPC 服务
