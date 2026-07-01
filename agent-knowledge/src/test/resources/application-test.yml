@@ -1,6 +1,11 @@
 server:
   port: 0
 
+# T11: 测试环境禁用 gRPC 服务端（避免端口占用），gRPC 逻辑由单测直接调用
+grpc:
+  server:
+    port: -1
+
 spring:
   datasource:
     url: jdbc:h2:mem:agent_knowledge;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE

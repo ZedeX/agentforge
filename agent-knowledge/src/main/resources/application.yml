@@ -1,6 +1,11 @@
 server:
   port: 8098
 
+# T11: gRPC 服务端端口（KnowledgeService 4 新 RPC）
+grpc:
+  server:
+    port: 9098
+
 spring:
   application:
     name: agent-knowledge

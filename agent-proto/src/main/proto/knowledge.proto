@@ -14,6 +14,16 @@ service KnowledgeService {
   rpc Ingest(IngestRequest) returns (IngestResponse);
   // 版本管理（创建/回滚/列表）
   rpc VersionManage(VersionManageRequest) returns (VersionManageResponse);
+
+  // ===== Plan 08 T11: KnowledgeBase 管理 4 RPC（非破坏性追加） =====
+  // 文档入库（编排 parse+split+embed+persist，对齐 DocumentIngestor）
+  rpc IngestDocument(IngestDocumentRequest) returns (IngestDocumentResponse);
+  // 检索 chunks（向量+关键词混合，对齐 KnowledgeRetriever）
+  rpc SearchChunks(SearchChunksRequest) returns (SearchChunksResponse);
+  // 列出知识库（含状态过滤 + 分页）
+  rpc ListBases(ListBasesRequest) returns (ListBasesResponse);
+  // 删除知识库（软删，被引用时返回 KB_IN_USE）
+  rpc DeleteBase(DeleteBaseRequest) returns (DeleteBaseResponse);
 }
 
 message KnowledgeQuery {
@@ -83,4 +93,81 @@ message DocVersion {
   string created_by = 4;
   string change_log = 5;
   bool active = 6;
+}
+
+// ===== Plan 08 T11: KnowledgeBase 管理 4 RPC 的 message =====
+
+// IngestDocument：对齐 DocumentIngestor.ingestDocument(kbId, docId, name, content, type, strategy, maxTokens, overlap)
+message IngestDocumentRequest {
+  string kb_id = 1;
+  string doc_id = 2;                 // 可空，空则自动生成
+  string name = 3;                   // 文档名
+  string content = 4;                // 原始内容（TEXT/MARKDOWN/HTML）
+  string type = 5;                   // TEXT | MARKDOWN | HTML | PDF | UNKNOWN
+  string chunk_strategy = 6;         // TOKEN | PARAGRAPH | FIXED
+  int32 max_tokens = 7;              // 单 chunk token 上限
+  int32 overlap = 8;                 // chunk 重叠 token
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message IngestDocumentResponse {
+  string doc_id = 1;
+  string kb_id = 2;
+  bool success = 3;
+  string message = 4;
+  int32 chunk_count = 5;
+  int32 token_count = 6;
+  repeated string chunk_ids = 7;
+}
+
+// SearchChunks：对齐 KnowledgeRetriever.search(KnowledgeQuery)
+message SearchChunksRequest {
+  string kb_id = 1;
+  string query = 2;
+  int32 top_k = 3;
+  bool enable_mmr = 4;               // 是否 MMR 重排
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message SearchChunksResponse {
+  repeated KnowledgeChunk chunks = 1; // 复用现有 KnowledgeChunk
+  int32 total_hits = 2;
+}
+
+// ListBases：列出知识库（status 过滤 + 分页）
+message ListBasesRequest {
+  string status = 1;                 // 可空：CREATING | READY | UPDATING | ERROR | DELETED
+  int32 page_size = 2;               // 每页大小（0=返回全部）
+  string page_token = 3;             // 分页 token（可选，骨架阶段未实现游标）
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message KnowledgeBaseInfo {
+  string kb_id = 1;
+  string name = 2;
+  string description = 3;
+  string status = 4;
+  int32 doc_count = 5;
+  int32 chunk_count = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+}
+
+message ListBasesResponse {
+  repeated KnowledgeBaseInfo bases = 1;
+  int32 total = 2;
+  string next_page_token = 3;
+}
+
+// DeleteBase：软删知识库
+message DeleteBaseRequest {
+  string kb_id = 1;
+  bool force = 2;                    // 强制删除（忽略引用检查，骨架阶段忽略）
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message DeleteBaseResponse {
+  string kb_id = 1;
+  bool success = 2;
+  string message = 3;
 }

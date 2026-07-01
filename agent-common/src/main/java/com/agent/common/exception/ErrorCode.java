@@ -19,6 +19,7 @@ public enum ErrorCode {
     TASK_NOT_FOUND("TASK_NOT_FOUND", 404, "任务不存在"),
     AGENT_NOT_FOUND("AGENT_NOT_FOUND", 404, "Agent 不存在"),
     TOOL_NOT_FOUND("TOOL_NOT_FOUND", 404, "工具不存在"),
+    KB_NOT_FOUND("KB_NOT_FOUND", 404, "知识库不存在"),
 
     // 400 参数校验
     VALIDATION_FAILED("VALIDATION_FAILED", 400, "参数校验失败"),
@@ -32,6 +33,7 @@ public enum ErrorCode {
     TASK_STATUS_CONFLICT("TASK_STATUS_CONFLICT", 409, "任务状态冲突"),
     DAG_CYCLE_DETECTED("DAG_CYCLE_DETECTED", 409, "DAG 检测到环"),
     DAG_VERSION_CONFLICT("DAG_VERSION_CONFLICT", 409, "DAG 版本冲突"),
+    KB_IN_USE("KB_IN_USE", 409, "知识库被引用"),
 
     // 429 限流
     RATE_LIMITED("RATE_LIMITED", 429, "限流"),
@@ -47,6 +49,9 @@ public enum ErrorCode {
     FACT_INCONSISTENCY("FACT_INCONSISTENCY", 500, "事实不一致"),
     MAX_STEPS_EXCEEDED("MAX_STEPS_EXCEEDED", 500, "超过最大步数"),
     CONTEXT_WINDOW_EXHAUSTED("CONTEXT_WINDOW_EXHAUSTED", 500, "上下文窗口耗尽"),
+    DOC_INGEST_FAILED("DOC_INGEST_FAILED", 500, "文档入库失败"),
+    EMBEDDING_FAILED("EMBEDDING_FAILED", 500, "向量化失败"),
+    VECTOR_STORE_ERROR("VECTOR_STORE_ERROR", 500, "向量存储错误"),
 
     // 503 服务不可用
     DEPENDENCY_DOWN("DEPENDENCY_DOWN", 503, "依赖服务不可用"),

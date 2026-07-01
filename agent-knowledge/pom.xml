@@ -20,6 +20,8 @@
     <properties>
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
         <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
+        <!-- T11: gRPC Spring Boot Starter（对齐 agent-task-orchestrator） -->
+        <grpc.spring.boot.starter.version>3.1.0.RELEASE</grpc.spring.boot.starter.version>
     </properties>
 
     <dependencies>
@@ -41,6 +43,37 @@
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+
+        <!-- T11: Internal modules -->
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-proto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-common</artifactId>
+        </dependency>
+
+        <!-- T11: gRPC server (net.devh) — 暴露 KnowledgeService 4 新 RPC -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.starter.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.grpc</groupId>
+                    <artifactId>grpc-netty-shaded</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -54,6 +87,12 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- T11: gRPC InProcess Server 测试支持（版本由父 pom grpc-bom 1.62.2 管理） -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
