@@ -7,7 +7,9 @@ import agentplatform.model.v1.CountTokensRequest;
 import agentplatform.model.v1.CountTokensResponse;
 import agentplatform.model.v1.ListModelsRequest;
 import agentplatform.model.v1.ListModelsResponse;
+import agentplatform.model.v1.Message;
 import agentplatform.model.v1.ModelGatewayGrpc;
+import agentplatform.model.v1.ModelInfo;
 import com.agent.common.exception.BusinessException;
 import com.agent.common.exception.ErrorCode;
 import com.agent.modelgateway.api.AdapterRegistry;
@@ -16,6 +18,8 @@ import com.agent.modelgateway.api.ModelProviderAdapter;
 import com.agent.modelgateway.api.ModelRouter;
 import com.agent.modelgateway.api.PromptCache;
 import com.agent.modelgateway.api.QuotaEnforcer;
+import com.agent.modelgateway.api.TokenCounter;
+import com.agent.modelgateway.catalog.ModelCatalog;
 import com.agent.modelgateway.enums.Scene;
 import com.agent.modelgateway.model.AdapterContext;
 import com.agent.modelgateway.model.ChatReply;
@@ -24,6 +28,8 @@ import com.agent.modelgateway.model.RouteResult;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
+
+import java.util.List;
 
 /**
  * ModelGateway gRPC 服务端实现（Plan 07 T8，4 RPC）。
@@ -62,6 +68,8 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
     private final CostMeter costMeter;
     private final ProtoMapper mapper;
     private final GrpcExceptionAdvice exceptionAdvice;
+    private final TokenCounter tokenCounter;
+    private final ModelCatalog modelCatalog;
 
     public ModelGatewayGrpcService(ModelRouter modelRouter,
                                    AdapterRegistry adapterRegistry,
@@ -69,7 +77,9 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
                                    QuotaEnforcer quotaEnforcer,
                                    CostMeter costMeter,
                                    ProtoMapper mapper,
-                                   GrpcExceptionAdvice exceptionAdvice) {
+                                   GrpcExceptionAdvice exceptionAdvice,
+                                   TokenCounter tokenCounter,
+                                   ModelCatalog modelCatalog) {
         this.modelRouter = modelRouter;
         this.adapterRegistry = adapterRegistry;
         this.promptCache = promptCache;
@@ -77,6 +87,8 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
         this.costMeter = costMeter;
         this.mapper = mapper;
         this.exceptionAdvice = exceptionAdvice;
+        this.tokenCounter = tokenCounter;
+        this.modelCatalog = modelCatalog;
     }
 
     // ===== RPC 1: Chat（同步调用，Plan 07 T8） =====
@@ -180,30 +192,55 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
         return log;
     }
 
-    // ===== RPC 2/3/4: T9/T10/T11 占位（保留 default UNIMPLEMENTED） =====
-    // streamChat / countTokens / listModels 留待后续 Wave 实现
+    // ===== RPC 2: StreamChat（T9 占位，需 reactor-core/Flux） =====
 
     @Override
     public void streamChat(ChatRequest request, StreamObserver<ChatChunk> responseObserver) {
-        // T9: server streaming，需 Flux + 背压 + cancel 处理，放 Wave 28 实现
+        // T9: server streaming，需 Flux + 背压 + cancel 处理，放 Wave 29 实现
         exceptionAdvice.translate(
                 new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR, "streamChat 未实现（T9）"),
                 responseObserver);
     }
 
+    // ===== RPC 3: CountTokens（Plan 07 T10） =====
+
     @Override
     public void countTokens(CountTokensRequest request, StreamObserver<CountTokensResponse> responseObserver) {
-        // T10: Token 计数，放后续 Wave 实现
-        exceptionAdvice.translate(
-                new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR, "countTokens 未实现（T10）"),
-                responseObserver);
+        try {
+            int total = 0;
+            List<Message> messages = request.getMessagesList();
+            if (messages != null) {
+                for (Message msg : messages) {
+                    total += tokenCounter.count(msg.getContent());
+                }
+            }
+            log.debug("countTokens model={} messages={} total={}",
+                    request.getModel(), messages == null ? 0 : messages.size(), total);
+            CountTokensResponse response = CountTokensResponse.newBuilder()
+                    .setTokenCount(total)
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Throwable t) {
+            exceptionAdvice.translate(t, responseObserver);
+        }
     }
+
+    // ===== RPC 4: ListModels（Plan 07 T10） =====
 
     @Override
     public void listModels(ListModelsRequest request, StreamObserver<ListModelsResponse> responseObserver) {
-        // T10: 模型列表，放后续 Wave 实现
-        exceptionAdvice.translate(
-                new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR, "listModels 未实现（T10）"),
-                responseObserver);
+        try {
+            String tier = request.getTier();
+            List<ModelInfo> models = modelCatalog.list(tier);
+            log.debug("listModels tier={} count={}", tier, models.size());
+            ListModelsResponse response = ListModelsResponse.newBuilder()
+                    .addAllModels(models)
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Throwable t) {
+            exceptionAdvice.translate(t, responseObserver);
+        }
     }
 }

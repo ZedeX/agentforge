@@ -13,6 +13,8 @@ import com.agent.modelgateway.api.ModelProviderAdapter;
 import com.agent.modelgateway.api.ModelRouter;
 import com.agent.modelgateway.api.PromptCache;
 import com.agent.modelgateway.api.QuotaEnforcer;
+import com.agent.modelgateway.api.TokenCounter;
+import com.agent.modelgateway.catalog.ModelCatalog;
 import com.agent.modelgateway.enums.Scene;
 import com.agent.modelgateway.model.ChatReply;
 import com.agent.modelgateway.model.RouteResult;
@@ -59,6 +61,8 @@ class ModelGatewayGrpcServiceChatTest {
     private PromptCache promptCache;
     private QuotaEnforcer quotaEnforcer;
     private CostMeter costMeter;
+    private TokenCounter tokenCounter;
+    private ModelCatalog modelCatalog;
     private ModelGatewayGrpcService grpcService;
 
     @BeforeEach
@@ -68,10 +72,13 @@ class ModelGatewayGrpcServiceChatTest {
         promptCache = mock(PromptCache.class);
         quotaEnforcer = mock(QuotaEnforcer.class);
         costMeter = mock(CostMeter.class);
+        tokenCounter = mock(TokenCounter.class);
+        modelCatalog = mock(ModelCatalog.class);
         ProtoMapper mapper = new ProtoMapper();
         GrpcExceptionAdvice advice = new GrpcExceptionAdvice();
         grpcService = new ModelGatewayGrpcService(
-                modelRouter, adapterRegistry, promptCache, quotaEnforcer, costMeter, mapper, advice);
+                modelRouter, adapterRegistry, promptCache, quotaEnforcer, costMeter,
+                mapper, advice, tokenCounter, modelCatalog);
     }
 
     // ===== 正常流 =====
@@ -228,7 +235,7 @@ class ModelGatewayGrpcServiceChatTest {
         assertThat(sre.getStatus().getDescription()).contains("MODEL_GATEWAY_ERROR");
     }
 
-    // ===== streamChat / countTokens / listModels 未实现 =====
+    // ===== streamChat 未实现（T9 占位） =====
 
     @Test
     @DisplayName("streamChat 未实现 → onError UNKNOWN")
@@ -241,6 +248,98 @@ class ModelGatewayGrpcServiceChatTest {
         StatusRuntimeException sre = (StatusRuntimeException) obs.error;
         assertThat(sre.getStatus().getCode()).isEqualTo(Status.Code.UNKNOWN);
         assertThat(sre.getStatus().getDescription()).contains("streamChat");
+    }
+
+    // ===== CountTokens RPC（Plan 07 T10） =====
+
+    @Test
+    @DisplayName("CountTokens: 多条消息 → token_count 累加")
+    void should_ReturnTokenCount_When_MultipleMessages() {
+        when(tokenCounter.count("你好")).thenReturn(3);
+        when(tokenCounter.count("Hello world")).thenReturn(2);
+
+        agentplatform.model.v1.CountTokensRequest req =
+                agentplatform.model.v1.CountTokensRequest.newBuilder()
+                        .setModel("gpt-4o")
+                        .addMessages(Message.newBuilder().setRole("user").setContent("你好").build())
+                        .addMessages(Message.newBuilder().setRole("assistant").setContent("Hello world").build())
+                        .build();
+        CapturingObserver<agentplatform.model.v1.CountTokensResponse> obs = new CapturingObserver<>();
+        grpcService.countTokens(req, obs);
+
+        assertThat(obs.completed).isTrue();
+        assertThat(obs.value).isNotNull();
+        assertThat(obs.value.getTokenCount()).isEqualTo(5);
+        verify(tokenCounter).count("你好");
+        verify(tokenCounter).count("Hello world");
+    }
+
+    @Test
+    @DisplayName("CountTokens: 空 messages → token_count=0")
+    void should_ReturnZero_When_NoMessages() {
+        agentplatform.model.v1.CountTokensRequest req =
+                agentplatform.model.v1.CountTokensRequest.newBuilder()
+                        .setModel("gpt-4o")
+                        .build();
+        CapturingObserver<agentplatform.model.v1.CountTokensResponse> obs = new CapturingObserver<>();
+        grpcService.countTokens(req, obs);
+
+        assertThat(obs.completed).isTrue();
+        assertThat(obs.value.getTokenCount()).isEqualTo(0);
+    }
+
+    // ===== ListModels RPC（Plan 07 T10） =====
+
+    @Test
+    @DisplayName("ListModels: tier=all → 返回全部模型")
+    void should_ReturnAllModels_When_TierAll() {
+        java.util.List<agentplatform.model.v1.ModelInfo> mockModels = java.util.Arrays.asList(
+                agentplatform.model.v1.ModelInfo.newBuilder().setModelId("gpt-4o").setTier("strong").build(),
+                agentplatform.model.v1.ModelInfo.newBuilder().setModelId("gpt-4o-mini").setTier("light").build());
+        when(modelCatalog.list("all")).thenReturn(mockModels);
+
+        agentplatform.model.v1.ListModelsRequest req =
+                agentplatform.model.v1.ListModelsRequest.newBuilder().setTier("all").build();
+        CapturingObserver<agentplatform.model.v1.ListModelsResponse> obs = new CapturingObserver<>();
+        grpcService.listModels(req, obs);
+
+        assertThat(obs.completed).isTrue();
+        assertThat(obs.value.getModelsList()).hasSize(2);
+        assertThat(obs.value.getModels(0).getModelId()).isEqualTo("gpt-4o");
+        assertThat(obs.value.getModels(1).getModelId()).isEqualTo("gpt-4o-mini");
+        verify(modelCatalog).list("all");
+    }
+
+    @Test
+    @DisplayName("ListModels: tier=light → 返回过滤后的模型")
+    void should_ReturnFilteredModels_When_TierLight() {
+        java.util.List<agentplatform.model.v1.ModelInfo> mockModels = java.util.Collections.singletonList(
+                agentplatform.model.v1.ModelInfo.newBuilder().setModelId("gpt-4o-mini").setTier("light").build());
+        when(modelCatalog.list("light")).thenReturn(mockModels);
+
+        agentplatform.model.v1.ListModelsRequest req =
+                agentplatform.model.v1.ListModelsRequest.newBuilder().setTier("light").build();
+        CapturingObserver<agentplatform.model.v1.ListModelsResponse> obs = new CapturingObserver<>();
+        grpcService.listModels(req, obs);
+
+        assertThat(obs.completed).isTrue();
+        assertThat(obs.value.getModelsList()).hasSize(1);
+        assertThat(obs.value.getModels(0).getTier()).isEqualTo("light");
+        verify(modelCatalog).list("light");
+    }
+
+    @Test
+    @DisplayName("ListModels: 空 tier → 视为 all")
+    void should_ReturnAllModels_When_TierEmpty() {
+        when(modelCatalog.list("")).thenReturn(java.util.Collections.emptyList());
+
+        agentplatform.model.v1.ListModelsRequest req =
+                agentplatform.model.v1.ListModelsRequest.newBuilder().setTier("").build();
+        CapturingObserver<agentplatform.model.v1.ListModelsResponse> obs = new CapturingObserver<>();
+        grpcService.listModels(req, obs);
+
+        assertThat(obs.completed).isTrue();
+        verify(modelCatalog).list("");
     }
 
     @Test
