@@ -554,3 +554,76 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - model-gateway T12 CostMeter → JPA 集成深化（CostMeterImpl 接入 ModelUsageLogRepository）
 - 或 agent-knowledge 模块骨架启动（Plan 08 T7-T12）
 - 或 agent-repo T4 AgentRepo gRPC 服务
+
+---
+
+## Wave 23：model-gateway T12 CostMeter JPA 集成深化（2026-07-01）
+
+**时间**：2026-07-01 15:35 CST
+**任务**：Task #83-#84 (Plan 07 T12 CostMeter → JPA 集成深化)
+**目标**：将 CostMeter 从纯内存实现升级为 JPA 持久化实现，record() 持久化 ModelUsageLog，getQuotaUsed() 从 DB 聚合查询
+
+### 本轮交付
+
+1. **CostMeterJpaImpl**（@Primary @Component）— 新建 JPA 版本，注入 ModelUsageLogRepository + ModelProviderRepository：
+   - `record()`：计算成本 + `usageLogRepository.save(log)` 持久化 ModelUsageLog
+   - `getQuotaUsed()`：`sumTotalCostByTenantAndDateRange(tenantId, 0, Long.MAX_VALUE)` 从 DB 聚合查询
+   - `@PostConstruct loadProvidersFromDb()`：从 DB 加载 enabled providers 覆盖默认单价
+   - `resetPricing()`：清空 providerTable + 重新 seed 默认值（测试状态隔离用）
+   - 保留 5 个默认 provider 单价（openai/openai-mini/anthropic/qwen-turbo/deepseek）作为 fallback
+2. **CostMeterJpaImplTest**（10 tests）— @DataJpaTest + @Import(CostMeterJpaImpl.class) + @ActiveProfiles("test")：
+   - 成本计算 / 持久化验证 / DB 聚合查询 / tenant 隔离 / null 兜底 / 未注册 provider 零成本 / 自定义单价 / DB 加载单价覆盖默认值
+   - @BeforeEach resetPricing() 避免单例 bean 状态污染
+
+### 设计决策
+
+- **保留 CostMeterImpl（内存版）不变**：作为非 JPA 环境（纯单元测试）的 fallback，不破坏现有 8 个单元测试
+- **CostMeterJpaImpl 用 @Primary**：在有 JPA 的环境下优先注入，CostMeterImpl 作为次选
+- **@DataJpaTest + @Import**：@DataJpaTest 默认不加载 @Component，用 @Import(CostMeterJpaImpl.class) 精确导入待测 bean
+- **resetPricing() 状态隔离**：单例 bean 的 providerTable Map 不受事务回滚影响，需 @BeforeEach 手动重置
+
+### 验证
+
+- **本地 mvn verify**：84 tests（74 existing + 10 new），0 failures，JaCoCo coverage met，30.4s
+- **CI streak=17**：`28501512818` ✅ SUCCESS（5m26s）
+- **远端**：`63009a7`（gh-api-push 创建，对应本地 `b2f7ea4`）
+
+### Bug 修复：测试状态污染
+
+- **症状**：首次 mvn verify 失败，`should_CalculateCost` 期望 0.0125 但得到 0.025（DB pricing）
+- **根因**：`loadProvidersFromDb` 测试预置 openai provider 到 DB（0.01/0.03），调用 `loadProvidersFromDb()` 后覆盖了 providerTable 中的默认值（0.005/0.015）。由于 CostMeterJpaImpl 是单例 bean，providerTable Map 在测试间保持状态，不受 @DataJpaTest 事务回滚影响
+- **修复**：新增 `resetPricing()` public 方法（clear + seed defaults），@BeforeEach 调用
+
+### Plan 07 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 骨架 | ✅ | Wave 18 |
+| T2-T3 Entity + Repository | ✅ | Wave 21 |
+| T4-T7 Adapters | ✅ | Wave 18-20 |
+| T8-T9 gRPC | ⏳ | 待 v8 后续 |
+| T10 CountTokens | ✅ | Wave 18 |
+| T11 PromptCache | ✅ | Wave 18 |
+| **T12 CostMeter + JPA** | ✅ | **Wave 23 完成** |
+| T13 ModelDegradationManager | ✅ | Wave 18 |
+| T14 集成测试 | ⏳ | 待 v8 后续 |
+
+### CI 连续全绿记录（streak 17）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 15 | 28474044759 | feat(agent-repo) T2-T4 | 5m28s | ✅ |
+| 16 | 28474482353 | docs(memory) Wave 22 | 5m6s | ✅ |
+| 17 | 28501512818 | feat(model-gateway) T12 | 5m26s | ✅ |
+
+### 经验教训
+
+28. **@DataJpaTest 单例 bean 状态污染**：@Component bean 的内存状态（如 ConcurrentHashMap）不受 @DataJpaTest 事务回滚影响，需 @BeforeEach 手动重置；DB 数据会被回滚但内存 Map 不会
+29. **@DataJpaTest + @Import 测试 @Component**：@DataJpaTest 默认只加载 @Repository，测试 @Component 需用 @Import(XxxImpl.class) 精确导入，比 @SpringBootTest 轻量
+30. **@Primary 双 Impl 模式**：保留内存版 Impl 作为 fallback + 新建 JPA 版 @Primary Impl，实现从内存到 JPA 的平滑迁移，不破坏现有纯单元测试
+
+### 下一波（Wave 24）计划
+
+- agent-knowledge 模块 JPA 持久化启动（Plan 08 T7-T12）
+- 或 agent-repo T4 AgentRepo gRPC 服务
+- 或 model-gateway T8-T9 gRPC 服务
