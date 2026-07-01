@@ -1,6 +1,11 @@
 server:
   port: 8094
 
+# T8: gRPC 服务端端口（ModelGateway 4 RPC）
+grpc:
+  server:
+    port: 9094
+
 spring:
   application:
     name: agent-model-gateway
