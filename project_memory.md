@@ -853,3 +853,100 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - agent-repo T4 AgentRepo gRPC 服务（需新建 repo.proto + gRPC 层）
 - 或 model-gateway T8-T9 gRPC 服务（model.proto 已有，可直接实现）
 - 或 agent-knowledge T10 EmbeddingService + Milvus（需 Milvus infra，风险较高）
+
+---
+
+## Wave 27：agent-model-gateway T8 Chat gRPC 服务（2026-07-02）
+
+**时间**：2026-07-02 01:15 CST
+**任务**：Task #100-#103 (Plan 07 T8 ModelGatewayGrpcService.chat 8 步流程)
+**目标**：在 ModelGateway gRPC 上实现同步 Chat RPC（route → cache → quota → adapter → cost → cachePut），完成 UT-MG-006 / UT-MG-008 验收
+
+### 本轮交付
+
+1. **agent-model-gateway pom.xml 升级** — 追加 agent-proto + agent-common + net.devh grpc-spring-boot-starter 3.1.0.RELEASE（exclusion grpc-netty-shaded）+ lombok + test grpc-testing（对齐 agent-knowledge 模式）
+2. **application.yml + application-test.yml** — 主配置加 `grpc.server.port: 9094`（HTTP 8094 / gRPC 9094，对齐 doc 00-overview §3.1）；测试配置加 `grpc.server.port: -1` 禁用 gRPC server
+3. **QuotaEnforcer 接口 + Impl**（`api/QuotaEnforcer.java` + `api/impl/QuotaEnforcerImpl.java`）— 租户配额校验：
+   - `checkQuota(tenantId, estimatedCost)`：从 CostMeter.getQuotaUsed 读取累计 + 预估成本，超 `model.gateway.quota.tenant.defaultUsd`（默认 100）抛 BusinessException(QUOTA_EXCEEDED)
+   - details Map 携带 used/estimated/projected/threshold 便于客户端诊断
+   - skeleton 阶段用固定 ESTIMATED_COST_USD=0.01，T12 深化替换为 TokenCounter 预估
+4. **GrpcExceptionAdvice**（`grpc/GrpcExceptionAdvice.java`）— @Component，复用 agent-task-orchestrator / agent-knowledge 模式：
+   - `translate(Throwable, StreamObserver)` 手动调用（非 @GrpcAdvice 注解）
+   - **关键差异**：`MODEL_GATEWAY_ERROR → Status.UNKNOWN`（对齐 Plan UT-MG-008 ProviderUnavailable → UNKNOWN）
+   - `504 → DEADLINE_EXCEEDED`（MODEL_TIMEOUT / TIMEOUT / TOOL_TIMEOUT）
+   - `429 → RESOURCE_EXHAUSTED`（QUOTA_EXCEEDED / RATE_LIMITED / COST_BUDGET_EXCEEDED，对齐 UT-MG-006）
+   - `404 → NOT_FOUND` / `409 → FAILED_PRECONDITION` / `400 → INVALID_ARGUMENT` / default 500 → INTERNAL
+5. **ProtoMapper**（`grpc/ProtoMapper.java`）— @Component，proto ↔ 内部模型映射：
+   - `toAdapterContext(ChatRequest)`：scene 5 种（intent/planning/tool_call/summary/audit）→ 内部 3 种（INTENT/AUDIT/GENERIC），未识别归 GENERIC
+   - `toTenantId(TraceContext)`：proto int64 → String，<=0 回退 "default"
+   - `toTraceId(ChatRequest)`：优先 TraceContext.trace_id，回退 call_id
+   - `toPrompt(ChatRequest)`：messages 拼接为 "role: content\nrole: content"
+   - `toChatResponse(ChatReply, callId)`：回填 callId + 所有字段
+   - DEFAULT_TIMEOUT_MS=60000（proto 未携带 timeout）
+6. **ModelGatewayGrpcService**（`grpc/ModelGatewayGrpcService.java`）— @GrpcService extends ModelGatewayGrpc.ModelGatewayImplBase：
+   - **chat() 8 步流程**：解析 → ModelRouter.route → PromptCache.lookup（命中直接返回）→ QuotaEnforcer.checkQuota → AdapterRegistry.get.chat(context, prompt) → CostMeter.record → PromptCache.put → onNext/onCompleted
+   - **异常包装**：adapter.chat 抛 RuntimeException → BusinessException(MODEL_GATEWAY_ERROR)（对齐 UT-MG-008）；adapter 为 null → MODEL_GATEWAY_ERROR
+   - **enableCache=false 跳过缓存**：不查不写 PromptCache
+   - **streamChat/countTokens/listModels**：保留 UNIMPLEMENTED，调用即抛 MODEL_GATEWAY_ERROR（T9 StreamChat 放 Wave 28，需 reactor-core/Flux + 背压 + cancel）
+7. **ModelGatewayGrpcServiceChatTest**（7 tests）— 纯单测 mock 5 业务组件 + 真实 ProtoMapper/GrpcExceptionAdvice + capturing StreamObserver：
+   - `Should_ReturnChatResponse_When_RouteAndCallSuccess`（正常 8 步 + verify 调用链）
+   - `Should_ReturnCachedResponse_When_PromptCacheHit`（缓存命中跳过 adapter/costMeter/cache.put）
+   - `UT-MG-006: Should_EnforceQuotaLimit → RESOURCE_EXHAUSTED`
+   - `UT-MG-008: Should_ReturnModelError_When_ProviderReturnsError → UNKNOWN + MODEL_GATEWAY_ERROR`
+   - `Should_ReturnError_When_AdapterNotFound → UNKNOWN`
+   - `streamChat 未实现 → UNKNOWN`
+   - `enableCache=false 跳过缓存查询`
+
+### 设计决策
+
+- **T8 only 作为 Wave 27**：T9 StreamChat 需 reactor-core/Flux + 背压 + cancel 处理（复杂度高），拆分到 Wave 28 单独推进。T8 同步 chat 流程清晰且独立，先交付
+- **MODEL_GATEWAY_ERROR → UNKNOWN 而非 INTERNAL**：对齐 Plan 07 UT-MG-008 设计意图——上游模型错误属于"未知"状态（可能是 5xx / 网络异常 / SDK 错误），用 UNKNOWN 比 INTERNAL 更准确。agent-knowledge 的 500 → INTERNAL 适用于内部业务错误（DOC_INGEST_FAILED 等）
+- **GrpcExceptionAdvice 按 ErrorCode 特殊处理**：先 `if (ec == MODEL_GATEWAY_ERROR) → UNKNOWN`，再 switch httpStatus。避免为单一错误码改 httpStatus 字段影响其他映射
+- **ProtoMapper scene 5→3 映射**：proto 定义 5 种 scene（intent/planning/tool_call/summary/audit），内部 Scene 枚举只有 3 种（INTENT/AUDIT/GENERIC）。planning/tool_call/summary 归 GENERIC 是骨架阶段简化，T12 深化时按需扩展内部枚举
+- **QuotaEnforcer 与 CostMeter 解耦**：CostMeter 只 record 实际用量，QuotaEnforcer 只 check 预估。便于 T12 替换为 Redis 日计数器实现
+- **固定 ESTIMATED_COST_USD=0.01**：skeleton 阶段不预计算 token，用固定 0.01 USD 作预估。100 USD 阈值 → 允许 10000 次调用，合理。T12 深化时用 TokenCounter.count(prompt) * 单价预估
+
+### 验证
+
+- **本地 mvn verify**：agent-model-gateway 91 tests（84 existing + 7 new），0 failures，JaCoCo "All coverage checks have been met"，BUILD SUCCESS（1m14s）
+- **CI streak=24**：`28535758564` ✅ SUCCESS（6m14s）
+- **远端**：`7aa695f`（gh-api-push 创建，对应本地 `ea86f56`）
+
+### Plan 07 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 骨架 | ✅ | Wave 18 |
+| T2-T3 Entity + Repository | ✅ | Wave 21 |
+| T4-T7 Adapters | ✅ | Wave 18-20 |
+| **T8 Chat gRPC 服务** | ✅ | **Wave 27 完成**（chat 8 步 + UT-MG-006/008） |
+| T9 StreamChat | ⏳ | Wave 28（需 reactor-core/Flux） |
+| T10 CountTokens + ListModels | ⏳ | 待 v8 后续 |
+| T11 PromptCache | ✅ | Wave 18 |
+| T12 CostMeter + JPA | ✅ | Wave 23 |
+| T13 ModelDegradationManager | ✅ | Wave 18 |
+| T14 集成测试 | ⏳ | 待 v8 后续 |
+
+### CI 连续全绿记录（streak 24）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 19 | 28523478609 | docs(memory) Wave 24 | ~5m | ✅ |
+| 20 | 28526257381 | feat(agent-knowledge) T9 | ~6m | ✅ |
+| 21 | 28526726291 | docs(memory) Wave 25 | ~5m | ✅ |
+| 22 | 28528216476 | feat(agent-knowledge) T11 | ~5m | ✅ |
+| 23 | 28528706387 | docs(memory) Wave 26 | ~5m | ✅ |
+| 24 | 28535758564 | feat(model-gateway) T8 | 6m14s | ✅ |
+
+### 经验教训
+
+41. **gRPC 异常翻译按 ErrorCode 特殊处理**：当某错误码需映射到非 httpStatus 对应的 gRPC Status 时（如 MODEL_GATEWAY_ERROR 500 → UNKNOWN 而非 INTERNAL），先 `if (ec == SPECIFIC_CODE) → special_status` 再 switch httpStatus。避免为单一错误码改 httpStatus 字段影响其他映射
+42. **proto scene 枚举收窄映射**：proto 定义 N 种 scene，内部枚举可能只有 M < N 种。未识别的归默认值（GENERIC）是骨架阶段简化策略，深化时按需扩展内部枚举。映射逻辑集中在 ProtoMapper 而非散落在业务层
+43. **固定预估成本作为 skeleton 配额校验**：T8 不预计算 token，用固定 0.01 USD 作 ESTIMATED_COST。配合 100 USD 阈值 → 10000 次调用配额，合理且可测试。T12 深化时替换为 TokenCounter.count(prompt) * provider 单价
+44. **adapter 异常包装为 BusinessException**：上游 ModelProviderAdapter.chat 抛 RuntimeException 时，包装为 BusinessException(MODEL_GATEWAY_ERROR)。保留 cause 便于日志追踪，业务层不直接抛 RuntimeException 导致 gRPC channel 异常断开
+
+### 下一波（Wave 28）计划
+
+- model-gateway T9 StreamChat server streaming（需 reactor-core/Flux + 背压 + cancel，UT-MG-009）
+- 或 agent-repo T4 AgentRepo gRPC 服务（需新建 repo.proto + gRPC 层）
+- 或 model-gateway T10 CountTokens + ListModels（proto 已有，简单 RPC）
