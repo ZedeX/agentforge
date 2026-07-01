@@ -950,3 +950,83 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - model-gateway T9 StreamChat server streaming（需 reactor-core/Flux + 背压 + cancel，UT-MG-009）
 - 或 agent-repo T4 AgentRepo gRPC 服务（需新建 repo.proto + gRPC 层）
 - 或 model-gateway T10 CountTokens + ListModels（proto 已有，简单 RPC）
+
+---
+
+## Wave 28：agent-model-gateway T10 CountTokens + ListModels RPC（2026-07-02）
+
+**时间**：2026-07-02 01:50 CST
+**任务**：Task #104-#106 (Plan 07 T10 CountTokens + ListModels RPC)
+**目标**：在 ModelGatewayGrpcService 中实现剩余 2 个简单 RPC（countTokens / listModels），完成 4 RPC 中 3 个（仅剩 T9 StreamChat）
+
+### 本轮交付
+
+1. **ModelCatalog**（`catalog/ModelCatalog.java`）— @Component，静态模型目录：
+   - 6 个模型：gpt-4o(strong) / gpt-4o-mini(light) / claude-3.5-sonnet(middle) / gemini-1.5-pro(middle) / qwen-turbo(light) / deepseek-chat(light)
+   - `list(tier)`：按 tier 过滤，all/空/null 返回全部，大小写不敏感
+   - 每模型含 model_id/display_name/provider/tier/max_context/supports_streaming/supports_tool_call/price_input_per_1k_cent/price_output_per_1k_cent
+2. **ModelGatewayGrpcService 升级** — 注入 TokenCounter + ModelCatalog，实现 2 新 RPC：
+   - `countTokens()`：遍历 messages，对每条 content 调 `TokenCounter.count()` 求和返回 token_count
+   - `listModels()`：调 `ModelCatalog.list(tier)` 返回 ModelInfo 列表
+   - streamChat 仍保留 UNIMPLEMENTED（T9 需 reactor-core/Flux，放 Wave 29）
+3. **ModelCatalogTest**（10 tests）— 验证 tier 过滤逻辑：
+   - all(6) / light(3) / middle(2) / strong(1) / null=all / 空=all / 未识别=空 / ALL 大写 / LIGHT 大写 / 字段完整性
+4. **ModelGatewayGrpcServiceChatTest 扩展**（+5 tests，共 12 tests）：
+   - CountTokens: 多条消息累加 / 空 messages=0
+   - ListModels: tier=all / tier=light 过滤 / 空 tier=all
+
+### 设计决策
+
+- **ModelCatalog 静态列表而非 DB 查询**：ModelProvider 表只有 provider 级元数据（pricing/qps/weight），无 model_id/tier/max_context/supports_streaming/supports_tool_call 字段。skeleton 阶段用静态列表，后续深化可加 model_metadata 表或从 provider API 动态发现
+- **countTokens 复用 TokenCounter**：agent-model-gateway 已有 TokenCounter 接口（中英文 heuristic，1.5x CJK），countTokens RPC 直接调 `tokenCounter.count(content)` 求和。不引入新的 token 计算逻辑
+- **listModels 委托 ModelCatalog**：gRPC 服务层不直接硬编码模型列表，委托给 ModelCatalog @Component。便于后续替换为 DB/动态实现，且 ModelCatalog 可独立单测
+- **T9 StreamChat 继续推迟**：需 reactor-core/Flux + 背压 + cancel 处理（复杂度高），放 Wave 29 单独推进。当前 4 RPC 中 3 个已实现（chat/countTokens/listModels）
+
+### 验证
+
+- **本地 mvn verify**：agent-model-gateway 106 tests（91 previous + 10 ModelCatalogTest + 5 new countTokens/listModels tests），0 failures，JaCoCo "All coverage checks have been met"，BUILD SUCCESS
+- **CI streak=26**：`28536957299` ✅ SUCCESS
+- **远端**：`dbac695`（gh-api-push 创建，对应本地 `2b41cbd`）
+
+### Bug 修复：protobuf codegen 方法名大小写
+
+- **症状**：ModelCatalog 编译失败 `找不到符号 setPriceInputPer1kCent`
+- **根因**：proto 字段 `price_input_per_1k_cent` → protobuf Java codegen 生成 `setPriceInputPer1KCent`（数字后的字母大写 K），而非预期的 `setPriceInputPer1kCent`（小写 k）
+- **修复**：grep 生成的 ModelInfo.java 确认实际方法名 `setPriceInputPer1KCent` / `setPriceOutputPer1KCent`，修改 ModelCatalog + ModelCatalogTest
+
+### Plan 07 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 骨架 | ✅ | Wave 18 |
+| T2-T3 Entity + Repository | ✅ | Wave 21 |
+| T4-T7 Adapters | ✅ | Wave 18-20 |
+| T8 Chat gRPC 服务 | ✅ | Wave 27 |
+| T9 StreamChat | ⏳ | Wave 29（需 reactor-core/Flux） |
+| **T10 CountTokens + ListModels** | ✅ | **Wave 28 完成**（3/4 RPC 已实现） |
+| T11 PromptCache | ✅ | Wave 18 |
+| T12 CostMeter + JPA | ✅ | Wave 23 |
+| T13 ModelDegradationManager | ✅ | Wave 18 |
+| T14 集成测试 | ⏳ | 待 v8 后续 |
+
+### CI 连续全绿记录（streak 26）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 21 | 28526726291 | docs(memory) Wave 25 | ~5m | ✅ |
+| 22 | 28528216476 | feat(agent-knowledge) T11 | ~5m | ✅ |
+| 23 | 28528706387 | docs(memory) Wave 26 | ~5m | ✅ |
+| 24 | 28535758564 | feat(model-gateway) T8 | 6m14s | ✅ |
+| 25 | 28536220479 | docs(memory) Wave 27 | 5m50s | ✅ |
+| 26 | 28536957299 | feat(model-gateway) T10 | ~5m | ✅ |
+
+### 经验教训
+
+45. **protobuf codegen 数字后字母大写**：proto 字段 `price_input_per_1k_cent`（含数字 `1k`）→ Java codegen 生成 `setPriceInputPer1KCent`（数字后的字母大写 K）。规则：snake_case 转 camelCase 时，数字后的字母也会被大写。遇到 `找不到符号` 编译错误时，先 grep 生成的 Java 类确认实际方法名
+46. **静态模型目录 vs DB 查询**：当 DB 表只有 provider 级元数据无 model 级元数据时，skeleton 阶段用 @Component 静态列表（ModelCatalog）比强行扩展 DB schema 更简单。后续深化时加 model_metadata 表或从 provider API 动态发现，替换 ModelCatalog 实现即可（接口不变）
+
+### 下一波（Wave 29）计划
+
+- model-gateway T9 StreamChat server streaming（需 reactor-core/Flux + 背压 + cancel，UT-MG-009）
+- 或 agent-repo T4 AgentRepo gRPC 服务（需新建 repo.proto + gRPC 层）
+- 或 v8 持久化深化期其他模块
