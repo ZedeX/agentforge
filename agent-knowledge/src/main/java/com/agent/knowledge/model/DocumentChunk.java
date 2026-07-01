@@ -1,22 +1,59 @@
 package com.agent.knowledge.model;
 
 import com.agent.knowledge.enums.IngestStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 /**
- * Document chunk (doc 01-database §7.2 knowledge_chunk table).
+ * Document chunk (doc 01-database §7 knowledge_chunk table, Plan 08 T8).
  *
- * <p>Skeleton stage: in-memory POJO. JPA Entity deferred to Plan 08 T8.</p>
+ * <p>JPA Entity backing knowledge_chunk table. Stores chunk content, token count,
+ * ordering within document, Milvus embedding id and ingestion status.
+ * IngestStatus persisted as enum name (STRING).</p>
  */
+@Entity
+@Table(name = "knowledge_chunk", uniqueConstraints = @UniqueConstraint(name = "uk_chunk_id", columnNames = "chunk_id"))
 public class DocumentChunk {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "chunk_id", nullable = false, length = 32, unique = true)
     private String chunkId;
+
+    @Column(name = "doc_id", nullable = false, length = 32)
     private String docId;
+
+    @Column(name = "kb_id", nullable = false, length = 32)
     private String kbId;
+
+    @Column(name = "content", nullable = false, length = 65535)
     private String content;
-    private int tokenCount;
-    private int orderIndex;
+
+    @Column(name = "token_count", nullable = false)
+    private int tokenCount = 0;
+
+    @Column(name = "order_index", nullable = false)
+    private int orderIndex = 0;
+
+    @Column(name = "embedding_id", length = 128)
     private String embeddingId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 16)
     private IngestStatus status = IngestStatus.PENDING;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private long createdAt;
 
     public DocumentChunk() {
     }
@@ -27,6 +64,16 @@ public class DocumentChunk {
         this.kbId = kbId;
         this.content = content;
     }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == 0) {
+            createdAt = System.currentTimeMillis();
+        }
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
     public String getChunkId() { return chunkId; }
     public void setChunkId(String chunkId) { this.chunkId = chunkId; }
@@ -51,4 +98,7 @@ public class DocumentChunk {
 
     public IngestStatus getStatus() { return status; }
     public void setStatus(IngestStatus status) { this.status = status; }
+
+    public long getCreatedAt() { return createdAt; }
+    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
 }
