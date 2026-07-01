@@ -774,3 +774,82 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - agent-knowledge T10 EmbeddingService + MilvusVectorStore（向量化与向量存储）
 - 或 agent-repo T4 AgentRepo gRPC 服务
 - 或 model-gateway T8-T9 gRPC 服务
+
+---
+
+## Wave 26：agent-knowledge T11 KnowledgeBase gRPC 服务层（2026-07-01）
+
+**时间**：2026-07-01 23:30 CST
+**任务**：Task #95-#99 (Plan 08 T11 KnowledgeBase gRPC 服务 4 RPC)
+**目标**：在 KnowledgeService gRPC 上追加 4 个 Plan 08 RPC（IngestDocument / SearchChunks / ListBases / DeleteBase），实现 JPA-backed 业务编排 + gRPC 服务层 + 异常翻译
+
+### 本轮交付
+
+1. **knowledge.proto 扩展**（非破坏性追加）— 在现有 `KnowledgeService`（3 RPC：Retrieve/Ingest/VersionManage）上追加 4 个新 RPC + 8 个 message：
+   - `IngestDocument(IngestDocumentRequest) → IngestDocumentResponse`
+   - `SearchChunks(SearchChunksRequest) → SearchChunksResponse`（复用现有 KnowledgeChunk）
+   - `ListBases(ListBasesRequest) → ListBasesResponse`（含 KnowledgeBaseInfo）
+   - `DeleteBase(DeleteBaseRequest) → DeleteBaseResponse`
+2. **agent-common ErrorCode 扩展** — 新增 5 个 KB 错误码：KB_NOT_FOUND(404) / KB_IN_USE(409) / DOC_INGEST_FAILED(500) / EMBEDDING_FAILED(500) / VECTOR_STORE_ERROR(500)
+3. **agent-knowledge pom.xml** — 追加 agent-proto + agent-common + net.devh grpc-spring-boot-starter 3.1.0.RELEASE（exclusion grpc-netty-shaded）+ lombok + test grpc-testing
+4. **KnowledgeBaseService 接口 + Impl**（`api/KnowledgeBaseService.java` + `api/impl/KnowledgeBaseServiceImpl.java`）— JPA-backed @Service，编排 KnowledgeBaseRepository + DocumentIngestor + KnowledgeRetriever：
+   - createBase（校验 name + kbId 唯一 + 自动生成 + status=READY）
+   - ingest（loadKbOrThrow → DocumentIngestor → failure 抛 DOC_INGEST_FAILED）
+   - search（existsByKbId → KnowledgeRetriever.search）
+   - listBases（空过滤=全部非 DELETED；状态过滤=fromCode + findByStatusOrderByCreatedAtDesc）
+   - deleteBase（loadKbOrThrow → docCount>0 && !force 抛 KB_IN_USE → setStatus DELETED）
+5. **KnowledgeMapper**（`grpc/KnowledgeMapper.java`）— @Component，proto ↔ Entity/POJO 单向映射：toInfo / toChunk / toIngestResponse / toSearchResponse / toListResponse / toDeleteResponse
+6. **GrpcExceptionAdvice**（`grpc/GrpcExceptionAdvice.java`）— @Component，复用 agent-task-orchestrator 模式：translate(Throwable, StreamObserver) 按 httpStatus 映射 BusinessException → gRPC Status（404→NOT_FOUND / 409→FAILED_PRECONDITION / 400→INVALID_ARGUMENT / 500→INTERNAL）
+7. **KnowledgeBaseGrpcService**（`grpc/KnowledgeBaseGrpcService.java`）— @GrpcService extends KnowledgeServiceGrpc.KnowledgeServiceImplBase，覆盖 4 新 RPC（3 旧 RPC 保留 default UNIMPLEMENTED），每 RPC try/catch + exceptionAdvice.translate
+8. **2 测试类**（23 tests）：
+   - KnowledgeBaseServiceImplTest（16 tests）— @DataJpaTest + @Import + @MockBean(DocumentIngestor/KnowledgeRetriever)：createBase 4 / ingest 4 / search 2 / listBases 2 / deleteBase 4
+   - KnowledgeBaseGrpcServiceTest（7 tests）— 纯单测 mock KnowledgeBaseService + 真实 Mapper/Advice + capturing StreamObserver：4 RPC 正常流 + KB_NOT_FOUND→NOT_FOUND + KB_IN_USE→FAILED_PRECONDITION
+
+### 设计决策
+
+- **非破坏性 proto 扩展**：在现有 `KnowledgeService` 上追加 4 RPC 而非新建 service 或重命名。理由：proto3 追加 RPC 是安全的；全项目 Grep 确认无任何 gRPC client 调用 KnowledgeService（`KnowledgeServiceGrpc` 零匹配），但保留旧 3 RPC 语义供未来 Retrieve/VersionManage 接入。旧 3 RPC 在 ImplBase 中保留 default UNIMPLEMENTED
+- **新建 KnowledgeBaseService 而非升级 KnowledgeServiceImpl**：现有 KnowledgeServiceImpl 是 in-memory（ConcurrentHashMap），其 10 个测试测内存行为。新建 JPA-backed KnowledgeBaseService 避免破坏现有测试，且 Plan 08 明确要求 `service/KnowledgeBaseService`。旧 in-memory 实现标记为待废弃
+- **deleteBase 引用检查用 docCount**：骨架阶段无 KB 引用反查（KbReferenceChecker 需跨模块 gRPC），简化为 `docCount > 0 && !force → KB_IN_USE`。force=true 直接软删。这给出可测试的 KB_IN_USE 路径
+- **GrpcService 单测用 capturing StreamObserver 而非 InProcess server**：直接调用 override 方法 + 捕获 onNext/onError，无需启动 gRPC transport，更轻量。异常翻译通过断言 StatusRuntimeException.getCode() 验证
+- **测试 gRPC server 禁用**：application-test.yml 设 `grpc.server.port: -1`，避免 @DataJpaTest/@SpringBootTest 启动真实 gRPC 端口
+
+### 验证
+
+- **本地 mvn verify**：agent-knowledge 137 tests（114 existing + 23 new），0 failures，BUILD SUCCESS；agent-proto 16 tests（proto stub 编译）；agent-common 73 tests（含 KB 错误码路径覆盖）
+- **CI streak=22**：`28528216476` ✅ SUCCESS
+- **远端**：`8c880ba`（gh-api-push 创建，对应本地 `17c3ad4`）
+
+### Plan 08 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1-T6 agent-repo | ✅ | Wave 19 骨架 + Wave 22 JPA |
+| T7 agent-knowledge 骨架 | ✅ | Wave 18 |
+| T8 knowledge_base + knowledge_chunk JPA | ✅ | Wave 24 |
+| T9 DocumentIngestor + TokenCounter | ✅ | Wave 25 |
+| **T11 KnowledgeBase gRPC 服务** | ✅ | **Wave 26 完成**（4 RPC + JPA 业务编排） |
+| T10 EmbeddingService + MilvusVectorStore | ⏳ | 待 v8 后续（需 Milvus infra） |
+| T12 集成测试 | ⏳ | 待 v8 后续（需 Milvus + MySQL + Redis 三容器） |
+
+### CI 连续全绿记录（streak 22）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 18 | 28522990941 | feat(agent-knowledge) T8 | ~7m | ✅ |
+| 19 | 28523478609 | docs(memory) Wave 24 | ~5m | ✅ |
+| 20 | 28526257381 | feat(agent-knowledge) T9 | ~6m | ✅ |
+| 21 | 28526726291 | docs(memory) Wave 25 | ~5m | ✅ |
+| 22 | 28528216476 | feat(agent-knowledge) T11 | ~5m | ✅ |
+
+### 经验教训
+
+37. **非破坏性 proto 扩展优于重写**：proto3 追加 RPC/message 是安全的（不破坏现有 client）。即使当前无 client 调用，重写 service 名/RPC 会丢失语义历史。追加 + 保留旧 default UNIMPLEMENTED 是最低风险路径
+38. **@DataJpaTest + @Import + @MockBean 隔离 @Service**：测试 JPA-backed @Service 时，@DataJpaTest 加载 Repository，@Import 加载被测 Service，@MockBean 替换重依赖（DocumentIngestor/KnowledgeRetriever）。比 @SpringBootTest 轻，且避免触发 gRPC autoconfig
+39. **gRPC 服务单测用 capturing StreamObserver**：gRPC ImplBase 的 override 方法是普通 Java 方法（request + StreamObserver）。直接调用 + 用 capturing observer 捕获 onNext/onError，无需 InProcess server/transport，更轻量且覆盖异常翻译路径（断言 StatusRuntimeException.getCode()）
+40. **gRPC server 测试禁用**：grpc-spring-boot-starter 在测试中会尝试启动 server。application-test.yml 设 `grpc.server.port: -1` 禁用，避免端口占用与 @DataJpaTest 冲突
+
+### 下一波（Wave 27）计划
+
+- agent-repo T4 AgentRepo gRPC 服务（需新建 repo.proto + gRPC 层）
+- 或 model-gateway T8-T9 gRPC 服务（model.proto 已有，可直接实现）
+- 或 agent-knowledge T10 EmbeddingService + Milvus（需 Milvus infra，风险较高）
