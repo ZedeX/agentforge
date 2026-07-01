@@ -702,3 +702,75 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - agent-knowledge T9 DocumentIngestor + TokenChunkStrategy（文档导入与分块）
 - 或 agent-repo T4 AgentRepo gRPC 服务
 - 或 model-gateway T8-T9 gRPC 服务
+
+---
+
+## Wave 25：agent-knowledge T9 DocumentIngestor + TokenCounter（2026-07-01）
+
+**时间**：2026-07-01 22:48 CST
+**任务**：Task #91-#94 (Plan 08 T9 DocumentIngestor + TokenCounter)
+**目标**：实现文档导入编排服务 + 中英文 token 计数器，串联 DocumentParser + ChunkSplitter + JPA Repository
+
+### 本轮交付
+
+1. **TokenCounter util**（`util/TokenCounter.java`）— 中英文 heuristic token 计数器：
+   - CJK 字符（U+4E00-U+9FFF / U+3400-U+4DBF / U+3000-U+303F / U+FF00-U+FFEF）按 1.5 token/字计算
+   - 非 CJK 字符按空格分词，每个 word 计 1 token
+   - 返回 `ceil(cjkChars * 1.5) + nonCjkWords`
+2. **DocumentIngestor API 接口**（`api/DocumentIngestor.java`）— 单方法 `ingestDocument(kbId, docId, name, content, type, strategy, maxTokens, overlap)` 返回 `IngestResult`
+3. **DocumentIngestorImpl @Component**（`api/impl/DocumentIngestorImpl.java`）— @Transactional 编排服务：
+   - 注入 DocumentParser + ChunkSplitter + 3 Repository（KnowledgeBase / KnowledgeDocument / DocumentChunk）
+   - 流程：校验 KB 存在且非 DELETED → 校验 content 非空 → 自动生成 docId（若 null）→ **幂等删除**（deleteByKbIdAndDocId + 删旧 document + flush）→ parse → split → 持久化 document + chunks → **从 DB 重算 KB stats**（countByKbId + findByKbId.size）→ 状态转换 CREATING → UPDATING
+   - chunkId 用 UUID，orderIndex 从 0 递增，IngestStatus=PENDING
+4. **TokenCounterTest**（10 tests）— null/empty→0 / 纯英文按空格 / 纯中文 1.5x / 中英混合 / 连续 CJK / 标点 / 长文本 / 多空格
+5. **DocumentIngestorImplTest**（10 tests）— @DataJpaTest + @Import({DocumentIngestorImpl, DocumentParserImpl, ChunkSplitterImpl})：
+   - 正常导入 + KB stats 更新 / KB 不存在 / KB 已删除 / content 空 / **幂等 re-ingest**（旧 chunks 删除新 chunks 创建）/ Markdown 先 parse 再 split / orderIndex 递增 / docId 自动生成 / CREATING→UPDATING / 同 KB 多文档 stats 累积
+
+### 设计决策
+
+- **幂等 ingest**：re-ingest 同 docId 时先 `deleteByKbIdAndDocId` + 删旧 document + `flush()`，再重新分块。比"增量更新"更简单可靠，保证 chunks 与 document 总是一致
+- **KB stats 从 DB 重算**：ingest 后用 `chunkRepository.countByKbId(kbId)` + `documentRepository.findByKbId(kbId).size()` 重新计算 docCount/chunkCount，比维护增量计数器更准确（避免并发/异常导致漂移）
+- **@DataJpaTest + @Import 多 @Component**：@DataJpaTest 默认只加载 @Repository，测试 @Service 需 `@Import({ServiceImpl.class, Dep1Impl.class, Dep2Impl.class})` 精确导入 @Service 及其所有 @Component 依赖
+- **TokenCounter heuristic 而非精确**：中文 1.5 token/字是经验值（GPT/BERT 分词器约 1.2-1.8），英文按空格分词忽略子词拆分。够用于 chunk 切分上限控制，精确计数留给模型 API
+- **@Transactional on @Component**：DocumentIngestorImpl 跨 3 表操作（document + chunks + kb stats），@Transactional 确保原子性，失败回滚不留下孤儿 chunks
+
+### 验证
+
+- **本地 mvn verify**：114 tests（94 existing + 20 new），0 failures，BUILD SUCCESS
+- **CI streak=20**：`28526257381` ✅ SUCCESS
+- **远端**：`9bb4a20`（gh-api-push 创建，对应本地 `e05cef5`）
+
+### Plan 08 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1-T6 agent-repo | ✅ | Wave 19 骨架 + Wave 22 JPA |
+| T7 agent-knowledge 骨架 | ✅ | Wave 18 |
+| T8 knowledge_base + knowledge_chunk JPA | ✅ | Wave 24 |
+| **T9 DocumentIngestor + TokenCounter** | ✅ | **Wave 25 完成** |
+| T10 EmbeddingService + MilvusVectorStore | ⏳ | 待 v8 后续 |
+| T11 KnowledgeBase gRPC 服务 | ⏳ | 待 v8 后续 |
+| T12 集成测试 | ⏳ | 待 v8 后续 |
+
+### CI 连续全绿记录（streak 20）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 15 | 28474044759 | feat(agent-repo) T2-T4 | 5m28s | ✅ |
+| 16 | 28474482353 | docs(memory) Wave 22 | 5m6s | ✅ |
+| 17 | 28501512818 | feat(model-gateway) T12 | 5m26s | ✅ |
+| 18 | 28522990941 | feat(agent-knowledge) T8 | ~7m | ✅ |
+| 19 | 28523478609 | docs(memory) Wave 24 | ~5m | ✅ |
+| 20 | 28526257381 | feat(agent-knowledge) T9 | ~6m | ✅ |
+
+### 经验教训
+
+34. **@DataJpaTest + @Import 多 @Component**：@DataJpaTest 默认只加载 @Repository Bean，测试 @Service/@Component 需用 `@Import({ServiceImpl.class, Dep1Impl.class, Dep2Impl.class})` 显式导入 @Service 及其所有 @Component 依赖（不能只导入 @Service，否则依赖注入失败）
+35. **幂等 ingest 设计模式**：re-ingest 同一业务键（docId）时，采用"先全删后重建"而非"增量更新"——delete old children + delete old parent + flush + re-create。配合 @Transactional 保证原子性，避免孤儿数据。比维护增量 diff 简单且可靠
+36. **KB stats 从 DB 重算优于增量维护**：跨表计数（docCount/chunkCount）在每次 mutate 后从 DB `countByXxx` 重新查询，比维护内存增量计数器更准确，避免并发/异常导致的漂移。代价是多一次查询，在写少读多场景可接受
+
+### 下一波（Wave 26）计划
+
+- agent-knowledge T10 EmbeddingService + MilvusVectorStore（向量化与向量存储）
+- 或 agent-repo T4 AgentRepo gRPC 服务
+- 或 model-gateway T8-T9 gRPC 服务
