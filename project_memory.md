@@ -1120,3 +1120,88 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - **agent-memory T1-T2 JPA 持久化层**（Plan 03，v8 持久化深化期继续）
 - 或 agent-tool-engine / agent-runtime JPA 持久化（Plan 05/06）
 - 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
+
+---
+
+## Wave 30: agent-memory T1-T2 JPA 持久化层（2026-07-02）
+
+**日期**：2026-07-02 20:17 ~ 20:38
+**Commit**：`10faa448`（远程，gh-api-push）/ `5208f69`（本地）
+**CI**：run 28590163393 ✅ streak=29，用时 6m48s
+
+### 本轮交付
+
+**T1 基础设施（5 文件新建/升级）**：
+- `agent-memory/pom.xml` 升级：添加 `spring-boot-starter-data-jpa` + `mysql-connector-j`(runtime) + `lombok`(provided) + `h2`(test)，保留 JaCoCo excludes（`**/model/**` + `**/exception/**`）
+- `application.yml`：MySQL `agent_memory` 库 / gRPC 9088 / `spring.jpa.hibernate.ddl-auto: validate` / `memory.*` 配置（TTL/Recall/Distill/Dedup/Milvus，对齐 doc 04 §13）/ `memory.milvus.enabled: false`
+- `application-test.yml`：H2 MySQL 模式 `jdbc:h2:mem:agent_memory;MODE=MySQL` / gRPC 禁用 `port: -1` / `ddl-auto: create-drop`
+- `MemoryApplication.java`：`@SpringBootApplication` + `@ConfigurationPropertiesScan("com.agent.memory.config")`
+- `MemoryProperties.java`：`@ConfigurationProperties(prefix = "memory")` + 静态内部类 Ttl/Recall/Distill/Dedup/Milvus
+
+**T2 JPA Entity + Repository（2 Entity + 2 Repository + DDL + 2 测试类）**：
+- `MemoryRecord` 从 POJO 升级为 `@Entity`（24 字段，`uk_memory_id` 唯一约束 + 4 索引：`idx_tenant_status`/`idx_topic`/`idx_content_hash`/`idx_ttl_expire`）
+  - 字段重命名：`source`→`sourceTaskId`、`accessCount`→`recallCount`、`lastAccessedAt`→`lastRecalledAt`、`ttlDays`(int)→`ttlExpireAt`(Instant)
+  - 字段扩展（11→24）：新增 `id`/`tenantId`/`userId`/`summary`/`keywords`/`sourceTaskId`/`outcome`/`importanceLevel`/`contentHash`/`vectorId`/`parentMemoryId`/`childMemoryIds`/`ttlExpireAt`/`distillCount`/`recallCount`/`lastRecalledAt`/`metadata`/`updatedAt`
+  - `@PrePersist onCreate()` + `@PreUpdate onUpdate()` 时间戳钩子
+  - Lombok `@Getter @Setter` 简化样板代码
+- `MemoryExtractLog` 新建 Entity（`taskId`/`extractCount`/`failedCount`/`durationMs`/`createdAt`）
+- `MemoryRecordRepository`（6 查询方法：`findByMemoryId`/`findByTenantIdAndStatus`/`findByTopic`/`findExpiredBefore`/`countByTenantIdAndStatus`/`findByContentHash`）
+- `MemoryExtractLogRepository`（`findByTaskId`）
+- `03-agent-memory.sql` DDL 重写：`memory_long_term`→`memory_record`（字段全对齐 Entity）+ 新增 `memory_extract_log` 表
+- `MemoryRecordRepositoryTest`（9 cases：save/findByMemoryId/findByTenantIdAndStatus/findByTopic/findExpiredBefore/countByTenantIdAndStatus/findByContentHash/duplicateThrows/PrePersist）
+- `MemoryExtractLogRepositoryTest`（3 cases：saveAndFindById/findByTaskId/PrePersist）
+
+**枚举升级**：
+- `MemoryStatus`：HOT/WARM/COLD（3 态温度模型）→ RAW/ACTIVE/DISTILLED/ARCHIVED（4 态生命周期模型）
+- `MemoryType`：添加 REFLECTIVE（非破坏性追加，对齐 doc 04 §3.1）
+
+**字段重命名引用修复（5 文件 9 处）**：
+- `MemoryTtlManagerImpl.java`：`MemoryStatus.COLD`→`ARCHIVED` + 注释更新
+- `MemoryTtlManagerImplTest.java`：`MemoryStatus.COLD`→`ARCHIVED` + DisplayName 更新
+- `F12DecisionNodeTest.java`：`setTtlDays(90)`→`setTtlExpireAt(Instant.now().minus(5,ChronoUnit.DAYS))` + `MemoryStatus.COLD`→`ARCHIVED`（2 处）+ 注释/DisplayName 更新
+- `MemoryDeduperImpl.java`：`setAccessCount`/`getAccessCount`→`setRecallCount`/`getRecallCount` + 注释更新
+- `MemoryDeduperImplTest.java`：`setAccessCount`/`getAccessCount`→`setRecallCount`/`getRecallCount` + DisplayName 更新
+
+### 设计决策
+
+1. **MemoryStatus 4 态生命周期 vs 3 态温度模型**：骨架阶段用 HOT/WARM/COLD 表示"温度"，但 Plan 03 doc 04 §3.3 定义的是 RAW（原始入库）→ ACTIVE（激活可用）→ DISTILLED（已蒸馏压缩）→ ARCHIVED（归档冷存）的生命周期。4 态更精确表达记忆从提取到归档的完整生命周期，且与 TTL/Distill 业务流程对齐
+2. **字段重命名而非保留旧名**：`source`→`sourceTaskId` 明确语义（来源任务 ID，非一般"来源"）；`accessCount`→`recallCount` 与 `MemoryTtlManager.recall` 语义对齐；`ttlDays`(int)→`ttlExpireAt`(Instant) 从"天数"升级为"绝对过期时间点"，支持精确过期判断和数据库索引查询
+3. **ExtractedMemory.source 不重命名**：`ExtractedMemory` 是提取阶段的内存模型（非持久化），其 `source` 字段语义为"提取来源"，与 `MemoryRecord.sourceTaskId`（持久化字段，语义"来源任务 ID"）不同。两个类独立演进，不做强制对齐
+4. **importanceScore 保留 double 不改名**：Plan 03 T2 字段设计中原名为 `importanceScore`，骨架阶段也是 `importanceScore`，名称一致无需改动。新增 `importanceLevel`（HIGH/MEDIUM/LOW）作为分级标签补充
+5. **TaskOutcome 暂不修改**：骨架阶段为 SUCCESS/FAILED/CANCELLED/TIMEOUT，Plan 03 要求 SUCCESS/FAILURE/PARTIAL/TIMEOUT。差异留待 T3 业务逻辑实现时处理（涉及 F12.D1 写入决策分支）
+6. **Lombok @Getter @Setter 而非手写**：JPA Entity 需要大量 getter/setter，Lombok 注解简化样板代码。保留无参构造（JPA 规范）+ 业务全参构造（方便测试和业务代码）
+7. **MemoryProperties 静态内部类**：Ttl/Recall/Distill/Dedup/Milvus 作为 `MemoryProperties` 的静态内部类，通过 `@ConfigurationProperties(prefix="memory")` + `@ConfigurationPropertiesScan` 自动注入。Milvus 配置先占位（`enabled: false`），T6 实现时启用
+
+### 验证结果
+
+- **本地 mvn verify**：`mvn -pl agent-memory -am verify` → BUILD SUCCESS，52 tests 全绿（12 new + 40 existing），JaCoCo 覆盖率检查通过
+- **CI**：run 28590163393 ✅ streak=29，用时 6m48s
+- **推送**：直连被墙，gh-api-push.py 推送成功（20 文件，diff-base c53e752）
+
+### Plan 03 进度表
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 基础设施（pom + yml + config） | ✅ | Wave 30 完成 |
+| T2 JPA Entity + Repository | ✅ | Wave 30 完成（MemoryRecord + MemoryExtractLog + 2 Repository + DDL） |
+| T3 MemoryExtractor 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
+| T4 MemoryDistiller 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
+| T5 EmbeddingClient | ⏳ | 骨架已有 |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
+| T7 ImportanceScorer | ⏳ | 骨架已有 |
+| T8 MemoryTtlManager 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
+| T9 MemoryDeduper 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+
+### 经验教训
+
+49. **JPA Entity 字段重命名影响分析必须跨模块 grep**：MemoryRecord 字段重命名（source→sourceTaskId 等）影响 5 个文件 9 处引用。用 `Grep` 搜索 `getAccessCount|setAccessCount|setTtlDays|MemoryStatus.COLD` 一次性找到所有引用点，避免遗漏。注意区分不同类的同名字段（ExtractedMemory.source ≠ MemoryRecord.sourceTaskId）
+50. **H2 MODE=MySQL 支持 check 约束**：`@Column` + 枚举 `@Enumerated(STRING)` 在 H2 MySQL 模式下生成 `check (status in ('RAW','ACTIVE','DISTILLED','ARCHIVED'))` 约束，与生产 MySQL 行为一致。`should_Throw_When_MemoryIdDuplicated` 测试中 H2 可靠抛出 `DataIntegrityViolationException`（ERROR 日志是预期行为）
+51. **@PrePersist/@PreUpdate 时间戳钩子**：JPA Entity 用 `@PrePersist void onCreate()` 设置 `createdAt` + `updatedAt`，`@PreUpdate void onUpdate()` 更新 `updatedAt`。`createdAt` 标记 `updatable = false` 防止意外修改。测试中可直接 `setCreatedAt` 覆盖（绕过钩子）以测试历史时间场景
+
+### 下一波（Wave 31）计划
+
+- **agent-memory T3-T4 业务实现**（MemoryExtractor + MemoryDistiller 对齐新字段）
+- 或 agent-memory T8-T9 业务实现（MemoryTtlManager + MemoryDeduper 对齐新字段）
+- 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
+- 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
