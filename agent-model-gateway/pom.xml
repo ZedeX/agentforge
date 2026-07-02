@@ -63,6 +63,12 @@
             </exclusions>
         </dependency>
 
+        <!-- T9: reactor-core Flux 用于 StreamChat server streaming -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

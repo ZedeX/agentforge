@@ -25,11 +25,14 @@ import com.agent.modelgateway.model.AdapterContext;
 import com.agent.modelgateway.model.ChatReply;
 import com.agent.modelgateway.model.ModelUsageLog;
 import com.agent.modelgateway.model.RouteResult;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
+import reactor.core.Disposable;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * ModelGateway gRPC 服务端实现（Plan 07 T8，4 RPC）。
@@ -192,14 +195,132 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
         return log;
     }
 
-    // ===== RPC 2: StreamChat（T9 占位，需 reactor-core/Flux） =====
+    // ===== RPC 2: StreamChat（server streaming, Plan 07 T9） =====
 
+    /**
+     * 流式 Chat（server streaming）。
+     *
+     * <p>流程（Plan 07 T9 Green）：</p>
+     * <ol>
+     *   <li>解析 request → scene / tenantId / messages（同 chat）</li>
+     *   <li>ModelRouter.route → RouteResult</li>
+     *   <li><b>不查 PromptCache</b>（流式不缓存，避免缓存大对象）</li>
+     *   <li>QuotaEnforcer.checkQuota 超限抛 QUOTA_EXCEEDED</li>
+     *   <li>AdapterRegistry.get(primary).streamChat(context, prompt) 返回 Flux&lt;ChatChunk&gt;</li>
+     *   <li>subscribe：onNext 补 call_id + 累计 outputChars；onError 翻译异常；onComplete 计量 + onCompleted</li>
+     *   <li>客户端取消：ServerCallStreamObserver.setOnCancelHandler → dispose 上游 Flux</li>
+     *   <li>背压：onBackpressureBuffer(256) 防止客户端慢消费导致 OOM</li>
+     * </ol>
+     */
     @Override
     public void streamChat(ChatRequest request, StreamObserver<ChatChunk> responseObserver) {
-        // T9: server streaming，需 Flux + 背压 + cancel 处理，放 Wave 29 实现
-        exceptionAdvice.translate(
-                new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR, "streamChat 未实现（T9）"),
-                responseObserver);
+        try {
+            // Step 1: 解析 request
+            Scene scene = mapper.toScene(request.getScene());
+            String tenantId = mapper.toTenantId(request.hasTrace() ? request.getTrace() : null);
+            String traceId = mapper.toTraceId(request);
+            String callId = request.getCallId();
+            String prompt = mapper.toPrompt(request);
+            log.debug("streamChat start callId={} tenantId={} scene={} traceId={}",
+                    callId, tenantId, scene, traceId);
+
+            // Step 2: ModelRouter.route
+            RouteResult route = modelRouter.route(scene, request.getPreferredModel());
+            String primaryProvider = route.getPrimaryProviderCode();
+            log.debug("streamChat route callId={} primary={}", callId, primaryProvider);
+
+            // Step 3: 不查 PromptCache（流式不缓存）
+
+            // Step 4: QuotaEnforcer.checkQuota
+            quotaEnforcer.checkQuota(tenantId, ESTIMATED_COST_USD);
+
+            // Step 5: AdapterRegistry.get(primary).streamChat
+            ModelProviderAdapter adapter = adapterRegistry.get(primaryProvider);
+            if (adapter == null) {
+                log.error("streamChat adapter not found callId={} provider={}", callId, primaryProvider);
+                throw new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR,
+                        "适配器不存在: " + primaryProvider);
+            }
+            AdapterContext context = new AdapterContext(traceId, tenantId, scene,
+                    ProtoMapper.DEFAULT_TIMEOUT_MS, false);
+
+            // Step 6: subscribe → onNext/onError/onComplete + 累计 tokens + CostMeter.record
+            AtomicInteger outputChars = new AtomicInteger(0);
+            final Disposable[] disposableRef = new Disposable[1];
+
+            // 客户端取消处理：dispose 上游 Flux（Plan 07 T9 cancel）
+            if (responseObserver instanceof ServerCallStreamObserver) {
+                ServerCallStreamObserver<ChatChunk> serverObs =
+                        (ServerCallStreamObserver<ChatChunk>) responseObserver;
+                serverObs.setOnCancelHandler(() -> {
+                    log.info("streamChat client cancelled callId={} traceId={}", callId, traceId);
+                    if (disposableRef[0] != null && !disposableRef[0].isDisposed()) {
+                        disposableRef[0].dispose();
+                    }
+                });
+            }
+
+            try {
+                disposableRef[0] = adapter.streamChat(context, prompt)
+                        .onBackpressureBuffer(256)
+                        .doOnCancel(() -> log.info("streamChat upstream cancelled callId={}", callId))
+                        .subscribe(
+                                chunk -> {
+                                    // 补 call_id（adapter 只填 delta/finish/tool_call）
+                                    ChatChunk withCallId = chunk.toBuilder().setCallId(callId).build();
+                                    if (!chunk.getDelta().isEmpty()) {
+                                        outputChars.addAndGet(chunk.getDelta().length());
+                                    }
+                                    responseObserver.onNext(withCallId);
+                                },
+                                error -> {
+                                    // Plan 07 UT-MG-008: ProviderUnavailable → MODEL_GATEWAY_ERROR → UNKNOWN
+                                    log.error("streamChat error callId={} provider={} err={}",
+                                            callId, primaryProvider, error.getMessage());
+                                    exceptionAdvice.translate(
+                                            new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR,
+                                                    "流式调用失败: " + error.getMessage(), error),
+                                            responseObserver);
+                                },
+                                () -> {
+                                    // 流结束：计量成本（估算 output tokens，4 chars/token）
+                                    int outputTokens = Math.max(1, outputChars.get() / 4);
+                                    ModelUsageLog usageLog = buildStreamUsageLog(
+                                            primaryProvider, tenantId, traceId, scene, outputTokens);
+                                    costMeter.record(usageLog);
+                                    log.info("streamChat success callId={} provider={} outputTokens={} costUsd={}",
+                                            callId, primaryProvider, outputTokens, usageLog.getTotalCostUsd());
+                                    responseObserver.onCompleted();
+                                });
+            } catch (RuntimeException ex) {
+                // adapter.streamChat 抛异常（如 UnsupportedOperationException）
+                log.error("streamChat adapter stream failed callId={} provider={} err={}",
+                        callId, primaryProvider, ex.getMessage());
+                throw new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR,
+                        "流式调用失败: " + ex.getMessage(), ex);
+            }
+        } catch (Throwable t) {
+            exceptionAdvice.translate(t, responseObserver);
+        }
+    }
+
+    /**
+     * 构造 StreamChat 的 ModelUsageLog（估算 output tokens，input tokens 流式阶段不计量）。
+     */
+    private ModelUsageLog buildStreamUsageLog(String providerCode, String tenantId,
+                                              String traceId, Scene scene, int outputTokens) {
+        ModelUsageLog usageLog = new ModelUsageLog();
+        usageLog.setTraceId(traceId);
+        usageLog.setTenantId(tenantId);
+        usageLog.setProviderCode(providerCode);
+        usageLog.setModelName("stream");
+        usageLog.setScene(scene);
+        usageLog.setInputTokens(0);
+        usageLog.setOutputTokens(outputTokens);
+        usageLog.setLatencyMs(0L);
+        usageLog.setStatus("SUCCESS");
+        usageLog.setCreatedAt(System.currentTimeMillis());
+        return usageLog;
     }
 
     // ===== RPC 3: CountTokens（Plan 07 T10） =====

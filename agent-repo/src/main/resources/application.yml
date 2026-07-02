@@ -16,3 +16,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+
+# T4: gRPC server（doc 00-overview §3.1，HTTP 8096 / gRPC 9098）
+grpc:
+  server:
+    port: 9098

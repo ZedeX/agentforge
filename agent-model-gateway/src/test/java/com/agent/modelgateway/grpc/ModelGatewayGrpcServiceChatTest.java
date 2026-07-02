@@ -235,20 +235,7 @@ class ModelGatewayGrpcServiceChatTest {
         assertThat(sre.getStatus().getDescription()).contains("MODEL_GATEWAY_ERROR");
     }
 
-    // ===== streamChat 未实现（T9 占位） =====
-
-    @Test
-    @DisplayName("streamChat 未实现 → onError UNKNOWN")
-    void should_ReturnError_When_StreamChatNotImplemented() {
-        ChatRequest req = buildChatRequest("call-6", "intent", 6006L, false);
-        CapturingObserver<ChatChunk> obs = new CapturingObserver<>();
-        grpcService.streamChat(req, obs);
-
-        assertThat(obs.error).isInstanceOf(StatusRuntimeException.class);
-        StatusRuntimeException sre = (StatusRuntimeException) obs.error;
-        assertThat(sre.getStatus().getCode()).isEqualTo(Status.Code.UNKNOWN);
-        assertThat(sre.getStatus().getDescription()).contains("streamChat");
-    }
+    // ===== streamChat 测试已移至 ModelGatewayGrpcServiceStreamTest（Plan 07 T9） =====
 
     // ===== CountTokens RPC（Plan 07 T10） =====
 

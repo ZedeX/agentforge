@@ -14,3 +14,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+
+# T4: 测试中禁用 gRPC server（避免端口占用与 @DataJpaTest 冲突）
+grpc:
+  server:
+    port: -1

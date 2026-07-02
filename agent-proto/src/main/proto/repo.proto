@@ -1,0 +1,93 @@
+syntax = "proto3";
+package agentplatform.repo.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.repo.v1";
+
+// Agent 仓库服务（doc 06-agent-repo §4，gRPC 端口 9098）
+service AgentRepo {
+  // 创建 Agent（校验 name 唯一性，默认 status=DRAFT / version=1）
+  rpc CreateAgent(CreateAgentRequest) returns (AgentResponse);
+  // 查询 Agent（按 agent_id 查询，不存在返回 NOT_FOUND）
+  rpc GetAgent(GetAgentRequest) returns (AgentResponse);
+  // 更新 Agent（PUBLISHED 状态禁止直接改，返回 FAILED_PRECONDITION；version 自增）
+  rpc UpdateAgent(UpdateAgentRequest) returns (AgentResponse);
+  // 列出 Agent（按 status / name_contains 过滤 + 分页）
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+}
+
+// Agent 完整定义（对齐 AgentDefinition entity 全部字段）
+// 字段编号与 CreateAgentRequest/UpdateAgentRequest 保持一致，便于映射
+message AgentResponse {
+  string agent_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string ability_tags = 4;
+  string system_prompt = 5;
+  string agent_tier = 6;                 // LITE | STANDARD | ADVANCED
+  int32 max_steps = 7;
+  int32 max_token = 8;
+  string status = 9;                     // DRAFT | PUBLISHED | DEPRECATED | ARCHIVED
+  int32 version = 10;
+  repeated string bound_tools = 11;
+  repeated string bound_knowledge_ids = 12;
+  int64 created_at = 13;
+  int64 updated_at = 14;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 创建 Agent 请求（不含 status/version/created_at/updated_at，由服务端设置）
+message CreateAgentRequest {
+  string agent_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string ability_tags = 4;
+  string system_prompt = 5;
+  string agent_tier = 6;                 // LITE | STANDARD | ADVANCED（默认 STANDARD）
+  int32 max_steps = 7;                   // 默认 10
+  int32 max_token = 8;                   // 默认 4096
+  repeated string bound_tools = 9;
+  repeated string bound_knowledge_ids = 10;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 查询 Agent 请求
+message GetAgentRequest {
+  string agent_id = 1;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 更新 Agent 请求（含 agent_id + 可更新字段 + change_log）
+message UpdateAgentRequest {
+  string agent_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string ability_tags = 4;
+  string system_prompt = 5;
+  string agent_tier = 6;
+  int32 max_steps = 7;
+  int32 max_token = 8;
+  repeated string bound_tools = 9;
+  repeated string bound_knowledge_ids = 10;
+  string change_log = 11;                // 变更说明（用于版本快照）
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 列出 Agent 请求（status / name_contains 过滤 + 分页）
+message ListAgentsRequest {
+  string status = 1;                     // 可空：DRAFT | PUBLISHED | DEPRECATED | ARCHIVED
+  string name_contains = 2;              // 名称模糊匹配（可空）
+  int32 page = 3;                        // 页码（0-based，默认 0）
+  int32 size = 4;                        // 每页大小（默认 10）
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+// 列出 Agent 响应（分页结果）
+message ListAgentsResponse {
+  repeated AgentResponse items = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
