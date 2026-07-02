@@ -1356,3 +1356,86 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - 或 agent-memory T5/T7（EmbeddingClient + ImportanceScorer，骨架已有，自包含）
 - 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
 - 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
+
+---
+
+## Wave 33: agent-memory T4 MemoryDistiller + gRPC 基础设施（2026-07-03）
+
+**日期**：2026-07-03 00:15 ~ 00:45
+**Commit**：`fef8e71`（远程）/ `7e9e4a3`（本地）
+**CI**：run 28604816026 ✅ streak=32，用时 6m38s
+
+### 本轮交付
+
+**T4 MemoryDistiller 业务实现（11 tests，+8 new）**：
+- `MemoryDistiller` 接口扩展：新增 `distill(String tenantId, String topic, List<MemoryRecord> activeRecords)` 返回 DISTILLED MemoryRecord
+- `MemoryDistillerImpl` 重写：构造注入 `ModelGatewayClient + MemoryRecordRepository + MemoryProperties`
+  - distill 流程：跳过阈值(20) → 构造 prompt → 调模型 → 创建 DISTILLED → 归档+持久化源 → 持久化 distilled
+  - 模型失败时源 ACTIVE 状态不变（异常重抛，不归档不 save）
+  - 聚合 importance = avg(源 importanceScore)，分级 HIGH(≥0.7)/MEDIUM(0.4~0.7)/LOW(<0.4)
+  - 旧接口 `distill(MemoryTopic)` 向后兼容（模板摘要，不调模型，不持久化）
+- `DistillPromptBuilder`（新建）：系统 prompt（"请将 N 条 ACTIVE 记忆蒸馏为 1 条不超过 500 字的摘要"）+ 用户 prompt（编号拼接源内容）
+
+**gRPC 基础设施（项目首个真实 model-gateway 客户端）**：
+- `pom.xml` 添加 `agent-proto` + `grpc-spring-boot-starter` + `grpc-client-spring-boot-starter`（3.1.0.RELEASE）
+- `application.yml` 添加 `grpc.client.model-gateway.address=static://localhost:9094, negotiation-type=plaintext`
+- `ModelGatewayClient`（新建接口）：抽象 gRPC Chat RPC，隔离 stub 便于测试 mock
+- `ModelGatewayClientImpl`（新建 @Component）：`@GrpcClient("model-gateway") ModelGatewayGrpc.ModelGatewayBlockingStub`，`@ConditionalOnProperty(memory.model-gateway.enabled=true)`
+  - `chat(systemPrompt, userPrompt)` → ChatRequest(scene=summary, tier=middle, messages=[system,user]) → stub.chat() → ChatResponse.content
+- `NoOpModelGatewayClient`（新建 @Component）：`@ConditionalOnProperty(memory.model-gateway.enabled=false)`
+  - 测试环境 fallback bean，确保 `MemoryDistillerImpl` 构造注入始终有 `ModelGatewayClient` bean
+  - 调用时抛 `UnsupportedOperationException`，被 distiller 捕获保留源 ACTIVE 状态
+- `MemoryProperties` 新增 `ModelGateway` 内部类（enabled=true / distillScene="summary" / distillTier="middle"）
+- `application-test.yml` 添加 `memory.model-gateway.enabled=false`
+
+### 代码审查修正
+
+1. **归档源记录需逐条 save**：初版 `distill()` 只修改源记录 status 为 ARCHIVED 但未 `repository.save(source)`，DB 中不会更新。修正为循环中逐条 save。Plan 03 T4 设计要求"原 ACTIVE 记录 status→ARCHIVED（事务一致性）"
+2. **NoOpModelGatewayClient fallback bean**：测试环境 `@ConditionalOnProperty(havingValue=false)` 不创建 `ModelGatewayClientImpl`，导致 `MemoryDistillerImpl` 构造注入找不到 `ModelGatewayClient` bean → `UnsatisfiedDependencyException`。添加 `NoOpModelGatewayClient` 作为 fallback，确保任何环境都有 bean 可注入
+3. **MemoryType import 清理**：`MemoryDistillerImpl` 移除了未使用的 `import com.agent.memory.enums.MemoryType`
+
+### 设计决策
+
+1. **ModelGatewayClient 接口抽象 vs 直接注入 stub**：直接在 `MemoryDistillerImpl` 中注入 `ModelGatewayGrpc.ModelGatewayBlockingStub` 会导致测试需要 mock gRPC stub（更复杂）。抽象为 `ModelGatewayClient` 接口后，测试只需 `mock(ModelGatewayClient.class)` 即可。这是 Ports & Adapters 模式的标准应用
+2. **@ConditionalOnProperty 互斥条件**：`ModelGatewayClientImpl`(havingValue=true) 和 `NoOpModelGatewayClient`(havingValue=false) 形成互斥条件对，确保恰好一个 bean 被创建。Spring Boot 不支持 `@ConditionalOnMissingBean` + `@GrpcClient` 组合（因为 stub 在 bean 创建之前就需要 channel），所以用显式条件更可控
+3. **distill 返回 null 而非 Optional.empty()**：与 T8 MemoryTtlManager.applyTtl（返回 boolean）和 T9 MemoryDeduper.dedup（返回 DedupReport）保持一致——跳过场景返回 null / false / 全零 report，而非 Optional。接口风格统一
+4. **distill 不做 @Transactional**：Plan 03 T4 Refactor 步骤建议加 `@Transactional`，但当前 impl 是纯 JPA 操作（repository.save），H2 测试环境默认 auto-commit。等 T10 gRPC 服务层统一事务管理
+5. **scene=summary 对齐 model.proto**：model.proto ChatRequest.scene 枚举值包含 `summary`（与 `intent | planning | tool_call | audit` 并列），正是蒸馏场景的语义标识。蒸馏用 `tier=middle`（非 light/strong），平衡质量与成本
+
+### 验证结果
+
+- **本地 mvn verify**：97 tests 全绿（89 existing + 8 净增），JaCoCo 通过
+  - T4 MemoryDistillerImplTest: 11 tests（8 new + 3 旧接口向后兼容）
+  - 其他模块测试不变
+- **CI**：run 28604816026 ✅ streak=32，用时 6m38s
+- **agent-proto 编译**：gRPC 依赖引入后 agent-proto proto 编译通过，model.proto 生成的 Java 类正确解析
+
+### Plan 03 进度表
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 基础设施 | ✅ | Wave 30 |
+| T2 JPA Entity + Repository | ✅ | Wave 30 |
+| T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
+| T4 MemoryDistiller 业务实现 | ✅ | Wave 33 完成（gRPC Chat RPC + 源归档 + 聚合 importance） |
+| T5 EmbeddingClient | ⏳ | 骨架已有 |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
+| T7 ImportanceScorer | ⏳ | 骨架已有 |
+| T8 MemoryTtlManager 业务实现 | ✅ | Wave 32 完成（applyTtl 状态机 + cleanupExpired + Scheduler） |
+| T9 MemoryDeduper 业务实现 | ✅ | Wave 32 完成（dedup + DedupReport + repository-backed） |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+
+### 经验教训
+
+60. **@ConditionalOnProperty 互斥 bean 条件对**：当某个接口有两个实现类通过 `@ConditionalOnProperty` 条件互斥创建时，必须确保两个条件恰好覆盖所有情况（havingValue=true + havingValue=false），否则可能出现两个 bean（冲突）或零个 bean（UnsatisfiedDependencyException）。本例 `ModelGatewayClientImpl`(true) + `NoOpModelGatewayClient`(false) 覆盖完整
+61. **归档源记录需逐条 repository.save**：JPA 的 `setStatus(ARCHIVED)` 只修改内存对象，不自动写入 DB。必须在循环中 `repository.save(source)` 逐条持久化。漏掉 save 是常见 bug——代码看起来"改了状态"但 DB 不变
+62. **接口抽象 gRPC stub 的必要性**：`@GrpcClient` 注入的 stub 是 final 类（`ModelGatewayGrpc.ModelGatewayBlockingStub`），Mockito 可以 mock 但需 mockito-inline。更简洁的做法是抽象为接口（`ModelGatewayClient`），测试 mock 接口即可。Ports & Adapters 模式在 gRPC 场景尤其有价值
+63. **项目首个跨模块 gRPC 调用**：agent-memory → agent-model-gateway 是项目内首次真实的跨模块 gRPC 调用。之前的模块间通信都是预留接口（agent-gateway 的 TaskOrchestratorClient / RiskControlClient 用 UUID/PASS stub）。此模式（接口 + @ConditionalOnProperty + NoOp fallback）可作为后续模块的参考实现
+64. **model.proto scene 字段语义对齐**：`ChatRequest.scene` 包含 `summary` 值，恰好对应蒸馏摘要场景。设计 proto 时预留的场景值在后续实现中被实际使用，证明 proto 设计的前瞻性
+
+### 下一波（Wave 34）计划
+
+- **agent-memory T5 EmbeddingClient**（HTTP 调 model-gateway /v1/embeddings，MockWebServer 测试，自包含）
+- 或 agent-memory T7 ImportanceScorer（5 维度加权评分，自包含无外部依赖）
+- 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
+- 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
