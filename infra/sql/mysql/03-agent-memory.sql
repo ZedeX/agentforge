@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `memory_record` (
     `topic`             VARCHAR(128)     NULL                    COMMENT '主题',
     `keywords`          VARCHAR(2048)    NULL                    COMMENT '关键词 JSON 数组',
     `source_task_id`    VARCHAR(32)      NULL                    COMMENT '来源任务 ID',
-    `outcome`           VARCHAR(16)      NULL                    COMMENT 'SUCCESS/FAILED/CANCELLED/TIMEOUT',
+    `outcome`           VARCHAR(16)      NULL                    COMMENT 'SUCCESS/FAILURE/PARTIAL/TIMEOUT',
     `importance_score`  DECIMAL(4,3)     NOT NULL                COMMENT '重要性评分 0~1',
     `importance_level`  VARCHAR(8)       NULL                    COMMENT 'HIGH/MEDIUM/LOW',
     `content_hash`      VARCHAR(64)      NULL                    COMMENT '内容 SHA-256 (去重用)',

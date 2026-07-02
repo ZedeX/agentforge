@@ -47,11 +47,11 @@ class F12DecisionNodeTest {
     @Test
     @DisplayName("UT-F12-001: 任务失败时不写长期记忆（避免错误记忆污染）")
     void should_SkipWrite_When_TaskFailed() {
-        // F12.D1 false 分支：task.status=FAILED → 不触发记忆写入
+        // F12.D1 false 分支：task.status=FAILURE → 不触发记忆写入
         LongTermMemoryWriter writer = mock(LongTermMemoryWriter.class);
         when(writer.write(any())).thenReturn(null);
 
-        TaskResult failedTask = new TaskResult("tk_001", TaskOutcome.FAILED, "失败任务");
+        TaskResult failedTask = new TaskResult("tk_001", TaskOutcome.FAILURE, "失败任务");
         boolean shouldWrite = failedTask.getOutcome() == TaskOutcome.SUCCESS;
 
         if (!shouldWrite) {
