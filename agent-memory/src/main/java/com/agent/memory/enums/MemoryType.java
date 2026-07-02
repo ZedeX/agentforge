@@ -10,5 +10,7 @@ public enum MemoryType {
     /** Semantic: factual knowledge with source. */
     SEMANTIC,
     /** Procedural: operation pattern / template. */
-    PROCEDURAL
+    PROCEDURAL,
+    /** Reflective: failure analysis / lessons learned (doc 04-memory §3.1). */
+    REFLECTIVE
 }

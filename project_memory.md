@@ -1030,3 +1030,93 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - model-gateway T9 StreamChat server streaming（需 reactor-core/Flux + 背压 + cancel，UT-MG-009）
 - 或 agent-repo T4 AgentRepo gRPC 服务（需新建 repo.proto + gRPC 层）
 - 或 v8 持久化深化期其他模块
+
+---
+
+## Wave 29：model-gateway T9 StreamChat + agent-repo T4 AgentRepo gRPC（2026-07-02）
+
+**时间**：2026-07-02 11:36 CST（Trae 外完成，本会话补记录）
+**任务**：Plan 07 T9 StreamChat + Plan 08 T4 AgentRepo gRPC
+**目标**：闭合 Plan 07（4/4 RPC）+ 闭合 agent-repo 模块（业务层 + gRPC 层完成）
+
+### 本轮交付
+
+1. **Plan 07 T9 StreamChat server streaming** — `ModelGatewayGrpcService.streamChat` 实现：
+   - 流程：route → quota → adapter.streamChat → subscribe（onNext 补 call_id + 累计 outputChars / onError 翻译 / onComplete 计量）
+   - `ServerCallStreamObserver.setOnCancelHandler → dispose` 上游 Flux（客户端取消时释放资源）
+   - `onBackpressureBuffer(256)` 防止客户端慢消费 OOM
+   - `ModelProviderAdapter` 增加 default `streamChat()` 返回 `Flux<ChatChunk>`
+   - pom 追加 `spring-boot-starter-webflux`（reactor-core Flux）
+   - `ModelGatewayGrpcServiceStreamTest`（5 tests）：UT-MG-009 正常流式 / cancel / quota exceeded / adapter not found / adapter stream throws
+   - 删除 `ModelGatewayGrpcServiceChatTest` 中 streamChat 占位测试
+2. **Plan 08 T4 AgentRepo gRPC（4 RPC）** — 新建 `agent-proto/repo.proto` + gRPC 层：
+   - `service AgentRepo`（CreateAgent / GetAgent / UpdateAgent / ListAgents），基于 AgentDefinition 实际字段
+   - `agent-common/ErrorCode` +AGENT_ALREADY_EXISTS(409) / +AGENT_STATUS_CONFLICT(409)
+   - `agent-repo` pom + application.yml（grpc.server.port 9098 / -1 test）
+   - `GrpcExceptionAdvice`：AGENT_ALREADY_EXISTS→ALREADY_EXISTS，409→FAILED_PRECONDITION，404→NOT_FOUND
+   - `AgentMapper`：toEntity / mergeEntity / toResponse / toQuery / toListResponse
+   - `AgentRepoGrpcService`：4 RPC，name 唯一性 / PUBLISHED 状态保护 / version 自增 / 分页查询
+   - `AgentRepoGrpcServiceTest`（8 tests）：Create 正常/重复 / Get 正常/不存在 / Update 正常/PUBLISHED 冲突 / List 分页/空
+
+### 设计决策
+
+- **StreamChat 用 reactor-core Flux 而非 Iterator**：gRPC server streaming 需要响应式背压支持。Flux + onBackpressureBuffer(256) + setOnCancelHandler(dispose) 是标准模式。adapter 返回 Flux<ChatChunk>，service subscribe 后手动调用 StreamObserver.onNext
+- **AgentRepo gRPC 基于 AgentDefinition 实际字段而非 Plan 附录草案**：Plan 08 附录有 scene_tags/core_constraints/business_config/reflection_mode/model_tier 但 AgentDefinition entity 没有这些字段。proto 设计应基于实际 JPA Entity 字段（经验教训 #21 重申）
+- **mergeEntity 不覆盖只读字段**：id/agentId/status/version/createdAt 不被 merge 覆盖，version 由 GrpcService 在 save 前显式自增（经验教训 #22 重申）
+- **AGENT_ALREADY_EXISTS → ALREADY_EXISTS 而非 FAILED_PRECONDITION**：语义精确映射，409 中唯独"已存在"映射到 ALREADY_EXISTS，其余 409 映射到 FAILED_PRECONDITION
+
+### 验证
+
+- **本地 mvn verify**：T9 16 通过（11 ChatTest + 5 StreamTest）/ T4 114 通过（8 新 + 106 现有）
+- **CI streak=28**：`28563593997` ✅ SUCCESS（6m3s）
+- **远端**：`bf1da08`（gh-api-push 创建，对应本地 `c53e752`）
+- **14 files changed, +1369/-19 lines**
+
+### Plan 07 进展（闭合）
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 骨架 | ✅ | Wave 18 |
+| T2-T3 Entity + Repository | ✅ | Wave 21 |
+| T4-T7 Adapters | ✅ | Wave 18-20 |
+| T8 Chat gRPC 服务 | ✅ | Wave 27 |
+| **T9 StreamChat** | ✅ | **Wave 29 完成**（4/4 RPC 闭合） |
+| T10 CountTokens + ListModels | ✅ | Wave 28 |
+| T11 PromptCache | ✅ | Wave 18 |
+| T12 CostMeter + JPA | ✅ | Wave 23 |
+| T13 ModelDegradationManager | ✅ | Wave 18 |
+| T14 集成测试 | ⏳ | 待 v8 后续（WireMock + 4 RPC 端到端） |
+
+### Plan 08 进展
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1-T6 agent-repo | ✅ | Wave 19 骨架 + Wave 22 JPA |
+| **T4 AgentRepo gRPC 服务** | ✅ | **Wave 29 完成**（4 RPC + 8 tests） |
+| T7 agent-knowledge 骨架 | ✅ | Wave 18 |
+| T8 knowledge_base + knowledge_chunk JPA | ✅ | Wave 24 |
+| T9 DocumentIngestor + TokenCounter | ✅ | Wave 25 |
+| T11 KnowledgeBase gRPC 服务 | ✅ | Wave 26 |
+| T10 EmbeddingService + Milvus | ⏳ | 待 v8 后续（需 Milvus infra） |
+| T12 集成测试 | ⏳ | 待 v8 后续（需 Milvus + MySQL + Redis） |
+
+### CI 连续全绿记录（streak 28）
+
+| # | run_id | commit | 用时 | 状态 |
+|---|---|---|---|---|
+| 24 | 28535758564 | feat(model-gateway) T8 | 6m14s | ✅ |
+| 25 | 28536220479 | docs(memory) Wave 27 | 5m50s | ✅ |
+| 26 | 28536957299 | feat(model-gateway) T10 | ~5m | ✅ |
+| 27 | 28537348315 | docs(memory) Wave 28 | 5m5s | ✅ |
+| 28 | 28563593997 | feat(wave29) T9+T4 | 6m3s | ✅ |
+
+### 经验教训
+
+47. **gRPC server streaming + reactor-core Flux 模式**：adapter 返回 `Flux<ChatChunk>`，service subscribe 后手动调 `StreamObserver.onNext`。关键：`ServerCallStreamObserver.setOnCancelHandler(Disposable.dispose)` 处理客户端取消，`onBackpressureBuffer(256)` 防慢消费 OOM。onNext 补 call_id + 累计 outputChars，onError 翻译异常， onComplete 调 CostMeter.record 计量
+48. **ModelProviderAdapter default streamChat() 抛 UnsupportedOperationException**：并非所有 adapter 都支持流式（如某些国内模型）。default 方法抛 UnsupportedOperationException，支持的 adapter override 即可。测试 mock adapter.streamChat 返回 Flux
+
+### 下一波（Wave 30）计划
+
+- **agent-memory T1-T2 JPA 持久化层**（Plan 03，v8 持久化深化期继续）
+- 或 agent-tool-engine / agent-runtime JPA 持久化（Plan 05/06）
+- 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）

@@ -21,7 +21,7 @@ import java.util.Set;
  *       完全相同返回 1.0，否则 0.0。本实现为有状态 Mock，会将新内容的哈希登记到内部集合，
  *       以便后续相同内容可被识别为重复。</li>
  *   <li>merge：合并 existing 与 incoming 的 content（以 \n---\n 分隔），
- *       accessCount 取较大值并 +1，importanceScore 取较大值。</li>
+ *       recallCount 取较大值并 +1，importanceScore 取较大值。</li>
  * </ul>
  * 默认去重阈值沿用接口 {@link #dedupThreshold()} = 0.92。</p>
  *
@@ -64,7 +64,7 @@ public class MemoryDeduperImpl implements MemoryDeduper {
                 + "\n---\n"
                 + incoming.getContent();
         existing.setContent(mergedContent);
-        existing.setAccessCount(Math.max(existing.getAccessCount(), incoming.getAccessCount()) + 1);
+        existing.setRecallCount(Math.max(existing.getRecallCount(), incoming.getRecallCount()) + 1);
         existing.setImportanceScore(Math.max(existing.getImportanceScore(), incoming.getImportanceScore()));
         log.info("合并记忆 existingId={} incomingId={} mergedLen={}",
                 existing.getMemoryId(), incoming.getMemoryId(), mergedContent.length());

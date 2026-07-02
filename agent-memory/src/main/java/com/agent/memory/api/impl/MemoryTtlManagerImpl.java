@@ -20,7 +20,7 @@ import java.time.temporal.ChronoUnit;
  *   <li>SEMANTIC（语义记忆）：180 天 —— 中长期保留</li>
  *   <li>PROCEDURAL（程序记忆）：365 天 —— 长期保留</li>
  * </ul>
- * isExpired 按 createdAt + typeTtl 判断超期；archive 将状态置为 COLD。</p>
+ * isExpired 按 createdAt + typeTtl 判断超期；archive 将状态置为 ARCHIVED。</p>
  *
  * @see MemoryTtlManager
  */
@@ -61,8 +61,8 @@ public class MemoryTtlManagerImpl implements MemoryTtlManager {
             log.warn("归档失败：MemoryRecord 为 null");
             return;
         }
-        record.setStatus(MemoryStatus.COLD);
-        log.info("记忆已归档至冷存 memoryId={}", record.getMemoryId());
+        record.setStatus(MemoryStatus.ARCHIVED);
+        log.info("记忆已归档至归档存储 memoryId={}", record.getMemoryId());
     }
 
     /**

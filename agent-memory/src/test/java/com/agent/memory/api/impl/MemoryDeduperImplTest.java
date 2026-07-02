@@ -34,18 +34,18 @@ class MemoryDeduperImplTest {
     }
 
     @Test
-    @DisplayName("merge 应合并内容并累加 accessCount")
-    void should_MergeContentAndIncrementAccessCount_When_MergeInvoked() {
+    @DisplayName("merge 应合并内容并累加 recallCount")
+    void should_MergeContentAndIncrementRecallCount_When_MergeInvoked() {
         MemoryDeduperImpl deduper = new MemoryDeduperImpl();
         MemoryRecord existing = new MemoryRecord("mem_old", MemoryType.EPISODIC, "旧内容");
-        existing.setAccessCount(2);
+        existing.setRecallCount(2);
         MemoryRecord incoming = new MemoryRecord("mem_new", MemoryType.EPISODIC, "新内容");
-        incoming.setAccessCount(3);
+        incoming.setRecallCount(3);
 
         MemoryRecord merged = deduper.merge(existing, incoming);
 
         assertThat(merged.getContent()).contains("旧内容").contains("新内容");
-        assertThat(merged.getAccessCount()).isEqualTo(4); // max(2,3)+1
+        assertThat(merged.getRecallCount()).isEqualTo(4); // max(2,3)+1
     }
 
     @Test

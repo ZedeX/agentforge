@@ -1,0 +1,79 @@
+package com.agent.memory.config;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+ * agent-memory 配置属性（对齐 doc 04-memory §13）。
+ *
+ * <p>前缀 {@code memory}，映射 application.yml 中 {@code memory.*} 配置项。
+ * 各子配置（TTL / Recall / Distill / Dedup / Milvus）以静态内部类承载。
+ */
+@Getter
+@Setter
+@ConfigurationProperties(prefix = "memory")
+public class MemoryProperties {
+
+    /** TTL 状态流转策略。 */
+    private Ttl ttl = new Ttl();
+    /** Recall 召回参数。 */
+    private Recall recall = new Recall();
+    /** Distill 蒸馏触发条件。 */
+    private Distill distill = new Distill();
+    /** Dedup 去重阈值。 */
+    private Dedup dedup = new Dedup();
+    /** Milvus 向量库配置。 */
+    private Milvus milvus = new Milvus();
+
+    @Getter
+    @Setter
+    public static class Ttl {
+        /** RAW→ACTIVE：立即（0 秒）。 */
+        private String rawToActive = "0";
+        /** ACTIVE→DISTILLED：7 天。 */
+        private String activeToDistilled = "7d";
+        /** DISTILLED→ARCHIVED：30 天。 */
+        private String distilledToArchived = "30d";
+    }
+
+    @Getter
+    @Setter
+    public static class Recall {
+        /** 召回 topK（默认 10）。 */
+        private int topK = 10;
+        /** 相似度阈值（默认 0.75）。 */
+        private double scoreThreshold = 0.75;
+    }
+
+    @Getter
+    @Setter
+    public static class Distill {
+        /** 蒸馏触发条数（同 tenantId + topic 下 ACTIVE 记忆 ≥20 条）。 */
+        private int triggerCount = 20;
+    }
+
+    @Getter
+    @Setter
+    public static class Dedup {
+        /** 完全相同 hash 阈值（1.0 = 完全一致）。 */
+        private double exactThreshold = 1.0;
+        /** 余弦相似度高阈值（≥0.95 → 合并）。 */
+        private double cosineHigh = 0.95;
+        /** 余弦相似度低阈值（0.85~0.95 → 标记关联）。 */
+        private double cosineLow = 0.85;
+    }
+
+    @Getter
+    @Setter
+    public static class Milvus {
+        /** 是否启用 Milvus（测试环境禁用）。 */
+        private boolean enabled = false;
+        /** Milvus 主机。 */
+        private String host = "localhost";
+        /** Milvus 端口。 */
+        private int port = 19530;
+        /** Collection 名称。 */
+        private String collection = "agent_memory_vector";
+    }
+}

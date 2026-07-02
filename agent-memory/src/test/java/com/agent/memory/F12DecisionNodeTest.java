@@ -279,18 +279,18 @@ class F12DecisionNodeTest {
     // ============ F12.D6: TTL 归档 ============
 
     @Test
-    @DisplayName("UT-F12-010: TTL 到期归档（记忆超 90 天标记 COLD 迁移归档存储）")
+    @DisplayName("UT-F12-010: TTL 到期归档（记忆超 90 天标记 ARCHIVED 迁移归档存储）")
     void should_ExpireColdMemory_When_TtlReached() {
-        // F12.D6: 记忆超 90 天 → 标记 COLD，迁移归档存储
+        // F12.D6: 记忆超 90 天 → 标记 ARCHIVED，迁移归档存储
         MemoryTtlManager ttlManager = mock(MemoryTtlManager.class);
         MemoryRecord old = new MemoryRecord("mem_010", MemoryType.SEMANTIC, "旧记忆");
         old.setCreatedAt(Instant.now().minus(95, ChronoUnit.DAYS));
-        old.setTtlDays(90);
+        old.setTtlExpireAt(Instant.now().minus(5, ChronoUnit.DAYS));
         when(ttlManager.isExpired(eq(old))).thenReturn(true);
 
         boolean expired = ttlManager.isExpired(old);
         if (expired) {
-            old.setStatus(MemoryStatus.COLD);
+            old.setStatus(MemoryStatus.ARCHIVED);
             ttlManager.archive(old);
         }
 
@@ -298,8 +298,8 @@ class F12DecisionNodeTest {
                 .as("超 90 天的记忆应判定为过期")
                 .isTrue();
         assertThat(old.getStatus())
-                .as("过期记忆状态应标记为 COLD")
-                .isEqualTo(MemoryStatus.COLD);
+                .as("过期记忆状态应标记为 ARCHIVED")
+                .isEqualTo(MemoryStatus.ARCHIVED);
         verify(ttlManager, times(1)).archive(old);
     }
 

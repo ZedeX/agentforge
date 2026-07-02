@@ -34,14 +34,14 @@ class MemoryTtlManagerImplTest {
     }
 
     @Test
-    @DisplayName("archive 应将记忆状态置为 COLD")
-    void should_SetStatusCold_When_ArchiveInvoked() {
+    @DisplayName("archive 应将记忆状态置为 ARCHIVED")
+    void should_SetStatusArchived_When_ArchiveInvoked() {
         MemoryTtlManagerImpl manager = new MemoryTtlManagerImpl();
         MemoryRecord record = new MemoryRecord("mem_003", MemoryType.PROCEDURAL, "模板");
 
         manager.archive(record);
 
-        assertThat(record.getStatus()).isEqualTo(MemoryStatus.COLD);
+        assertThat(record.getStatus()).isEqualTo(MemoryStatus.ARCHIVED);
     }
 
     @Test

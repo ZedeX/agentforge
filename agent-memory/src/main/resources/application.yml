@@ -1,0 +1,45 @@
+server:
+  port: 8088
+
+# gRPC 服务端端口（MemoryService 4 RPC，T10 实现）
+grpc:
+  server:
+    port: 9088
+
+spring:
+  application:
+    name: agent-memory
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_memory?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# Memory 模块配置（对齐 doc 04-memory §13）
+memory:
+  ttl:
+    rawToActive: 0
+    activeToDistilled: 7d
+    distilledToArchived: 30d
+  recall:
+    topK: 10
+    scoreThreshold: 0.75
+  distill:
+    triggerCount: 20
+  dedup:
+    exactThreshold: 1.0
+    cosineHigh: 0.95
+    cosineLow: 0.85
+  milvus:
+    enabled: false
+    host: localhost
+    port: 19530
+    collection: agent_memory_vector
