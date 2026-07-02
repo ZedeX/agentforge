@@ -1205,3 +1205,73 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - 或 agent-memory T8-T9 业务实现（MemoryTtlManager + MemoryDeduper 对齐新字段）
 - 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
 - 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
+
+---
+
+## Wave 31: agent-memory T3 MemoryExtractor + TaskOutcome 对齐（2026-07-02）
+
+**日期**：2026-07-02 21:50 ~ 22:05
+**Commit**：`3fd4b547`（远程）/ `c401266`（本地）
+**CI**：run 28595707129 ✅ streak=30，用时 6m27s
+
+### 本轮交付
+
+**TaskOutcome 枚举对齐 Plan 03 doc 04 §3.3**：
+- `FAILED`→`FAILURE`、`CANCELLED`→`PARTIAL`（SUCCESS/FAILURE/PARTIAL/TIMEOUT）
+- 更新 F12DecisionNodeTest 引用 + DDL COMMENT + enum javadoc
+
+**T3 MemoryExtractor 增强（3 文件修改 + 1 文件新建）**：
+- `MemoryExtractor` 接口新增 `List<ExtractedMemory> extractFromTaskResult(TaskResult)`：按 outcome 自动分流
+  - SUCCESS→PROCEDURAL / FAILURE→REFLECTIVE / PARTIAL→both / TIMEOUT→REFLECTIVE
+- `MemoryExtractorImpl` 增强：
+  - 新增 REFLECTIVE 提取（`buildReflection`：FAILURE→"任务失败：目标=..." / TIMEOUT→"任务超时未完成：目标=..."）
+  - 实现 `extractFromTaskResult` 自动分流逻辑
+  - 注入 `MemoryExtractRule`，`extract()` 增加 `shouldFilter` 内容过滤
+- `MemoryExtractRule`（新建 @Component）：可配置 `minContentLength`(默认20) + `blacklistKeywords`(CSV)，通过 `@Value` 注入
+- `MemoryExtractorImplTest` 重写：19 tests（4 原有 + 15 新增）
+  - REFLECTIVE 提取（FAILURE + TIMEOUT）
+  - extractFromTaskResult 自动分流（SUCCESS/FAILURE/TIMEOUT/PARTIAL/null outcome）
+  - 内容过滤（长度不足/黑名单/合法通过）
+  - MemoryExtractRule 单元测试（CSV 解析/空 CSV）
+
+### 设计决策
+
+1. **extractFromTaskResult 保留 extract 共存**：`extract(TaskResult, MemoryType)` 用于显式指定类型（向后兼容 F12DecisionNodeTest mock），`extractFromTaskResult(TaskResult)` 用于按 outcome 自动分流（Plan 03 T3 新需求）。两个方法共存，接口非破坏性扩展
+2. **REFLECTIVE 复用 fact 字段**：ExtractedMemory 不新增 `reflection` 字段，REFLECTIVE 用 `fact` 存储失败反思文本（"任务失败：目标=xxx"）。语义上 fact = "事实性描述"，反思也是一种事实描述
+3. **MemoryExtractRule 通过 @Value 而非 @ConfigurationProperties**：规则只有 2 个参数（minContentLength + blacklistKeywords），`@Value` 简洁够用。复杂配置（如 Ttl/Recall/Distill 多级嵌套）才用 `@ConfigurationProperties`
+4. **内容过滤在 extract() 入口而非 extractFromTaskResult()**：过滤逻辑放在 `extract()` 中，`extractFromTaskResult()` 调用 `extract()` 时自动获得过滤能力。避免重复过滤逻辑
+5. **TaskOutcome 改名而非新增**：直接改枚举值名称（FAILED→FAILURE），因为骨架阶段无生产数据。H2 `ddl-auto=create-drop` 自动更新 check 约束，MySQL DDL 手动更新 COMMENT
+
+### 验证结果
+
+- **本地 mvn verify**：67 tests 全绿（52 existing + 15 new），JaCoCo 通过
+- **CI**：run 28595707129 ✅ streak=30，用时 6m27s
+- **H2 check 约束确认**：`check (outcome in ('SUCCESS','FAILURE','PARTIAL','TIMEOUT'))` 正确反映新枚举
+
+### Plan 03 进度表
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 基础设施 | ✅ | Wave 30 |
+| T2 JPA Entity + Repository | ✅ | Wave 30 |
+| T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
+| T4 MemoryDistiller 业务实现 | ⏳ | 需 ModelGatewayClient gRPC stub |
+| T5 EmbeddingClient | ⏳ | 骨架已有 |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
+| T7 ImportanceScorer | ⏳ | 骨架已有 |
+| T8 MemoryTtlManager 业务实现 | ⏳ | 骨架已有，已对齐 ARCHIVED |
+| T9 MemoryDeduper 业务实现 | ⏳ | 骨架已有，已对齐 recallCount |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+
+### 经验教训
+
+52. **@Value 默认值在测试中不生效**：`MemoryExtractRule` 用 `@Value("${memory.extract.min-content-length:20}")` 设置默认值 20。但单元测试直接 `new MemoryExtractRule(0, "")` 构造，绕过 Spring 容器。需要提供 `permissiveRule()` 工厂方法（minLength=0）让现有测试数据通过过滤
+53. **中文字符长度 vs 英文字符长度**：`String.length()` 返回 UTF-16 code unit 数，中文字符 = 1 length。"这是一个足够长的合法任务目标内容" = 16 chars < 20，被过滤。测试数据需确保 `length() >= minContentLength`，不能凭视觉判断"足够长"
+54. **TaskOutcome 枚举改名是破坏性变更但骨架阶段安全**：`@Enumerated(STRING)` 存储枚举名，改名导致旧数据不兼容。但骨架阶段无生产数据，H2 `create-drop` 自动重建。生产环境需 `ALTER TABLE` + 数据迁移
+
+### 下一波（Wave 32）计划
+
+- **agent-memory T4 MemoryDistiller**（需 ModelGatewayClient gRPC stub 基础设施）
+- 或 agent-memory T8-T9 业务实现深化（MemoryTtlManager + MemoryDeduper 对齐新字段）
+- 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
+- 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
