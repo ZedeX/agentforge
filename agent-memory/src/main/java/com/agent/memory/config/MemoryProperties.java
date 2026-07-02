@@ -25,6 +25,8 @@ public class MemoryProperties {
     private Dedup dedup = new Dedup();
     /** Milvus 向量库配置。 */
     private Milvus milvus = new Milvus();
+    /** T4: 模型网关 gRPC 客户端开关。 */
+    private ModelGateway modelGateway = new ModelGateway();
 
     @Getter
     @Setter
@@ -75,5 +77,16 @@ public class MemoryProperties {
         private int port = 19530;
         /** Collection 名称。 */
         private String collection = "agent_memory_vector";
+    }
+
+    @Getter
+    @Setter
+    public static class ModelGateway {
+        /** 是否启用模型网关 gRPC 客户端（测试环境禁用，避免 channel 初始化）。 */
+        private boolean enabled = true;
+        /** 蒸馏场景标识（对齐 model.proto ChatRequest.scene）。 */
+        private String distillScene = "summary";
+        /** 蒸馏模型层级（light / middle / strong）。 */
+        private String distillTier = "middle";
     }
 }

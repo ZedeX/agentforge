@@ -20,9 +20,17 @@
     <properties>
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
         <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
+        <!-- T4: gRPC Spring Boot Starter（与 agent-task-orchestrator / agent-model-gateway 一致） -->
+        <grpc.spring.boot.starter.version>3.1.0.RELEASE</grpc.spring.boot.starter.version>
     </properties>
 
     <dependencies>
+        <!-- Internal modules -->
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-proto</artifactId>
+        </dependency>
+
         <!-- Spring annotations (@Component/@Service) + SLF4J logging for impl classes -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -37,6 +45,24 @@
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- T4: gRPC client (net.devh) — 调用 agent-model-gateway Chat RPC 做记忆蒸馏 -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.starter.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.grpc</groupId>
+                    <artifactId>grpc-netty-shaded</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-client-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.starter.version}</version>
         </dependency>
 
         <!-- Lombok -->

@@ -25,3 +25,6 @@ spring:
 memory:
   milvus:
     enabled: false
+  # T4: 测试环境禁用模型网关 gRPC 客户端（避免连接 9094 端口）
+  model-gateway:
+    enabled: false

@@ -1,10 +1,15 @@
 server:
   port: 8088
 
-# gRPC 服务端端口（MemoryService 4 RPC，T10 实现）
+# gRPC 服务端端口（MemoryService 4 RPC，T10 实现）+ 客户端（调用 agent-model-gateway）
 grpc:
   server:
     port: 9088
+  client:
+    # T4: 调用 agent-model-gateway Chat RPC 做记忆蒸馏（gRPC 端口 9094）
+    model-gateway:
+      address: static://localhost:9094
+      negotiation-type: plaintext
 
 spring:
   application:
@@ -43,3 +48,6 @@ memory:
     host: localhost
     port: 19530
     collection: agent_memory_vector
+  # T4: 模型网关客户端开关（测试环境禁用，避免 gRPC channel 初始化）
+  model-gateway:
+    enabled: true
