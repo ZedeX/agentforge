@@ -166,8 +166,21 @@ class F12DecisionNodeTest {
     @DisplayName("UT-F12-006: 频次加权重要性评分（记忆被召回 5 次时 importanceScore 提升）")
     void should_ComputeImportanceByFrequency_When_MemoryAccessed() {
         // F12.D3: importance = freq × recency × relevance
-        com.agent.memory.api.ImportanceScorer scorer = (accessCount, recency, relevance) ->
-                Math.min(1.0, accessCount * 0.1 * recency * relevance);
+        // 接口扩展为双方法后用匿名类实现（保留旧 3 维度路径向后兼容）
+        com.agent.memory.api.ImportanceScorer scorer = new com.agent.memory.api.ImportanceScorer() {
+            @Override
+            public double score(int accessCount, double recency, double relevance) {
+                return Math.min(1.0, accessCount * 0.1 * recency * relevance);
+            }
+
+            @Override
+            public com.agent.memory.scorer.ImportanceResult score(
+                    com.agent.memory.model.MemoryRecord record,
+                    com.agent.memory.scorer.ScoringContext context) {
+                // F12 旧路径不测试 5 维度新接口，返回 null 即可
+                return null;
+            }
+        };
 
         double lowScore = scorer.score(1, 0.5, 0.6);
         double highScore = scorer.score(5, 0.9, 0.8);
