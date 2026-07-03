@@ -92,5 +92,10 @@ tmp/
 .temp/
 scratch/
 
+# ---- Wave-level temporary files (commit messages, build scripts, logs) ----
+wave*-commit-msg.txt
+wave*-build.bat
+agent-log-temp.md
+
 # ---- Build tooling caches ----
 .flattened-pom.xml
