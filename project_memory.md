@@ -1439,3 +1439,80 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - 或 agent-memory T7 ImportanceScorer（5 维度加权评分，自包含无外部依赖）
 - 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
 - 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
+
+---
+
+## Wave 34: agent-memory T7 ImportanceScorer 5 维度加权评分（2026-07-04）
+
+**日期**：2026-07-04 07:00 ~ 07:20
+**Commit**：`aeaf1cb`（远程）/ `0c50bab`（本地）
+**CI**：run 28687274719 ✅ streak=33，用时 6m32s
+
+### 本轮交付
+
+**T7 ImportanceScorer 5 维度加权评分（12 tests，+9 new）**：
+- `ImportanceScorer` 接口扩展：新增 `ImportanceResult score(MemoryRecord record, ScoringContext context)`，保留旧 `double score(int, double, double)` 向后兼容
+- `ImportanceScorerImpl` 重写：5 维度加权评分（权重和=1.0，对齐 doc 04 §4.2）
+  - emotionIntensity (0.20) — 从 ScoringContext.emotionIntensity 或默认 0.5
+  - frequency (0.25) — recallCount/10 饱和到 1.0
+  - novelty (0.20) — 1 - 余弦相似度均值（无 referenceVectors 时默认 0.5）
+  - taskRelevance (0.25) — taskKeywords ∩ record.keywords 命中率
+  - timeDecay (0.10) — exp(-Δt/30d)，30 天衰减到 1/e ≈ 0.37
+- 等级分级（doc 04 §4.3）：score≥0.7 → HIGH / 0.4≤score<0.7 → MEDIUM / score<0.4 → LOW
+- 新建 3 个模型：
+  - `ImportanceDimensions`（5 维度 POJO，构造时 clamp01）
+  - `ScoringContext`（taskKeywords / referenceVectors / now / emotionIntensity）
+  - `ImportanceResult`（score + level + dimensions 明细，含 classify 静态方法）
+- 旧接口 `score(int, double, double)` 保留 3 维度加权（0.4/0.3/0.3），F12.D3 向后兼容
+- `F12DecisionNodeTest` lambda → 匿名类（接口从 functional 变双方法）
+
+### 设计决策
+
+1. **5 维度权重对齐 doc 04 §4.2**：emotionIntensity 0.20 / frequency 0.25 / novelty 0.20 / taskRelevance 0.25 / timeDecay 0.10。权重和必须=1.0，测试 `should_HaveWeightsSumToOne` 显式验证
+2. **novelty 维度简化处理**：Plan 03 T7 要求 novelty = 1 - 与同 topic 最近 5 条的余弦相似度均值，需要 EmbeddingClient（T5）和 MemoryVectorStore（T6）。T7 阶段 novelty 退化为默认 0.5（无 referenceVectors 时），等 T5/T6 完成后接入。调用方可通过 ScoringContext.referenceVectors 传入预计算向量
+3. **taskRelevance 命中率计算**：taskKeywords ∩ recordKeywords / taskKeywords.size()。recordKeywords 从 keywords 字段解析（支持 JSON 数组、逗号、分号、空格分隔）。命中率 = 命中数 / 任务关键词总数
+4. **timeDecay 用 exp(-Δt/30d)**：30 天衰减到 1/e ≈ 0.37。未来时间（daysElapsed<0）返回 1.0（无衰减）。无 createdAt 时退化 0.5
+5. **ImportanceScorer 接口从 functional 变双方法**：新增 `score(MemoryRecord, ScoringContext)` 后，F12DecisionNodeTest 的 lambda（仅实现旧接口）编译失败。改为匿名类实现两个方法。这是接口演进的必要代价
+6. **ScoringContext 解耦 EmbeddingClient**：T7 不直接依赖 EmbeddingClient（保持自包含可测试）。调用方（如 LongTermMemoryWriter）负责用 EmbeddingClient 生成 referenceVectors 后传入 ScoringContext。这是依赖反转的标准应用
+7. **ImportanceResult 包含 dimensions 明细**：不只返回 score，还返回各维度得分。便于调试、日志、UI 展示。Plan 03 T7 Refactor 步骤要求"权重抽到 MemoryProperties.Scorer.weights"，后续可配置化
+
+### 验证结果
+
+- **本地 mvn verify**：106 tests 全绿（97 existing + 9 净增），JaCoCo 通过
+  - T7 ImportanceScorerImplTest: 12 tests（9 new + 3 legacy）
+  - F12DecisionNodeTest: 12 tests（lambda 改匿名类后通过）
+  - 其他模块测试不变
+- **CI**：run 28687274719 ✅ streak=33，用时 6m32s
+- **编译错误修复**：`recallCount` 是基本类型 `int`（非 Integer），不能用 `!= null` 比较。改为直接 `record.getRecallCount()`
+
+### Plan 03 进度表
+
+| Task | 状态 | 说明 |
+|---|---|---|
+| T1 基础设施 | ✅ | Wave 30 |
+| T2 JPA Entity + Repository | ✅ | Wave 30 |
+| T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
+| T4 MemoryDistiller 业务实现 | ✅ | Wave 33 完成（gRPC Chat RPC + 源归档 + 聚合 importance） |
+| T5 EmbeddingClient | ⏳ | 骨架已有（mock 实现，待 T5 接入 HTTP） |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
+| T7 ImportanceScorer | ✅ | Wave 34 完成（5 维度加权 + level 分级 + dimensions 明细） |
+| T8 MemoryTtlManager 业务实现 | ✅ | Wave 32 完成（applyTtl 状态机 + cleanupExpired + Scheduler） |
+| T9 MemoryDeduper 业务实现 | ✅ | Wave 32 完成（dedup + DedupReport + repository-backed） |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+
+### 经验教训
+
+65. **基本类型 int 不能用 != null 比较**：Java 基本类型（int/long/boolean/double 等）不能为 null，`!= null` 会编译错误。JPA Entity 中 `private int recallCount` 默认值 0，直接用 `record.getRecallCount()` 即可。若需 nullable（表示"未设置"），用包装类型 `Integer`。设计时优先用基本类型，除非需要 null 语义
+66. **接口从 functional 变双方法的代价**：ImportanceScorer 原本是 functional interface（单方法），可用 lambda。新增 `score(MemoryRecord, ScoringContext)` 后变双方法，lambda 编译失败。所有 lambda 使用处需改为匿名类或方法引用。骨架阶段影响小，生产代码需全局搜索 lambda 用法
+67. **5 维度权重和=1.0 的显式测试**：`should_HaveWeightsSumToOne` 测试验证 `0.20+0.25+0.20+0.25+0.10=1.0`。浮点数加法有精度问题，用 `isCloseTo(1.0, within(1e-9))`。这个测试防止未来修改权重时意外破坏归一化
+68. **timeDecay 用 exp(-Δt/30d) 而非线性衰减**：指数衰减比线性更符合人类记忆遗忘曲线（艾宾浩斯遗忘曲线）。30 天衰减到 1/e ≈ 0.37（非 0），意味着 30 天前的记忆仍有 37% 的时间衰减分。配合其他维度，总分不会归零
+69. **ScoringContext 解耦外部依赖**：T7 不直接注入 EmbeddingClient（避免 T5 未完成时无法测试）。调用方负责生成 referenceVectors 后传入 ScoringContext。这是依赖反转的典型应用——scorer 只需"向量数据"，不关心"向量如何生成"
+70. **keywords 字段解析的容错策略**：record.keywords 可能是 JSON 数组（`["订单","支付"]`）、逗号分隔（`订单,支付`）、分号分隔（`订单;支付`）。parseKeywords 用 `replaceAll("[\\[\\]\"]", "")` 去掉方括号引号，再按 `[,;\\s]+` 分割。容错策略保证多种格式都能解析
+
+### 下一波（Wave 35）计划
+
+- **agent-memory T5 EmbeddingClient**（HTTP 调 model-gateway /v1/embeddings，MockWebServer 测试，自包含）
+- 或 agent-memory T6 MemoryVectorStore + Milvus（需 Milvus infra）
+- 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
+- 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
+- 或 agent-memory T10 MemoryService gRPC（需 memory.proto 定义）
