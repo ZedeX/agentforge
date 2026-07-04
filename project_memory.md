@@ -1516,3 +1516,91 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - 或 Plan 05 agent-tool-engine / Plan 06 agent-runtime JPA 持久化
 - 或 Plan 07 T14 / Plan 08 T12 集成测试（需 Testcontainers）
 - 或 agent-memory T10 MemoryService gRPC（需 memory.proto 定义）
+
+---
+
+## Wave 35: 全平台文档整理对齐（2026-07-04）
+
+**日期**：2026-07-04 08:00 ~ 08:30
+**Commit**：`3464ceb`（本地 + 远程，干净 fast-forward push）
+**CI**：run 28688543436 ✅ streak=34，用时 6m27s
+
+### 本轮交付
+
+**Wave 34 收尾后的全平台文档整理对齐，4 个文件变更（+568 / -92）**：
+
+1. **docs/plans/00-coding-plans-overview.md（v1.0 → v2.0 重写）**：
+   - 修复严重过时的 Plan 编号体系（v1.0 把 Plan 03 标为 "DDL 脚本编写"，但实际 03-agent-memory-plan.md 是 agent-memory）
+   - 对齐 Plan 01-09 到实际文件：03=memory / 04=orchestrator / 05=tool-engine / 06=runtime / 07=model-gateway / 08=repo+knowledge / 09=infra
+   - 删除"待生成 8 份 plan"表述（全部 9 份 plan 已生成）
+   - 更新各 Plan 真实进度：Plan 03 7/10、Plan 04 9/13、Plan 07 13/14、Plan 08 7/12
+   - 更新依赖图（标注每个 Plan 的进度状态）+ 执行顺序建议（阶段 A-D）
+   - 新增已完成 Plan 执行回顾（Plan 01/02）+ 进行中 Plan 下一步建议（优先级排序表）
+
+2. **docs/tests/tdd-red-green-records-v1.2.md（新建）**：
+   - v1.1 原文件为单行格式历史快照，不再修改
+   - v1.2 增补文档记录 Wave 18~34 v8 持久化深化期 TDD 红绿循环
+   - 17 个 Wave 摘要（每个含交付内容 + 关键红绿循环 + CI 验证 + 经验教训）
+   - 经验教训 25~50（接续 v1.1 的 1~24）
+   - 测试方法总计 v1.1 490+ → v1.2 834+
+   - CI streak 进展 4 → 33
+
+3. **docs/README.md 更新**：
+   - 文档总数 30 → 38（9 份编码计划 + 13 份测试文档）
+   - 编码计划章节列出全部 9 份 plan 及真实状态
+   - tdd-red-green-records 条目 v1.0 → v1.1 + 新增 v1.2 增补条目
+   - 测试方法总数 464+ → 834+
+   - A- 等级状态更新（Wave 20 已达成，当前 streak=34）
+
+4. **.gitignore 补充**：
+   - 新增 wave*-commit-msg.txt / wave*-build.bat / agent-log-temp.md 模式
+   - 避免临时 commit 消息文件和构建脚本污染仓库
+
+### 设计决策
+
+1. **v1.1 tdd-red-green-records 保持历史快照不再修改**：原文件是单行格式（无换行符，全部用双空格分隔），Edit 困难且易破坏格式。采用续篇策略：v1.2 独立文件维护，用标准 markdown 格式。这是文档演进的合理策略——历史快照保持不变，新版本独立维护
+
+2. **00-coding-plans-overview v2.0 重写而非增量更新**：v1.0 的 Plan 编号体系完全错位（Plan 03 是 DDL 但实际是 memory），增量修补不如重写干净。v2.0 保留 v1.0 的 TDD 提交时序约定（§3.6）等仍有效的内容，重写 Plan 编号 + 进度 + 依赖图
+
+3. **reset --soft + 选择性 unstage 处理 diverged 分支**：本地和远程有 21 vs 22 个 diverged commit（Wave 24~34 各有本地和远程两个版本，内容相同 SHA 不同，因 gh-api-push.py 推送产生）。用 `git reset --soft origin/main` 把本地 HEAD 移到远程，然后 unstage 已在远程的代码文件，只保留 4 个文档文件重新 commit。避免 force push，保持 fast-forward 历史
+
+### 验证结果
+
+- **git push 干净 fast-forward**：`7378bcf..3464ceb main -> main`，无需 force
+- **CI**：run 28688543436 ✅ streak=34，用时 6m27s（docs-only commit，CI 风险低）
+- **文档一致性**：00-coding-plans-overview v2.0 + README.md + tdd-red-green-records-v1.2 三份文档的 Plan 进度数字、测试方法总数、CI streak 均对齐
+
+### 文档对齐验证矩阵
+
+| 维度 | 旧值（v1.0/v1.1） | 新值（v2.0/v1.2） | 一致性 |
+|---|---|---|---|
+| Plan 总数 | 10（含待生成 8 份） | 9（全部已生成） | ✅ |
+| Plan 03 模块 | DDL 脚本编写 | agent-memory | ✅ 对齐实际文件 |
+| Plan 09 模块 | repo+knowledge+quality | infra-deployment | ✅ 对齐实际文件 |
+| Plan 03 进度 | 待生成 | 7/10（T1-T4, T7-T9 ✅） | ✅ |
+| Plan 04 进度 | T5~T13 全实现 | 9/13（T5/T7/T11/T13 待做） | ✅ |
+| Plan 07 进度 | 待生成 | 13/14（T14 集成测试待做） | ✅ |
+| Plan 08 进度 | 待生成 | 7/12（T10/T12 待做） | ✅ |
+| 测试方法总数 | 464+ | 834+（v1.1 490+ + v1.2 344） | ✅ |
+| CI streak | 5/10（进行中） | 34（A- 已达成） | ✅ |
+| A- 等级 | 差 0.8 分 | Wave 20 已达成 | ✅ |
+
+### 经验教训
+
+71. **文档编号体系变更时必须全量重写而非增量修补**：00-coding-plans-overview v1.0 的 Plan 编号与实际文件完全错位（Plan 03 标为 DDL 但实际是 memory）。增量修补会留下不一致痕迹，全量重写更干净。重写时保留仍有效的内容（如 TDD 提交时序约定），重写错位部分
+
+72. **单行格式文档用续篇策略而非原地修改**：tdd-red-green-records v1.1 是单行格式（无换行符），Edit 工具难以处理。采用续篇策略：v1.1 保持历史快照，v1.2 独立文件用标准 markdown 维护。这避免了格式破坏风险，且历史可追溯
+
+73. **diverged 分支用 reset --soft + 选择性 unstage 处理**：当本地和远程有内容相同但 SHA 不同的 commit 时（因 gh-api-push.py 推送产生），`git reset --soft origin/main` 把本地 HEAD 移到远程，然后选择性 unstage 已在远程的文件，只保留新改动重新 commit。避免 force push，保持 fast-forward 历史
+
+74. **文档对齐验证矩阵**：多份文档同步更新后，用验证矩阵检查一致性（Plan 总数 / 模块 / 进度 / 测试方法总数 / CI streak / 等级）。避免文档间数字不一致
+
+75. **.gitignore 应覆盖临时 commit 消息文件**：wave*-commit-msg.txt / wave*-build.bat / agent-log-temp.md 这类临时文件应加入 .gitignore，避免污染仓库。用户规则要求保留临时文件不删除，但不应入库
+
+### 下一波（Wave 36）计划
+
+- **agent-memory T5 EmbeddingClient**（HTTP 调 model-gateway /v1/embeddings，MockWebServer 测试，自包含）—— 高优先级，解锁 T6/T7 完整 novelty 计算
+- 或 agent-memory T10 MemoryService gRPC（闭合 Plan 03 4 RPC，需先定义 memory.proto）
+- 或 Plan 05 agent-tool-engine（解锁 Plan 06 agent-runtime 依赖）
+- 或 Plan 04 T5/T7/T11/T13（闭合 Plan 04）
+- 或 Plan 07 T14 集成测试（闭合 Plan 07，需 WireMock）
