@@ -27,6 +27,8 @@ public class MemoryProperties {
     private Milvus milvus = new Milvus();
     /** T4: 模型网关 gRPC 客户端开关。 */
     private ModelGateway modelGateway = new ModelGateway();
+    /** T5: Embedding 客户端配置（HTTP 调用 agent-model-gateway /v1/embeddings）。 */
+    private Embedding embedding = new Embedding();
 
     @Getter
     @Setter
@@ -88,5 +90,45 @@ public class MemoryProperties {
         private String distillScene = "summary";
         /** 蒸馏模型层级（light / middle / strong）。 */
         private String distillTier = "middle";
+    }
+
+    /**
+     * T5: Embedding 客户端配置。
+     *
+     * <p>对齐 doc 04-memory §7.2 / §12.3：
+     * <ul>
+     *   <li>{@code httpEnabled=false}（默认）→ 使用 MockEmbeddingClientImpl（确定性伪向量）</li>
+     *   <li>{@code httpEnabled=true}（生产）→ 使用 EmbeddingClientImpl（真实 HTTP 调用）</li>
+     * </ul>
+     */
+    @Getter
+    @Setter
+    public static class Embedding {
+        /** 是否启用真实 HTTP Embedding 客户端（测试环境禁用）。 */
+        private boolean httpEnabled = false;
+        /** agent-model-gateway 嵌入接口 base URL。 */
+        private String baseUrl = "http://localhost:8080";
+        /** 嵌入接口路径（OpenAI 兼容）。 */
+        private String path = "/v1/embeddings";
+        /** 模型名（对齐 doc 04 §7.2：text-embedding-v3，1024 维）。 */
+        private String model = "text-embedding-v3";
+        /** API Key（Bearer Token，可为空）。 */
+        private String apiKey = "";
+        /** 连接超时（毫秒，对齐 §12.3：2 秒）。 */
+        private int connectTimeoutMs = 2000;
+        /** 读取超时（毫秒，对齐 §12.3：10 秒）。 */
+        private int readTimeoutMs = 10000;
+        /** 最大重试次数（对齐 §12.3：3 次指数退避）。 */
+        private int maxRetries = 3;
+        /** 重试退避基础间隔（毫秒，对齐 §12.3：100/300/1000）。 */
+        private long retryBackoffBaseMs = 100;
+        /** 重试退避乘数（每轮乘以此系数）。 */
+        private double retryBackoffMultiplier = 3.0;
+        /** 是否启用本地缓存。 */
+        private boolean cacheEnabled = true;
+        /** 缓存 TTL（分钟，对齐 §7.5：1 小时）。 */
+        private long cacheTtlMinutes = 60;
+        /** 缓存最大条目数。 */
+        private int cacheMaxSize = 10000;
     }
 }

@@ -51,3 +51,18 @@ memory:
   # T4: 模型网关客户端开关（测试环境禁用，避免 gRPC channel 初始化）
   model-gateway:
     enabled: true
+  # T5: Embedding 客户端配置（httpEnabled=true 启用真实 HTTP, false 使用 Mock）
+  embedding:
+    http-enabled: true
+    base-url: http://agent-model-gateway:8080
+    path: /v1/embeddings
+    model: text-embedding-v3
+    api-key: ""
+    connect-timeout-ms: 2000
+    read-timeout-ms: 10000
+    max-retries: 3
+    retry-backoff-base-ms: 100
+    retry-backoff-multiplier: 3.0
+    cache-enabled: true
+    cache-ttl-minutes: 60
+    cache-max-size: 10000
