@@ -453,4 +453,35 @@
 
 ---
 
-（Part 4 结束，共 447 行。原文件拆分完成）
+## Wave 38：project_memory.md 文件拆分（2026-07-04）
+
+**作用**：将过大的 `project_memory.md`（1808 行，340KB+）拆分成多个 Part 文件，便于查阅和维护。
+
+**背景**：原文件超过 Read 工具 128KB 限制，无法一次性读取。需要按逻辑单元拆分。
+
+**本轮交付**：
+- 分析原文件结构（19 Wave 节 + 4 里程碑节）
+- 设计拆分方案：按 Wave 批次而非简单行数切分，保持内容完整性
+- 分段读取内容（使用 Read offset/limit 参数）
+- 创建 4 个 Part 文件：
+  - `project_memory_part1.md`：Wave 17~21（488 行）
+  - `project_memory_part2.md`：Wave 22~26（369 行）
+  - `project_memory_part3.md`：Wave 27~32（504 行）
+  - `project_memory_part4.md`：Wave 33~37（447 行）
+- 原文件转为索引（67 行）：Part 表格 + 进度汇总 + 教训索引 + 相关文档链接
+- Commit `208a330` + CI run `28697062073` ✅（6m25s）
+- CI streak 从 39 → **40**
+
+**设计决策**：
+1. **按 Wave 批次而非行数切分**：保持 Wave 内容完整性，避免同一 Wave 被截断到两个 Part
+2. **索引文件包含导航元素**：Part 表格（含链接、行数、覆盖内容）+ 进度汇总 + 教训索引 + 相关文档链接
+3. **Part 4 包含最新内容**：Wave 33~37 是 agent-memory 收尾期，后续 Wave 将追加到此文件
+
+**后续维护规则**：
+- 新 Wave 内容追加到对应 Part 文件末尾
+- 当某个 Part 超过 500 行时，可继续拆分（如 Part 4 → Part 4a + Part 4b）
+- 索引文件保持简要，仅更新进度汇总和 Part 分布表
+
+---
+
+（Part 4 结束，Wave 38 追加后共 ~495 行）

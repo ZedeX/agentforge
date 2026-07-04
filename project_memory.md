@@ -55,7 +55,22 @@
 | Part 3 | 47~59 | gRPC server streaming Flux 模式 / JPA Entity 字段重命名影响分析 / 状态机单次前进设计 |
 | Part 4 | 60~85 | @ConditionalOnProperty 互斥 bean / JaCoCo exclude 模式误伤 / 余弦相似度边界处理 |
 
-## 🚀 下一波（Wave 38）计划
+## ✅ Wave 38 已完成（2026-07-04）
+
+**任务**：project_memory.md 文件拆分（1808 行 → 索引 67 行 + 4 个 Part）
+
+**交付**：
+- 原 `project_memory.md`（1808 行，340KB+）超出 Read 工具 128KB 限制
+- 按 Wave 批次拆分为 4 个 Part 文件（Part 1~4）
+- 原文件转为索引入口（Part 表格 + 进度汇总 + 教训索引 + 相关文档链接）
+- Commit `208a330` + CI run `28697062073` ✅（6m25s）
+- CI streak 从 39 → **40**
+
+**关键经验**：大文件拆分应按逻辑单元（Wave 批次）而非简单行数切分，保持内容完整性
+
+---
+
+## 🚀 下一波（Wave 39）计划
 
 - **Plan 04 T5/T7/T11/T13**（闭合 Plan 04；T13 集成测试需 Docker）
 - 或 **Plan 05 agent-tool-engine**（解锁 Plan 06 agent-runtime 依赖）
