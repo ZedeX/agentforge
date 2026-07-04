@@ -1,6 +1,6 @@
 # Agent 平台编码计划总览
 
-> 文档版本：v2.0 | 更新日期：2026-07-04 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
+> 文档版本：v2.2 | 更新日期：2026-07-04 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
 > 方法论：[writing-plans](../../project_memory.md) | TDD 红绿循环 | 无占位符 | bite-sized tasks
 > 维护原则：每完成一个 Wave 后更新本表（Plan 状态 / Task 进度 / CI streak）
 
@@ -8,13 +8,13 @@
 
 本平台共 11 个核心微服务 + 2 个横向服务，按依赖关系拆分为 **9 个独立编码计划**（Plan 01~Plan 09）。每个计划可独立交付可测试的软件单元，遵循 TDD 红绿循环。
 
-### 当前总体进度（截至 Wave 36，CI streak=36）
+### 当前总体进度（截至 Wave 37，CI streak=39）
 
 | # | 计划名称 | 模块 | Task 进度 | 状态 | 最新 Wave |
 |---|---|---|---|---|---|
 | 01 | [agent-proto-and-common](./01-agent-proto-and-common-plan.md) | agent-proto + agent-common | 8/8 | ✅ 已完成 | Wave 1~4 |
 | 02 | [agent-gateway-session](./02-agent-gateway-session-plan.md) | agent-gateway(8080) + agent-session(8082) | 10/10 | ✅ 已完成 | Wave 5~11 |
-| 03 | [agent-memory](./03-agent-memory-plan.md) | agent-memory(8088/9088) | 8/10 | 🔄 进行中 | Wave 30~36 |
+| 03 | [agent-memory](./03-agent-memory-plan.md) | agent-memory(8088/9088) | 9/10 | 🔄 进行中 | Wave 30~37 |
 | 04 | [task-orchestrator-planning](./04-task-orchestrator-planning-plan.md) | agent-task-orchestrator(8084) + agent-planning(8086) | 9/13 | 🔄 进行中 | P6 Wave 1~2 |
 | 05 | [agent-tool-engine](./05-agent-tool-engine-plan.md) | agent-tool-engine(8090/9090) | 0/12 | ⏳ 待开发 | — |
 | 06 | [agent-runtime](./06-agent-runtime-plan.md) | agent-runtime(8092/9092) | 0/10 | ⏳ 待开发 | — |
@@ -35,7 +35,7 @@
 - 43 个 Java 类全绿 + EndToEndTest 通过
 - 验收：Wave 5~11 闭合，CI streak=10 达成 A- 等级
 
-#### Plan 03 — agent-memory（🔄 进行中，8/10 Task）
+#### Plan 03 — agent-memory（🔄 进行中，9/10 Task）
 | Task | 状态 | 完成 Wave | 说明 |
 |---|---|---|---|
 | T1 基础设施 | ✅ | Wave 30 | MemoryProperties + MilvusClientConfig + EmbeddingClientConfig |
@@ -47,7 +47,7 @@
 | T7 ImportanceScorer | ✅ | Wave 34 | 5 维度加权 + level 分级 + dimensions 明细 |
 | T8 MemoryTtlManager | ✅ | Wave 32 | applyTtl 状态机 + cleanupExpired + Scheduler |
 | T9 MemoryDeduper | ✅ | Wave 32 | dedup + DedupReport + repository-backed |
-| T10 MemoryService gRPC | ⏳ | — | 需 memory.proto 定义 |
+| T10 MemoryService gRPC | ✅ | Wave 37 | 4 RPC（WriteLongTerm/Recall/TriggerDistill/GetMemoryById）+ 完整写入流程 + 189 tests |
 
 #### Plan 04 — agent-task-orchestrator + agent-planning（🔄 进行中，9/13 Task）
 | Task | 状态 | 说明 |
@@ -132,7 +132,7 @@
 │  │ Plan 04:          │  │ Plan 03:     │  │ Plan 05:     │            │
 │  │ task-orchestrator │  │ memory       │  │ tool-engine  │            │
 │  │ + planning        │  │ (10 Task)    │  │ (12 Task)    │            │
-│  │ (13 Task)         │  │ 🔄 8/10      │  │ ⏳ 0/12      │            │
+│  │ (13 Task)         │  │ 🔄 9/10      │  │ ⏳ 0/12      │            │
 │  │ 🔄 9/13           │  └──────┬───────┘  └──────┬───────┘            │
 │  └────────┬─────────┘         │                  │                    │
 │           │                   │                  │                    │
@@ -304,9 +304,8 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 
 | 优先级 | Plan / Task | 理由 |
 |---|---|---|
-| 高 | Plan 03 T10 MemoryService gRPC | 闭合 Plan 03 4 RPC；需先定义 memory.proto |
-| 中 | Plan 04 T5/T7/T11/T13 | 闭合 Plan 04；T13 集成测试需 Docker（Testcontainers） |
-| 中 | Plan 05 agent-tool-engine | 解锁 Plan 06 agent-runtime 依赖 |
+| 高 | Plan 04 T5/T7/T11/T13 | 闭合 Plan 04；T13 集成测试需 Docker（Testcontainers） |
+| 高 | Plan 05 agent-tool-engine | 解锁 Plan 06 agent-runtime 依赖 |
 | 中 | Plan 07 T14 集成测试 | 闭合 Plan 07；需 WireMock |
 | 低 | Plan 03 T6 / Plan 08 T10 | 需 Milvus infra（Testcontainers 或本地启动） |
 | 低 | Plan 06 agent-runtime | 依赖 task/memory/tool/model 全部完成 |
@@ -320,3 +319,4 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 | v1.0 | 2026-06-27 | 初始版本，列出 10 份计划（含待生成的 8 份），定义依赖关系、执行顺序、TDD 提交时序约定 |
 | v2.0 | 2026-07-04 | 重写：①Plan 编号对齐实际文件（03=agent-memory / 04=task-orchestrator / 05=tool-engine / 06=runtime / 07=model-gateway / 08=repo+knowledge / 09=infra）；②删除"待生成 8 份"表述（全部 9 份 plan 已生成）；③更新各 Plan 真实进度（Plan 03 7/10、Plan 04 9/13、Plan 07 13/14、Plan 08 7/12）；④更新依赖图与执行顺序建议；⑤新增已完成 Plan 执行回顾与进行中 Plan 下一步建议 |
 | v2.1 | 2026-07-04 | 同步 Wave 36 进度：①Plan 03 进度 7/10 → 8/10（T5 EmbeddingClient HTTP 实现完成）；②CI streak 33 → 36；③依赖图 Plan 03 标注 8/10；④阶段 B 描述更新（T5 移出待做列表）；⑤优先级排序表移除已完成的 T5 |
+| v2.2 | 2026-07-04 | 同步 Wave 37 进度：①Plan 03 进度 8/10 → 9/10（T10 MemoryService gRPC 4 RPC 完成）；②CI streak 36 → 39；③依赖图 Plan 03 标注 9/10；④T10 标记完成并更新说明；⑤优先级排序表移除已完成的 T10 |

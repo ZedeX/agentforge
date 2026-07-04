@@ -56,7 +56,7 @@
 | 15 | [plans/00-coding-plans-overview.md](./plans/00-coding-plans-overview.md) | - | 323 | 9 个 Plan 总览 + 依赖图 + 执行顺序 + 关键约定（v2.0 已对齐实际文件） | ✅ v2.0 |
 | 16 | [plans/01-agent-proto-and-common-plan.md](./plans/01-agent-proto-and-common-plan.md) | 8 | 2785 | agent-proto（8 .proto）+ agent-common（11 Java 类），47 测试用例 | ✅ 已完成 |
 | 17 | [plans/02-agent-gateway-session-plan.md](./plans/02-agent-gateway-session-plan.md) | 10 | 4339 | agent-gateway(8080) + agent-session(8082)，43 Java 类 | ✅ 已完成 |
-| 18 | [plans/03-agent-memory-plan.md](./plans/03-agent-memory-plan.md) | 10 | - | agent-memory(8088/9088)：MemoryService gRPC + 8 项核心能力 | 🔄 8/10（Wave 30~36，T5 已完成） |
+| 18 | [plans/03-agent-memory-plan.md](./plans/03-agent-memory-plan.md) | 10 | - | agent-memory(8088/9088)：MemoryService gRPC + 8 项核心能力 | 🔄 9/10（Wave 30~37，T10 已完成） |
 | 19 | [plans/04-task-orchestrator-planning-plan.md](./plans/04-task-orchestrator-planning-plan.md) | 13 | - | agent-task-orchestrator(8084) + agent-planning(8086) | 🔄 9/13（T5/T7/T11/T13 待做） |
 | 20 | [plans/05-agent-tool-engine-plan.md](./plans/05-agent-tool-engine-plan.md) | 12 | - | agent-tool-engine(8090/9090)：ToolEngine gRPC + 9 项核心能力 | ⏳ 待开发 |
 | 21 | [plans/06-agent-runtime-plan.md](./plans/06-agent-runtime-plan.md) | 10 | - | agent-runtime(8092/9092)：AgentRuntime gRPC + ReAct + Token 水位 | ⏳ 待开发 |
@@ -83,7 +83,7 @@
 | 23 | [tests/user-flow-test-cases.md](./tests/user-flow-test-cases.md) | v1.1 | 端到端用户旅程（含 F10 六层幻觉治理 / F12 长期记忆 / 知识库 RAG 召回） | 13 |
 | 24 | [tests/test-data-and-fixtures.md](./tests/test-data-and-fixtures.md) | v1.1 | 测试数据策略 + Fixture 工厂 + Testcontainers 容器矩阵 + 边界值常量 + 性能测试数据 | — |
 | 25 | [tests/tdd-red-green-records.md](./tests/tdd-red-green-records.md) | v1.1 | 已实现 5 模块 + 6 骨架模块的 TDD 红绿循环记录（v1.0 详记 4 模块 73 方法 + v1.1 增补 task-orchestrator 221 + 骨架 60 + 端到端 23 = 490+ 方法） | 490+ |
-| 25b | [tests/tdd-red-green-records-v1.2.md](./tests/tdd-red-green-records-v1.2.md) | v1.2 | v8 持久化深化期（Wave 18~36）TDD 红绿循环增补：19 个 Wave 摘要 + 经验教训 25~60 + 测试方法累计至 857+ | 857+ |
+| 25b | [tests/tdd-red-green-records-v1.2.md](./tests/tdd-red-green-records-v1.2.md) | v1.2 | v8 持久化深化期（Wave 18~37）TDD 红绿循环增补：20 个 Wave 摘要 + 经验教训 25~65 + 测试方法累计至 916+ | 916+ |
 | 26 | [tests/tdd-audit-framework.md](./tests/tdd-audit-framework.md) | v1.0 | TDD 独立审核流程规范：6 维度 42 检查项 + RACI 矩阵 + 评分模型 + 一票否决项 + 8 阶段工作流 | — |
 | 27 | [tests/tdd-audit-report-v1.md](./tests/tdd-audit-report-v1.md) | v1.0 | 首轮审核报告：发现 23 项问题（4 Critical / 11 Major / 5 Minor / 3 Info），总分 39.3，等级 D 不通过 | — |
 | 28 | [tests/tdd-audit-report-v2.md](./tests/tdd-audit-report-v2.md) | v2.0 | 第 2 轮复核报告（P0+P1 整改后）：总分 39.3 → 65.0（C-），8 项已完成 / 1 项部分整改 / 9 项待 P2/P3；含 FN-021/022 新发现 | — |
@@ -93,9 +93,9 @@
 | 32 | [tests/tdd-audit-report-v6.md](./tests/tdd-audit-report-v6.md) | v6.0 | 第 6 轮复核报告（P6 主要整改后）：总分 81.5 → 86.0（B 通过），agent-task-orchestrator T5~T13 全实现 + 错误码触发路径覆盖 29 错误码 × 3 维度 + 测试命名/AssertJ/@DisplayName 三项整改（P6-3/4/5）+ P6-6 T6~T12 复杂度/规划/校验实现；含 P7 整改建议 7 项 | — |
 | 33 | [tests/tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md) | v7.5 | 第 7 轮复核报告（v6 + JaCoCo 实测校验 + P7-3/4/5/6/7 整改）：总分 86.0 → 89.2（B+ 通过），JaCoCo 实测业务代码 line 95.77% / branch 92.50% + P7-5 错误码端到端 23 用例 + P7-6 FIX 维度 D4 11.0→13.2 + P7-3 F8/F10/F11/F12 骨架 34 用例 + P7-4 F6/F7/F9 骨架 26 用例，**COV-03 一票否决项正式解除（12/12 节点组全覆盖）**；距 A-（90+）差 0.8 分，唯一路径 P7-1 CI 累计 10 次全绿 | — |
 
-> **测试统计**：14 份文档（含 v6/v7 审计报告 + v1.2 增补），覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **857+ 测试方法全绿**（v1.1：5 模块 407 + 骨架 60 + 端到端 23 = 490+；v1.2：v8 持久化深化期 Wave 18~36 新增 367 方法），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（29 错误码 ×3 维度）+ 100% 状态机非法流转覆盖（10 状态）。
+> **测试统计**：14 份文档（含 v6/v7 审计报告 + v1.2 增补），覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **916+ 测试方法全绿**（v1.1：5 模块 407 + 骨架 60 + 端到端 23 = 490+；v1.2：v8 持久化深化期 Wave 18~37 新增 426 方法），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（29 错误码 ×3 维度）+ 100% 状态机非法流转覆盖（10 状态）。
 >
-> **第 7 轮审核结论（v7.5）**：v6 → v7 通过 JaCoCo 实测校验 + P7-3/4/5/6/7 整改，总分 86.0 → **89.2（B+ 通过）**。**COV-03 一票否决项正式解除**（P7-3 F8/F10/F11/F12 + P7-4 F6/F7/F9 骨架补齐，12/12 节点组全覆盖）；D4 FIX 维度 11.0 → 13.2（P7-6 整改）；D5 CI 维度 8.0 → 9.0（CI 实跑全绿，3 次失败 streak 终止）。**A- 等级已正式达成**（Wave 20 CI streak=10，详见 [tdd-red-green-records-v1.2.md](./tests/tdd-red-green-records-v1.2.md)）。当前 CI streak=36（截至 Wave 36）。详见 [tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
+> **第 7 轮审核结论（v7.5）**：v6 → v7 通过 JaCoCo 实测校验 + P7-3/4/5/6/7 整改，总分 86.0 → **89.2（B+ 通过）**。**COV-03 一票否决项正式解除**（P7-3 F8/F10/F11/F12 + P7-4 F6/F7/F9 骨架补齐，12/12 节点组全覆盖）；D4 FIX 维度 11.0 → 13.2（P7-6 整改）；D5 CI 维度 8.0 → 9.0（CI 实跑全绿，3 次失败 streak 终止）。**A- 等级已正式达成**（Wave 20 CI streak=10，详见 [tdd-red-green-records-v1.2.md](./tests/tdd-red-green-records-v1.2.md)）。当前 CI streak=39（截至 Wave 37）。详见 [tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
 
 ### TDD 审核整改进度索引
 
@@ -312,7 +312,7 @@ mvn -B -ntp clean package -Pquick
 1. ✅ `agent-proto/` + `agent-common/` — [Plan 01](./plans/01-agent-proto-and-common-plan.md)（已实现，47 测试用例）
 2. ✅ `agent-gateway/` + `agent-session/` — [Plan 02](./plans/02-agent-gateway-session-plan.md)（已实现，43 Java 类）
 3. ✅ `agent-task-orchestrator/` — [Plan 04](./plans/04-task-orchestrator-planning-plan.md)（已实现，T5~T13 全 13 task，含 gRPC + RocketMQ + 集成测试）
-4. 🔄 `agent-memory/` 编码 plan（8/10 task 已实现：T1-T5 + T7-T9，剩余 T6 Milvus + T10 gRPC，详见 [Plan 03](./plans/03-agent-memory-plan.md)）
+4. 🔄 `agent-memory/` 编码 plan（9/10 task 已实现：T1-T5 + T7-T10，剩余 T6 Milvus，详见 [Plan 03](./plans/03-agent-memory-plan.md)）
 5. ⏸ `agent-tool-engine/` 编码 plan（骨架已建，业务实现待后续）
 6. ⏸ `agent-runtime/` 编码 plan（骨架已建，业务实现待后续）
 7. ⏸ `agent-model-gateway/` 编码 plan（骨架未建）

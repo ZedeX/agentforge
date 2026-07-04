@@ -1714,3 +1714,95 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 **验证**：
 - git push 干净 fast-forward：`ce595ed..5ef2047 main -> main`（直连成功，无 GFW 阻断）
 - CI run 28690256385 ✅ success，6m21s，**CI streak=37**
+
+---
+
+## Wave 37：agent-memory T10 MemoryService gRPC 4 RPC（2026-07-04）
+
+**作用**：实现 Plan 03 T10 MemoryService gRPC 服务（4 RPC），闭合 agent-memory 9/10 Task。含 CI JaCoCo 失败→修复过程。
+
+**本轮交付**：
+- **T10 代码 commit 39f569f**（9 文件 +1087/-13）：
+  - `agent-common/ErrorCode.java`：新增 MEMORY_NOT_FOUND(404) 枚举值
+  - `agent-memory/api/MemoryVectorStore.java`：接口扩展 search + delete 方法
+  - `agent-memory/model/MemorySearchHit.java`：新建（record + score 持有类）
+  - `agent-memory/api/impl/MemoryVectorStoreImpl.java`：重写，新增 search（余弦相似度 topK）+ delete + cosineSimilarity
+  - `agent-memory/api/impl/LongTermMemoryWriterImpl.java`：重写，扩展全流程（contentHash + dedup + importance + DB save + insert vector），旧构造器委托新构造器
+  - `agent-memory/grpc/GrpcExceptionAdvice.java`：新建（BusinessException → gRPC Status 翻译）
+  - `agent-memory/grpc/MemoryRecordMapper.java`：新建（proto ↔ JPA Entity 双向映射）
+  - `agent-memory/grpc/MemoryServiceGrpcImpl.java`：新建（@GrpcService 4 RPC 实现）
+  - `agent-memory/grpc/MemoryServiceGrpcImplTest.java`：新建（8 测试用例）
+
+- **JaCoCo 修复 commit 6fb869c**（3 文件 +916/-2）：
+  - T10 代码 push 后 CI run 28693929239 ❌ failure，JaCoCo 覆盖率检查未达标（lines 0.79/0.80, branches 0.63/0.70）
+  - 根因：MemoryVectorStoreImpl（24%/14%）+ LongTermMemoryWriterImpl（62%/50%）+ MemoryRecordMapper（89%/56%）新增代码未覆盖
+  - 修复：补 59 测试
+    - `MemoryVectorStoreImplTest.java`：+17 测试（search 多分支 + delete）
+    - `LongTermMemoryWriterImplTest.java`：+10 测试（T10 全流程）
+    - `MemoryRecordMapperTest.java`：+32 测试（新建，所有分支覆盖）
+  - 覆盖率提升：lines 81% → 89%, branches 63% → 79%（阈值 80%/70%）
+
+### 设计决策
+
+1. **memory.proto 4 RPC 命名以 proto 为准**：proto 定义 WriteLongTerm/Recall/TriggerDistill/GetMemoryById（非 Plan 03 文档描述的 StoreMemory/RecallMemory/DistillMemory/GetMemoryStats）。proto 是契约层，文档描述仅供参考
+2. **MemoryVectorStore 接口扩展而非破坏**：保留原 insert 方法，新增 search + delete。已有调用方（LongTermMemoryWriterImpl）零改动
+3. **LongTermMemoryWriterImpl 双构造器兼容**：旧 2 参构造器（F12 骨架）委托新 4 参构造器（scorer/repository 传 null），走简化流程。生产 4 参构造器由 Spring @Autowired 注入
+4. **Recall 综合排序公式**：`score × (0.5 + 0.5 × importance)` 降序。纯向量分数不够，需结合记忆重要性加权
+5. **`**/*Grpc*` JaCoCo exclude 误伤**：根 pom.xml 排除 `**/*Grpc*` 本意为排除 protobuf 生成 stub，但 MemoryServiceGrpcImpl / GrpcExceptionAdvice 类名也含 "Grpc" 被一并排除。设计类名时注意覆盖率排除模式
+
+### 验证
+
+- T10 代码 commit 39f569f → CI run 28693929239 ❌ failure（JaCoCo 覆盖率）
+- JaCoCo 修复 commit 6fb869c → CI run 28695289697 ✅ success（5m08s）
+- agent-memory 测试：130 → 189（+59 新增）
+- JaCoCo 覆盖率：lines 81% → 89%, branches 63% → 79%
+- **CI streak=39**
+
+### 关键红绿循环
+
+**Red 阶段**（先写测试）：
+- 在 `MemoryServiceGrpcImplTest` 写 8 个用例（4 RPC 正常流 + 异常流）
+- 用 capturing StreamObserver 捕获 onNext/onError/onCompleted
+- 纯单测模式：mock 依赖 + real Mapper + real GrpcExceptionAdvice
+
+**Green 阶段**：
+- 编译失败 → agent-common 加 MEMORY_NOT_FOUND 错误码 + 重新 install
+- NOT_FOUND 测试得到 INTERNAL → 旧版本 ErrorCode jar 缓存，install 后修复
+- 8 tests 全绿
+
+**CI 失败 → 修复**：
+- T10 代码 push 后 CI JaCoCo 检查失败（lines 0.79/0.80, branches 0.63/0.70）
+- 定位：JaCoCo HTML 报告 `target/site/jacoco/{package}/index.html` 按 class 列出覆盖率
+- 补 59 测试覆盖 MemoryVectorStoreImpl search/delete + LongTermMemoryWriterImpl 全流程 + MemoryRecordMapper 所有分支
+- 覆盖率提升至 89%/79%，CI 通过
+
+### 经验教训
+
+81. **`**/*Grpc*` JaCoCo exclude 模式会误伤自研类**：根 pom.xml 排除 `**/*Grpc*` 本意为排除 protobuf 生成 stub，但 MemoryServiceGrpcImpl / GrpcExceptionAdvice 类名也含 "Grpc" 被一并排除。设计类名时注意覆盖率排除模式，或调整 exclude 模式更精确（如 `**/*Grpc$*` / `**/*OuterClass*`）
+
+82. **新增大量业务代码后必须同步补单测**：T10 一次提交 9 文件 +1087 行，仅 8 个 GrpcService 测试不足以覆盖 Mapper / Writer / VectorStore 的新分支。JaCoCo 覆盖率检查是安全网，CI 失败及时暴露欠测。后续应每扩展一个类即补对应单测
+
+83. **JaCoCo HTML 报告定位覆盖率缺口高效**：`target/site/jacoco/{package}/index.html` 按 class 列出 line/branch 覆盖率，快速锁定未覆盖类。比读 CSV 或 XML 更直观
+
+84. **余弦相似度实现需处理边界**：零范数向量（全零）返回 0 避免除零异常，维度不一致返回 0（容错），负分数截断到 [0,1]（负相关视为不相似）。这些边界都用独立测试用例固化
+
+85. **proto ↔ Entity 双向映射器应有独立测试**：MemoryRecordMapper 看似简单但分支多（null/空/大小写/无效值/JSON 解析容错），仅靠 GrpcService 间接覆盖不足。独立 MapperTest 32 用例覆盖所有分支，是 gRPC 服务实现的标准配套
+
+### 下一波（Wave 38）计划
+
+- **Plan 04 T5/T7/T11/T13**（闭合 Plan 04；T13 集成测试需 Docker）
+- 或 **Plan 05 agent-tool-engine**（解锁 Plan 06 agent-runtime 依赖）
+- 或 **Plan 07 T14 集成测试**（闭合 Plan 07，需 WireMock）
+- 或 **Plan 03 T6 MemoryVectorStore + Milvus**（需 Milvus infra，本地无 Docker 可用 Mock 实现）
+- Plan 03 仅剩 T6（Milvus 集成），其余 9/10 Task 已闭合
+
+### 文档同步（2026-07-04）
+
+**作用**：Wave 37 代码 + JaCoCo 修复完成后，同步整理全部文档并推送。
+
+**本轮交付**：
+- 4 个文档文件变更
+  - `project_memory.md`：Wave 37 节追加（含交付/设计决策 5 项/验证/红绿循环/经验教训 81-85/下一波 Wave 38 计划）
+  - `docs/tests/tdd-red-green-records-v1.2.md` v1.2.1 → v1.2.2：新增 §20 Wave 37 节（含 CI 失败→修复过程）+ 总览表新增 Wave 37 行 + 经验教训扩展至 65（+61~65）+ 累计测试 857+ → 916+ + CI streak 36 → 39
+  - `docs/README.md`：Plan 03 进度 8/10 → 9/10、tdd-v1.2 描述更新、测试 857+ → 916+、CI streak=36 → 39、agent-memory 描述更新（T1-T5+T7-T10）
+  - `docs/plans/00-coding-plans-overview.md` v2.1 → v2.2：Plan 03 进度 8/10 → 9/10（T10 标记完成）、CI streak 36 → 39、依赖图标注 9/10、优先级排序表移除已完成的 T10、变更记录新增 v2.2 行

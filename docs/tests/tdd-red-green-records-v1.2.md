@@ -37,9 +37,10 @@
 | 34 | 2026-07-04 | agent-memory T7 ImportanceScorer 5 维度加权 | +9 | 33 | `0c50bab` |
 | 35 | 2026-07-04 | 文档对齐（00-coding-plans-overview v2.0 + tdd-v1.2 + README） | +0 | 35 | `3464ceb`/`12398ab` |
 | 36 | 2026-07-04 | agent-memory T5 EmbeddingClient HTTP + 重试 + Caffeine 缓存 | +23 | 36 | `ce595ed` |
+| 37 | 2026-07-04 | agent-memory T10 MemoryService gRPC 4 RPC + JaCoCo 修复 | +59 | 39 | `39f569f`/`6fb869c` |
 
-**v1.2 累计测试增量**：+327 测试方法（v1.1 490+ → v1.2 857+）
-**CI streak**：4 → 36（连续 33 次全绿）
+**v1.2 累计测试增量**：+386 测试方法（v1.1 490+ → v1.2 916+）
+**CI streak**：4 → 39（含 Wave 37 T10 代码 JaCoCo 失败 1 次，测试补充后修复）
 
 ---
 
@@ -363,7 +364,32 @@
 
 ---
 
-## 20. v1.2 经验教训汇总（接续 v1.1 的 1~24）
+## 20. Wave 37：agent-memory T10 MemoryService gRPC 4 RPC（2026-07-04）
+
+**交付**：Plan 03 T10 MemoryService gRPC 服务实现（9 文件 +1087/-13），agent-memory 进度 8/10 → 9/10。后因 JaCoCo 覆盖率不达标追加 59 测试（3 文件 +916/-2），总计 agent-memory 130 → 189 tests。
+
+**关键红绿循环**：
+- Red: 8 个 MemoryServiceGrpcImplTest 用例（4 RPC 正常流 + 异常流）→ Green: MemoryServiceGrpcImpl 4 RPC 实现 + MemoryRecordMapper 双向映射 + GrpcExceptionAdvice 异常翻译
+- Red: MemoryVectorStore 接口仅 insert → Green: 扩展 search（余弦相似度 topK）+ delete（按 memoryId），旧调用方零改动
+- Red: LongTermMemoryWriterImpl 仅 embed+insert（F12 骨架）→ Green: 扩展全流程（contentHash + dedup + importance + DB save + insert vector），旧构造器委托新构造器
+- Red: agent-common 缺 MEMORY_NOT_FOUND 错误码 → Green: 新增枚举值 + 重新 install agent-common
+- **CI 失败 → 修复**：T10 代码 commit 39f569f push 后 CI run 28693929239 ❌ failure，JaCoCo 覆盖率检查未达标（lines 0.79/0.80, branches 0.63/0.70）
+  - 根因：MemoryVectorStoreImpl（24%/14%）+ LongTermMemoryWriterImpl（62%/50%）+ MemoryRecordMapper（89%/56%）新增代码未覆盖
+  - 修复：补 59 测试（MemoryVectorStoreImplTest +17 / LongTermMemoryWriterImplTest +10 / MemoryRecordMapperTest +32 新建）
+  - 覆盖率提升：lines 81% → 89%, branches 63% → 79%（阈值 80%/70%）
+  - 修复 commit 6fb869c → CI run 28695289697 ✅ success
+
+**CI**：run 28695289697 ✅ success（streak 重启后 39）
+
+**经验教训 61**：`**/*Grpc*` JaCoCo exclude 模式会误伤自研 GrpcService/GrpcExceptionAdvice——根 pom.xml 排除 `**/*Grpc*` 本意为排除 protobuf 生成的 stub，但 MemoryServiceGrpcImpl / GrpcExceptionAdvice 类名也含 "Grpc" 被一并排除。设计类名时注意覆盖率排除模式，或调整 exclude 模式更精确（如 `**/*Grpc$*` / `**/*OuterClass*`）
+**经验教训 62**：新增大量业务代码后必须同步补单测——T10 一次提交 9 文件 +1087 行，仅 8 个 GrpcService 测试不足以覆盖 Mapper / Writer / VectorStore 的新分支。JaCoCo 覆盖率检查是安全网，CI 失败及时暴露欠测。后续 T11+ 应每扩展一个类即补对应单测
+**经验教训 63**：JaCoCo HTML 报告定位覆盖率缺口高效——`target/site/jacoco/{package}/index.html` 按 class 列出 line/branch 覆盖率，快速锁定未覆盖类。比读 CSV 或 XML 更直观
+**经验教训 64**：余弦相似度实现需处理边界——零范数向量（全零）返回 0 避免除零异常，维度不一致返回 0（容错），负分数截断到 [0,1]（负相关视为不相似）。这些边界都用独立测试用例固化
+**经验教训 65**：proto ↔ Entity 双向映射器应有独立测试——MemoryRecordMapper 看似简单但分支多（null/空/大小写/无效值/JSON 解析容错），仅靠 GrpcService 间接覆盖不足。独立 MapperTest 32 用例覆盖所有分支，是 gRPC 服务实现的标准配套
+
+---
+
+## 21. v1.2 经验教训汇总（接续 v1.1 的 1~24）
 
 | 编号 | Wave | 教训 |
 |---|---|---|
@@ -403,27 +429,33 @@
 | 58 | 36 | 重试策略应区分错误类型：5xx/超时重试，4xx 立即失败，解析错误立即失败 |
 | 59 | 36 | 接口从单方法变多方法时优先扩展而非破坏（保留旧方法委托新方法，已有调用方零改动） |
 | 60 | 36 | Mock impl 与 HTTP impl 的输入校验可以差异化（Mock 容错 / HTTP 严格） |
+| 61 | 37 | `**/*Grpc*` JaCoCo exclude 会误伤自研 GrpcService/GrpcExceptionAdvice，类名设计注意排除模式 |
+| 62 | 37 | 新增大量业务代码后必须同步补单测，JaCoCo 覆盖率检查是欠测安全网 |
+| 63 | 37 | JaCoCo HTML 报告 `target/site/jacoco/{package}/index.html` 按类列出覆盖率，高效定位缺口 |
+| 64 | 37 | 余弦相似度需处理边界：零范数返回 0 避免除零、维度不一致容错、负分截断到 [0,1] |
+| 65 | 37 | proto ↔ Entity 双向映射器应有独立测试，仅靠 gRPC 服务间接覆盖分支不足 |
 
 ---
 
-## 21. v1.2 测试方法总计
+## 22. v1.2 测试方法总计
 
 | 类别 | 测试文件 | 测试方法 | 状态 |
 |---|---|---|---|
 | v1.1 详记（11 模块 + 端到端错误码） | 73 | 490+ | ✅ 完整实现 |
 | v1.2 model-gateway（Wave 18~29） | +35 | +154 | ✅ 完整实现 |
 | v1.2 agent-repo + agent-knowledge（Wave 19~26） | +28 | +128 | ✅ 完整实现 |
-| v1.2 agent-memory（Wave 30~36） | +29 | +85 | ✅ 完整实现（8/10 Task） |
-| **v1.2 合计（去重后）** | **+92** | **+367** | — |
-| **v1.1 + v1.2 总计** | **165** | **857+** | — |
+| v1.2 agent-memory（Wave 30~37） | +32 | +144 | ✅ 完整实现（9/10 Task） |
+| **v1.2 合计（去重后）** | **+95** | **+426** | — |
+| **v1.1 + v1.2 总计** | **168** | **916+** | — |
 
-> **注**：v1.2 增量 367 与各 Wave 摘要的 327 差异为重叠统计（部分 Wave 测试跨模块计入）。实际 mvn verify 全量测试在 Wave 36 为 122 tests（agent-memory 模块单独），全平台累计 857+ 测试方法。
+> **注**：v1.2 增量 426 与各 Wave 摘要的 386 差异为重叠统计（部分 Wave 测试跨模块计入）。实际 mvn verify 全量测试在 Wave 37 为 189 tests（agent-memory 模块单独），全平台累计 916+ 测试方法。
 
 ---
 
-## 22. 变更记录
+## 23. 变更记录
 
 | 版本 | 日期 | 变更内容 |
 |---|---|---|
 | v1.2 | 2026-07-04 | 新增 v8 持久化深化期（Wave 18~34）TDD 红绿循环记录：①17 个 Wave 摘要；②经验教训 25~50（接续 v1.1 的 1~24）；③测试方法总计更新至 834+；④CI streak 4 → 33 进展；⑤v1.1 文档保持历史快照不再修改，v1.2 起独立维护 |
 | v1.2.1 | 2026-07-04 | 增补 Wave 35（全平台文档对齐，docs-only）+ Wave 36（agent-memory T5 EmbeddingClient HTTP 实现）：①新增 2 个 Wave 摘要；②经验教训扩展至 60（+51~60）；③测试方法总计更新至 857+（agent-memory 8/10 Task）；④CI streak 4 → 36（连续 33 次全绿）；⑤Plan 03 进度 7/10 → 8/10 |
+| v1.2.2 | 2026-07-04 | 增补 Wave 37（agent-memory T10 MemoryService gRPC 4 RPC + JaCoCo 修复）：①新增 1 个 Wave 摘要（含 CI 失败→修复过程）；②经验教训扩展至 65（+61~65）；③测试方法总计更新至 916+（agent-memory 9/10 Task）；④CI streak 36 → 39（含 1 次 JaCoCo 失败）；⑤Plan 03 进度 8/10 → 9/10 |
