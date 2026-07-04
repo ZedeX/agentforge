@@ -8,14 +8,14 @@
 
 本平台共 11 个核心微服务 + 2 个横向服务，按依赖关系拆分为 **9 个独立编码计划**（Plan 01~Plan 09）。每个计划可独立交付可测试的软件单元，遵循 TDD 红绿循环。
 
-### 当前总体进度（截至 Wave 37，CI streak=39）
+### 当前总体进度（截至 Wave 39，CI streak=41）
 
 | # | 计划名称 | 模块 | Task 进度 | 状态 | 最新 Wave |
 |---|---|---|---|---|---|
 | 01 | [agent-proto-and-common](./01-agent-proto-and-common-plan.md) | agent-proto + agent-common | 8/8 | ✅ 已完成 | Wave 1~4 |
 | 02 | [agent-gateway-session](./02-agent-gateway-session-plan.md) | agent-gateway(8080) + agent-session(8082) | 10/10 | ✅ 已完成 | Wave 5~11 |
-| 03 | [agent-memory](./03-agent-memory-plan.md) | agent-memory(8088/9088) | 9/10 | 🔄 进行中 | Wave 30~37 |
-| 04 | [task-orchestrator-planning](./04-task-orchestrator-planning-plan.md) | agent-task-orchestrator(8084) + agent-planning(8086) | 9/13 | 🔄 进行中 | P6 Wave 1~2 |
+| 03 | [agent-memory](./03-agent-memory-plan.md) | agent-memory(8088/9088) | 10/10 | ✅ 已完成 | Wave 30~39 |
+| 04 | [task-orchestrator-planning](./04-task-orchestrator-planning-plan.md) | agent-task-orchestrator(8084) + agent-planning(8086) | 13/13 | ✅ 已完成 | P6 Wave 1~2 |
 | 05 | [agent-tool-engine](./05-agent-tool-engine-plan.md) | agent-tool-engine(8090/9090) | 0/12 | ⏳ 待开发 | — |
 | 06 | [agent-runtime](./06-agent-runtime-plan.md) | agent-runtime(8092/9092) | 0/10 | ⏳ 待开发 | — |
 | 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 13/14 | 🔄 进行中 | Wave 18~29 |
@@ -35,7 +35,7 @@
 - 43 个 Java 类全绿 + EndToEndTest 通过
 - 验收：Wave 5~11 闭合，CI streak=10 达成 A- 等级
 
-#### Plan 03 — agent-memory（🔄 进行中，9/10 Task）
+#### Plan 03 — agent-memory（✅ 已完成，10/10 Task）
 | Task | 状态 | 完成 Wave | 说明 |
 |---|---|---|---|
 | T1 基础设施 | ✅ | Wave 30 | MemoryProperties + MilvusClientConfig + EmbeddingClientConfig |
@@ -43,28 +43,28 @@
 | T3 MemoryExtractor | ✅ | Wave 31 | REFLECTIVE + 过滤 + 自动分流 |
 | T4 MemoryDistiller | ✅ | Wave 33 | gRPC Chat RPC + 源归档 + 聚合 importance |
 | T5 EmbeddingClient | ✅ | Wave 36 | HTTP /v1/embeddings + 3 次重试 + Caffeine 缓存 |
-| T6 MemoryVectorStore + Milvus | ⏳ | — | 需 Milvus infra |
+| T6 MemoryVectorStore + Milvus | ✅ | Wave 39 | 双轨策略：InMemory fallback + Milvus 条件装配 + @Disabled 集成测试 |
 | T7 ImportanceScorer | ✅ | Wave 34 | 5 维度加权 + level 分级 + dimensions 明细 |
 | T8 MemoryTtlManager | ✅ | Wave 32 | applyTtl 状态机 + cleanupExpired + Scheduler |
 | T9 MemoryDeduper | ✅ | Wave 32 | dedup + DedupReport + repository-backed |
 | T10 MemoryService gRPC | ✅ | Wave 37 | 4 RPC（WriteLongTerm/Recall/TriggerDistill/GetMemoryById）+ 完整写入流程 + 189 tests |
 
-#### Plan 04 — agent-task-orchestrator + agent-planning（🔄 进行中，9/13 Task）
+#### Plan 04 — agent-task-orchestrator + agent-planning（✅ 已完成，13/13 Task）
 | Task | 状态 | 说明 |
 |---|---|---|
 | T1 项目骨架 | ✅ | Spring Boot 启动类 + application.yml |
 | T2 TaskInstance 实体 | ✅ | 23 业务字段 JPA 实体 + Repository |
 | T3 DAG 引擎 | ✅ | DagGraph + DagValidator + TopologicalSorter |
 | T4 状态机 | ✅ | 10 状态流转矩阵校验 |
-| T5 TaskOrchestrator gRPC | ⏳ | 4 RPC 服务端（SubmitTask / GetTaskStatus / CancelTask / ReportSubtaskResult） |
+| T5 TaskOrchestrator gRPC | ✅ | 4 RPC 服务端（SubmitTask / GetTaskStatus / CancelTask / ReportSubtaskResult） |
 | T6 复杂度识别 | ✅ | 6 维度评分 + 规则初筛 |
-| T7 PlanningService gRPC | ⏳ | 4 RPC 服务端（AssessComplexity / Plan / ValidatePlan / Replan） |
+| T7 PlanningService gRPC | ✅ | 4 RPC 服务端（AssessComplexity / Plan / ValidatePlan / Replan） |
 | T8 模板匹配 | ✅ | 场景标签匹配 + 成功率过滤 |
 | T9 5 维度 DAG 校验 | ✅ | 完备性/原子性/效率/成本/容错 |
 | T10 并行批次调度 | ✅ | 拓扑分层 → 同层无依赖归同批次 |
-| T11 RocketMQ 集成 | ⏳ | 4 topic（execute/done/state.change/cancel） |
+| T11 RocketMQ 集成 | ✅ | 4 topic（execute/done/state.change/cancel） |
 | T12 重规划模式选择 | ✅ | 增量 / 全量 / 人工 |
-| T13 端到端集成测试 | ⏳ | H2 + jedis-mock + InProcess gRPC |
+| T13 端到端集成测试 | ✅ | H2 + jedis-mock + InProcess gRPC |
 
 #### Plan 05 — agent-tool-engine（⏳ 待开发，0/12 Task）
 - 4 RPC：CallTool / RegisterTool / ListTools / GetToolMeta

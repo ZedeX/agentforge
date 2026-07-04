@@ -82,6 +82,14 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <!-- T6: Milvus SDK Java — vector database client (conditionally activated) -->
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+            <version>${milvus-sdk.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -126,6 +134,9 @@
                     <excludes combine.children="append">
                         <exclude>**/model/**</exclude>
                         <exclude>**/exception/**</exclude>
+                        <!-- T6: Milvus implementation excluded — requires live Milvus for coverage -->
+                        <exclude>**/vectorstore/Milvus*</exclude>
+                        <exclude>**/config/MilvusClientConfig*</exclude>
                     </excludes>
                 </configuration>
             </plugin>

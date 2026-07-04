@@ -7,6 +7,7 @@ import com.agent.memory.model.MemoryRecord;
 import com.agent.memory.model.MemorySearchHit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -19,18 +20,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * 记忆向量存储实现（F12.D5: insert vector into Milvus + Plan 03 T10 search/delete）。
+ * In-memory fallback implementation of {@link MemoryVectorStore}.
  *
- * <p>骨架阶段的内存 Mock 实现：使用 {@link ConcurrentHashMap} 模拟 Milvus 向量库，
- * 按 memoryId 索引 MemoryRecord + EmbeddingVector。T10 新增 search（余弦相似度 topK 检索）
- * + delete（按 memoryId 删除）。后续 T6 接入真实 Milvus SDK 时，替换为 MilvusClient 调用即可。</p>
+ * <p>Uses {@link ConcurrentHashMap} to simulate Milvus vector store.
+ * Active when {@code memory.milvus.enabled=false} (default) — suitable for
+ * unit tests and environments without Milvus infrastructure.</p>
  *
- * <p>search 余弦相似度计算：dot(query, entry) / (|query| × |entry|)，范围 [-1, 1]，
- * 截断到 [0, 1]（负相关视为不相似）。</p>
+ * <p>For production Milvus integration, see {@link com.agent.memory.vectorstore.MilvusVectorStoreImpl}.</p>
  *
  * @see MemoryVectorStore
+ * @see com.agent.memory.vectorstore.MilvusVectorStoreImpl
  */
 @Component
+@ConditionalOnProperty(name = "memory.milvus.enabled", havingValue = "false", matchIfMissing = true)
 public class MemoryVectorStoreImpl implements MemoryVectorStore {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryVectorStoreImpl.class);
