@@ -1699,3 +1699,18 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - 或 **Plan 05 agent-tool-engine**（解锁 Plan 06 agent-runtime 依赖）
 - 或 **Plan 04 T5/T7/T11/T13**（闭合 Plan 04）
 - 或 **Plan 07 T14 集成测试**（闭合 Plan 07，需 WireMock）
+
+### 文档对齐收尾（2026-07-04）
+
+**作用**：Wave 36 代码 commit/push/CI 完成后，同步整理全部文档并推送。
+
+**本轮交付**：
+- 4 个文档文件变更（+176/-23）
+  - `project_memory.md`：Wave 36 节追加（含交付/设计决策 5 项/验证/红绿循环/经验教训 76-80/下一波 Wave 37 计划）
+  - `docs/tests/tdd-red-green-records-v1.2.md`：新增 §18 Wave 35 节（docs-only，教训 51-55）+ §19 Wave 36 节（T5 HTTP 实现，教训 56-60）+ 总览表新增 Wave 35/36 两行 + 累计测试 857+ + CI streak 36
+  - `docs/README.md`：Plan 03 进度 7/10 → 8/10、tdd-v1.2 描述更新、测试 857+、CI streak=36、后续计划第 4 条更新
+  - `docs/plans/00-coding-plans-overview.md` v2.0 → v2.1：Plan 03 进度 7/10 → 8/10（T5 标记完成）、CI streak 33 → 36、依赖图标注 8/10、阶段 B 描述更新、优先级排序表移除已完成的 T5、变更记录新增 v2.1 行
+
+**验证**：
+- git push 干净 fast-forward：`ce595ed..5ef2047 main -> main`（直连成功，无 GFW 阻断）
+- CI run 28690256385 ✅ success，6m21s，**CI streak=37**
