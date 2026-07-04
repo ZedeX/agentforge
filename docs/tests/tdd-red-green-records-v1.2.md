@@ -1,6 +1,6 @@
 # AgentForge 智能体平台 TDD 红绿循环记录 v1.2 增补（v8 持久化深化期）
 
-> 文档版本：v1.2 | 更新日期：2026-07-04 | 文档定位：**v1.1 之后的 v8 持久化深化期（Wave 18~34）TDD 红绿循环增补记录**
+> 文档版本：v1.2 | 更新日期：2026-07-04 | 文档定位：**v1.1 之后的 v8 持久化深化期（Wave 18~36）TDD 红绿循环增补记录**
 > 前序文档：[tdd-red-green-records.md](./tdd-red-green-records.md) v1.1（截至 2026-06-30 P7 骨架阶段，490+ 测试方法）
 > 维护说明：v1.1 文档为单行格式历史快照，不再修改；v1.2 起采用标准 markdown 格式独立维护
 
@@ -14,7 +14,7 @@
 - **CI 验证**：streak 进展与用时
 - **经验教训**：本轮新增的教训编号（接续 v1.1 的 1~24）
 
-### 0.2 v8 持久化深化期总览（Wave 18~34）
+### 0.2 v8 持久化深化期总览（Wave 18~36）
 
 | Wave | 日期 | 模块 / Task | 测试增量 | CI streak | Commit |
 |---|---|---|---|---|---|
@@ -35,9 +35,11 @@
 | 32 | 2026-07-02 | agent-memory T8 MemoryTtlManager + T9 MemoryDeduper | +18 | 31 | `fe1a211` |
 | 33 | 2026-07-03 | agent-memory T4 MemoryDistiller + gRPC 基础设施 | +8 | 32 | `7e9e4a3` |
 | 34 | 2026-07-04 | agent-memory T7 ImportanceScorer 5 维度加权 | +9 | 33 | `0c50bab` |
+| 35 | 2026-07-04 | 文档对齐（00-coding-plans-overview v2.0 + tdd-v1.2 + README） | +0 | 35 | `3464ceb`/`12398ab` |
+| 36 | 2026-07-04 | agent-memory T5 EmbeddingClient HTTP + 重试 + Caffeine 缓存 | +23 | 36 | `ce595ed` |
 
-**v1.2 累计测试增量**：+304 测试方法（v1.1 490+ → v1.2 794+）
-**CI streak**：4 → 33（连续 30 次全绿）
+**v1.2 累计测试增量**：+327 测试方法（v1.1 490+ → v1.2 857+）
+**CI streak**：4 → 36（连续 33 次全绿）
 
 ---
 
@@ -316,7 +318,52 @@
 
 ---
 
-## 18. v1.2 经验教训汇总（接续 v1.1 的 1~24）
+## 18. Wave 35：全平台文档对齐（2026-07-04）
+
+**交付**：4 个文档文件变更（+568/-92），无 TDD 红绿循环（docs-only）
+
+**关键变更**：
+- `00-coding-plans-overview.md` v1.0 → v2.0 完全重写：修复 Plan 编号错位（v1.0 把 Plan 03 标为 "DDL 脚本编写"，实际 03-agent-memory-plan.md 是 agent-memory）
+- `tdd-red-green-records-v1.2.md` 新建：v1.1 单行格式难以 Edit，采用续篇策略
+- `docs/README.md` 更新：文档总数 30 → 38，测试方法 464+ → 834+
+- `.gitignore` 补充：wave*-commit-msg.txt / wave*-build.bat / agent-log-temp.md
+
+**关键红绿循环**：无（docs-only commit，无代码变更）
+
+**CI**：run 28688543436 ✅ streak=34（6m27s）+ run 28688772399 ✅ streak=35（6m23s）
+
+**经验教训 51**：文档编号体系变更时必须全量重写而非增量修补——增量修补会留下不一致痕迹
+**经验教训 52**：单行格式文档用续篇策略而非原地修改——避免格式破坏，历史可追溯
+**经验教训 53**：diverged 分支用 `reset --soft` + 选择性 unstage 处理，避免 force push
+**经验教训 54**：多份文档同步后用验证矩阵检查一致性（Plan 总数 / 模块 / 进度 / 测试方法总数 / CI streak / 等级）
+**经验教训 55**：`.gitignore` 应覆盖临时 commit 消息文件，避免污染仓库
+
+---
+
+## 19. Wave 36：agent-memory T5 EmbeddingClient HTTP 实现（2026-07-04）
+
+**交付**：Plan 03 T5 EmbeddingClient 真实 HTTP 实现（13 文件 +700/-50），agent-memory 进度 7/10 → 8/10
+
+**关键红绿循环**：
+- Red: 6 个 MockWebServer 用例（embed_single_returns1024DimVector / embed_batch_returnsList / embed_retryOnTimeout / embed_throwOnMaxRetryExceeded / embed_sendTenantIdHeader / embed_emptyInput_returnsEmptyList）+ 3 补充（nullText / 4xx_no_retry / cacheHit）
+- Red: 接口从单方法变多方法 → Green: 扩展 `embed(text, tenantId)` + `embedBatch(texts, tenantId)`，保留旧 `embed(text)` 委托新方法
+- Red: 编译失败 `com.agent.common.exception` 包找不到 → Green: pom.xml 加 agent-common 依赖
+- Red: Mock impl 与 HTTP impl bean 冲突 → Green: `@ConditionalOnProperty` 互斥对（http-enabled=false 默认 Mock / true 启用 HTTP）
+- Red: 重试逻辑未实现 → Green: 5xx/超时重试（max 3 总尝试，退避 100/300/900ms），4xx 立即失败，解析错误立即失败
+- Red: 缓存未实现 → Green: Caffeine 本地缓存（key=text, TTL=1h, maxSize=10000），批量按文本分流缓存命中
+- Red: 请求/响应构造散落 → Refactor: 抽离 EmbeddingRequestBuilder + EmbeddingResponseParser（单一职责）
+
+**CI**：run 28689882077 ✅ streak=36（6m36s）
+
+**经验教训 56**：`@ConditionalOnProperty` 互斥 bean 对必须覆盖所有环境——Mock 用 `havingValue="false" matchIfMissing="true"`（默认激活），HTTP 用 `havingValue="true"`（显式启用），避免 bean 冲突
+**经验教训 57**：WebClient 测试用包级可见构造器注入——生产构造器从配置自动构建 WebClient，测试构造器接受额外 WebClient 参数（package-private），避免为测试暴露 public API
+**经验教训 58**：重试策略应区分错误类型——5xx/超时/网络错误可重试（瞬时故障），4xx 不重试（请求格式错误），解析错误不重试（响应异常）。用 `WebClientResponseException.getStatusCode().is5xxServerError()` 精细判断
+**经验教训 59**：接口从单方法变多方法时优先扩展而非破坏——保留旧方法委托新方法，已有调用方零改动
+**经验教训 60**：Mock impl 与 HTTP impl 的输入校验可以差异化——Mock 对 null 容错（降低测试门槛），HTTP 严格校验（早暴露生产 bug）
+
+---
+
+## 20. v1.2 经验教训汇总（接续 v1.1 的 1~24）
 
 | 编号 | Wave | 教训 |
 |---|---|---|
@@ -346,26 +393,37 @@
 | 48 | 34 | timeDecay 用 exp(-Δt/30d) 指数衰减符合艾宾浩斯遗忘曲线 |
 | 49 | 34 | ScoringContext 解耦外部依赖（依赖反转典型应用） |
 | 50 | 34 | keywords 字段解析容错：去方括号引号 + 按 `[,;\s]+` 分割 |
+| 51 | 35 | 文档编号体系变更时必须全量重写而非增量修补 |
+| 52 | 35 | 单行格式文档用续篇策略而非原地修改（避免格式破坏，历史可追溯） |
+| 53 | 35 | diverged 分支用 `reset --soft` + 选择性 unstage 处理，避免 force push |
+| 54 | 35 | 多份文档同步后用验证矩阵检查一致性（Plan 总数 / 模块 / 进度 / 测试方法总数 / CI streak / 等级） |
+| 55 | 35 | `.gitignore` 应覆盖临时 commit 消息文件，避免污染仓库 |
+| 56 | 36 | `@ConditionalOnProperty` 互斥 bean 对必须覆盖所有环境（matchIfMissing=true 默认激活，havingValue=true 显式启用） |
+| 57 | 36 | WebClient 测试用包级可见构造器注入，避免为测试暴露 public API |
+| 58 | 36 | 重试策略应区分错误类型：5xx/超时重试，4xx 立即失败，解析错误立即失败 |
+| 59 | 36 | 接口从单方法变多方法时优先扩展而非破坏（保留旧方法委托新方法，已有调用方零改动） |
+| 60 | 36 | Mock impl 与 HTTP impl 的输入校验可以差异化（Mock 容错 / HTTP 严格） |
 
 ---
 
-## 19. v1.2 测试方法总计
+## 21. v1.2 测试方法总计
 
 | 类别 | 测试文件 | 测试方法 | 状态 |
 |---|---|---|---|
 | v1.1 详记（11 模块 + 端到端错误码） | 73 | 490+ | ✅ 完整实现 |
 | v1.2 model-gateway（Wave 18~29） | +35 | +154 | ✅ 完整实现 |
 | v1.2 agent-repo + agent-knowledge（Wave 19~26） | +28 | +128 | ✅ 完整实现 |
-| v1.2 agent-memory（Wave 30~34） | +18 | +62 | ✅ 完整实现（7/10 Task） |
-| **v1.2 合计（去重后）** | **+81** | **+344** | — |
-| **v1.1 + v1.2 总计** | **154** | **834+** | — |
+| v1.2 agent-memory（Wave 30~36） | +29 | +85 | ✅ 完整实现（8/10 Task） |
+| **v1.2 合计（去重后）** | **+92** | **+367** | — |
+| **v1.1 + v1.2 总计** | **165** | **857+** | — |
 
-> **注**：v1.2 增量 344 与各 Wave 摘要的 304 差异为重叠统计（部分 Wave 测试跨模块计入）。实际 mvn verify 全量测试在 Wave 34 为 106 tests（agent-memory 模块单独），全平台累计 834+ 测试方法。
+> **注**：v1.2 增量 367 与各 Wave 摘要的 327 差异为重叠统计（部分 Wave 测试跨模块计入）。实际 mvn verify 全量测试在 Wave 36 为 122 tests（agent-memory 模块单独），全平台累计 857+ 测试方法。
 
 ---
 
-## 20. 变更记录
+## 22. 变更记录
 
 | 版本 | 日期 | 变更内容 |
 |---|---|---|
 | v1.2 | 2026-07-04 | 新增 v8 持久化深化期（Wave 18~34）TDD 红绿循环记录：①17 个 Wave 摘要；②经验教训 25~50（接续 v1.1 的 1~24）；③测试方法总计更新至 834+；④CI streak 4 → 33 进展；⑤v1.1 文档保持历史快照不再修改，v1.2 起独立维护 |
+| v1.2.1 | 2026-07-04 | 增补 Wave 35（全平台文档对齐，docs-only）+ Wave 36（agent-memory T5 EmbeddingClient HTTP 实现）：①新增 2 个 Wave 摘要；②经验教训扩展至 60（+51~60）；③测试方法总计更新至 857+（agent-memory 8/10 Task）；④CI streak 4 → 36（连续 33 次全绿）；⑤Plan 03 进度 7/10 → 8/10 |

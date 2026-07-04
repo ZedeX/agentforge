@@ -1604,3 +1604,98 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 - 或 Plan 05 agent-tool-engine（解锁 Plan 06 agent-runtime 依赖）
 - 或 Plan 04 T5/T7/T11/T13（闭合 Plan 04）
 - 或 Plan 07 T14 集成测试（闭合 Plan 07，需 WireMock）
+
+---
+
+## Wave 36（2026-07-04）agent-memory T5 EmbeddingClient HTTP 实现
+
+**日期**：2026-07-04
+**作用**：实现 Plan 03 T5 EmbeddingClient 真实 HTTP 调用（WebClient + 重试 + Caffeine 缓存），完成 Red-Green-Refactor 循环，闭合 agent-memory 8/10 任务
+
+### 本轮交付
+
+完成 Plan 03 T5 EmbeddingClient 真实 HTTP 实现，13 个文件变更（+700/-50）。
+
+1. **核心实现**：
+   - `EmbeddingClient` 接口扩展：新增 `embed(text, tenantId)` + `embedBatch(texts, tenantId)`，保留旧 `embed(text)` 向后兼容
+   - `EmbeddingClientImpl` 重写为 HTTP 实现（替换原 Mock）：WebClient POST /v1/embeddings + 3 次重试指数退避 + Caffeine 本地缓存
+   - `MockEmbeddingClientImpl` 新建：保留原确定性伪向量行为，作为测试环境 fallback
+   - `EmbeddingRequestBuilder` 新建：构造 OpenAI 兼容请求体 `{"model":"text-embedding-v3","input":[...]}`
+   - `EmbeddingResponseParser` 新建：解析 `data[].embedding` + 维度校验
+   - `EmbeddingServiceFailureException` 新建：继承 BusinessException，ErrorCode.EMBEDDING_FAILED
+
+2. **配置**：
+   - `MemoryProperties` 新增 Embedding 子配置（12 字段：httpEnabled/baseUrl/path/model/apiKey/超时/重试/缓存）
+   - `application.yml` + `application-test.yml` 同步配置
+   - `pom.xml` 新增依赖：spring-boot-starter-webflux / caffeine / mockwebserver / agent-common
+   - `@ConditionalOnProperty` 互斥 bean：http-enabled=true → EmbeddingClientImpl，http-enabled=false（默认）→ MockEmbeddingClientImpl
+
+3. **测试**：
+   - `EmbeddingClientImplTest` 重写为 9 个 MockWebServer 测试（6 计划用例 + 3 补充：nullText/4xx_no_retry/cacheHit）
+   - `MockEmbeddingClientImplTest` 新建 11 个测试（Mock 行为 + 新方法覆盖）
+   - `LongTermMemoryWriterImplTest` 改用 `MockEmbeddingClientImpl`（3 处替换）
+
+### 设计决策
+
+1. **接口扩展而非破坏性变更**：保留旧 `embed(String text)` 方法返回 `EmbeddingVector`，新增 `embed(text, tenantId)` 返回 raw `float[]`。LongTermMemoryWriterImpl 等已有调用方零改动。向后兼容优先
+
+2. **Mock impl 保留为独立类而非删除**：原 `EmbeddingClientImpl`（Mock）重命名为 `MockEmbeddingClientImpl`，加 `@ConditionalOnProperty(http-enabled=false, matchIfMissing=true)`。理由：
+   - 测试环境无需 HTTP 即可跑（MockWebServer 慢且需启停）
+   - 开发环境无 model-gateway 时仍可用
+   - 生产环境通过 `http-enabled=true` 切换真实 HTTP
+   - Mock impl 的 `embedBatch(null, tenantId)` 容错返回空 List，HTTP impl 抛 IllegalArgumentException（更严格）—— 不同环境语义差异化合理
+
+3. **重试策略精细化**：
+   - 5xx / 超时 / 网络错误 → 重试（max 3 总尝试，退避 100/300/900ms）
+   - 4xx → 立即失败（请求格式错误，重试无意义）
+   - 解析错误 / 维度不符 / 数量不符 → 立即失败（响应异常）
+   - EmbeddingServiceFailureException 不重试（已包装的最终异常）
+   - 对齐 doc 04 §12.3 "嵌入服务超时：3 次指数退避（100/300/1000 ms）"
+
+4. **测试构造器包级可见**：`EmbeddingClientImpl(MemoryProperties, WebClient)` 为 package-private，仅供同包测试注入指向 MockWebServer 的 WebClient。生产构造器 `EmbeddingClientImpl(MemoryProperties)` 自动从 baseUrl 构建 WebClient。这避免了为测试暴露 public API
+
+5. **Caffeine 缓存 key 用原文 text 而非 hash**：text 直接作为 key 简单可靠，Caffeine 内部用 equals/hashCode。批量请求时按文本分流缓存命中/未命中，未命中文本合并为单次 HTTP 请求。TTL=1h maxSize=10000 对齐 §7.5
+
+### 验证结果
+
+- **本地全量 verify -Pno-docker**：16 模块全绿，2m08s
+- **agent-memory 模块测试**：122 tests pass（含 T5 新增 23 tests）
+  - EmbeddingClientImplTest: 9 tests（6 计划 + 3 补充）
+  - MockEmbeddingClientImplTest: 11 tests
+  - LongTermMemoryWriterImplTest: 3 tests（改用 MockEmbeddingClientImpl，零业务改动）
+- **git push 干净 fast-forward**：`12398ab..ce595ed main -> main`（无 GFW 阻断，直连成功）
+- **CI run 28689882077** ✅ streak=36，6m36s
+
+### 关键红绿循环
+
+**Red 阶段**（先写测试）：
+- 在 `EmbeddingClientImplTest` 写 6 个 MockWebServer 用例（embed_single_returns1024DimVector / embed_batch_returnsList / embed_retryOnTimeout / embed_throwOnMaxRetryExceeded / embed_sendTenantIdHeader / embed_emptyInput_returnsEmptyList）
+- 补充 3 个用例（nullText_throwsIllegalArgumentException / 4xx_doesNotRetry / cacheHit_avoidsSecondHttpCall）
+
+**Green 阶段**：
+- 编译失败 → 加 agent-common 依赖到 pom.xml（EmbeddingServiceFailureException 继承 BusinessException）
+- 9 tests 全绿
+
+**Refactor 阶段**：
+- 抽离 EmbeddingRequestBuilder + EmbeddingResponseParser（单一职责）
+- Caffeine 缓存集成（按文本分流，批量未命中合并请求）
+
+### 经验教训
+
+76. **@ConditionalOnProperty 互斥 bean 对必须覆盖所有环境**：MockEmbeddingClientImpl 用 `havingValue="false" matchIfMissing="true"`（默认激活），EmbeddingClientImpl 用 `havingValue="true"`（显式启用）。测试环境 application-test.yml 显式设 `http-enabled=false` 确保走 Mock。生产环境 application.yml 设 `http-enabled=true` 切真实 HTTP。两者条件互斥且覆盖全部情况，避免 bean 冲突
+
+77. **WebClient 测试用包级可见构造器注入**：HTTP 客户端测试需要把 WebClient 指向 MockWebServer。生产构造器从配置自动构建 WebClient（base-url 来自 MemoryProperties），测试构造器接受额外 WebClient 参数（package-private）。这避免了为测试暴露 public API，同时保持测试灵活性
+
+78. **重试策略应区分错误类型**：5xx/超时/网络错误可重试（瞬时故障），4xx 不重试（请求格式错误，重试无意义），解析错误不重试（响应异常）。一刀切重试会浪费配额且掩盖问题。实现时用 `WebClientResponseException.getStatusCode().is5xxServerError()` 精细判断
+
+79. **接口从单方法变多方法时优先扩展而非破坏**：EmbeddingClient 原有 `embed(String text)` 返回 `EmbeddingVector`。新增 `embed(text, tenantId)` 返回 `float[]` + `embedBatch(texts, tenantId)` 返回 `List<float[]>`。保留旧方法委托新方法，已有调用方（LongTermMemoryWriterImpl）零改动。这是接口演进的兼容性策略
+
+80. **Mock impl 与 HTTP impl 的输入校验可以差异化**：Mock 对 null 输入容错（返回空向量/空 List），HTTP 严格校验（抛 IllegalArgumentException）。理由：Mock 用于测试/开发，容错降低使用门槛；HTTP 用于生产，严格校验早暴露调用方 bug。差异化语义在文档中明确说明即可
+
+### 下一波（Wave 37）计划
+
+- **agent-memory T6 MemoryVectorStore + Milvus**（需 Milvus infra，本地无 Docker 可用 Mock 实现 + Testcontainers 集成测试分离）
+- 或 **agent-memory T10 MemoryService gRPC**（闭合 Plan 03 4 RPC，需先定义 memory.proto，无外部依赖，自包含）—— 高优先级
+- 或 **Plan 05 agent-tool-engine**（解锁 Plan 06 agent-runtime 依赖）
+- 或 **Plan 04 T5/T7/T11/T13**（闭合 Plan 04）
+- 或 **Plan 07 T14 集成测试**（闭合 Plan 07，需 WireMock）
