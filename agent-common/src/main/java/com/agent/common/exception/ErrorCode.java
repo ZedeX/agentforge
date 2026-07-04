@@ -20,6 +20,7 @@ public enum ErrorCode {
     AGENT_NOT_FOUND("AGENT_NOT_FOUND", 404, "Agent 不存在"),
     TOOL_NOT_FOUND("TOOL_NOT_FOUND", 404, "工具不存在"),
     KB_NOT_FOUND("KB_NOT_FOUND", 404, "知识库不存在"),
+    MEMORY_NOT_FOUND("MEMORY_NOT_FOUND", 404, "记忆不存在"),
 
     // 400 参数校验
     VALIDATION_FAILED("VALIDATION_FAILED", 400, "参数校验失败"),
