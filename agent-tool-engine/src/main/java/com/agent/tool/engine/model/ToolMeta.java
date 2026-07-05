@@ -2,12 +2,16 @@ package com.agent.tool.engine.model;
 
 import com.agent.tool.engine.enums.ExecutorType;
 import com.agent.tool.engine.enums.SideEffect;
+import com.agent.tool.engine.enums.ToolRiskLevel;
 
 import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Tool metadata POJO (doc 02-api §3.1 tool schema three-layer definition).
+ *
+ * <p>Carries the tool's declared {@link ToolRiskLevel} (may be overridden by
+ * the risk classifier following the never-downgrade rule, doc 05 §4.2).</p>
  */
 public class ToolMeta implements Serializable {
 
@@ -18,6 +22,8 @@ public class ToolMeta implements Serializable {
     private String description;
     private ExecutorType executorType;
     private SideEffect sideEffect;
+    /** Declared risk level; null lets classifier compute from sideEffect. */
+    private ToolRiskLevel riskLevel;
     private String tenantId;
     private int quotaLimit;
 
@@ -29,6 +35,15 @@ public class ToolMeta implements Serializable {
         this.name = name;
         this.executorType = executorType;
         this.sideEffect = sideEffect;
+    }
+
+    public ToolMeta(String toolId, String name, ExecutorType executorType,
+                    SideEffect sideEffect, ToolRiskLevel riskLevel) {
+        this.toolId = toolId;
+        this.name = name;
+        this.executorType = executorType;
+        this.sideEffect = sideEffect;
+        this.riskLevel = riskLevel;
     }
 
     public String getToolId() {
@@ -69,6 +84,14 @@ public class ToolMeta implements Serializable {
 
     public void setSideEffect(SideEffect sideEffect) {
         this.sideEffect = sideEffect;
+    }
+
+    public ToolRiskLevel getRiskLevel() {
+        return riskLevel;
+    }
+
+    public void setRiskLevel(ToolRiskLevel riskLevel) {
+        this.riskLevel = riskLevel;
     }
 
     public String getTenantId() {

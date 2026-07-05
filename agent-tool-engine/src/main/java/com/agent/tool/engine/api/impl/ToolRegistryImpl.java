@@ -37,7 +37,7 @@ import java.util.Optional;
  *   <li>ToolMeta.name <-> entity.name + entity.displayName</li>
  *   <li>ToolMeta.description <-> entity.description</li>
  *   <li>ToolMeta.executorType <-> entity.executorType</li>
- *   <li>ToolMeta.sideEffect <-> entity.riskLevel (NONE=R1, REVERSIBLE=R2, IRREVERSIBLE=R3)</li>
+ *   <li>ToolMeta.sideEffect <-> entity.riskLevel (NONE/READ_ONLY=R1, WRITE_LOCAL=R2, WRITE_EXTERNAL/DESTRUCTIVE=R3)</li>
  *   <li>ToolSchema.requiredFields <-> entity.inputSchema (JSON {"required":[...]})</li>
  * </ul></p>
  */
@@ -246,16 +246,16 @@ public class ToolRegistryImpl implements ToolRegistry {
         }
     }
 
-    // ==================== SideEffect <-> RiskLevel 映射 ====================
+    // ==================== SideEffect <-> RiskLevel 映射 (doc 05 §4.2) ====================
 
     private ToolRiskLevel mapSideEffectToRisk(SideEffect sideEffect) {
         if (sideEffect == null) {
             return ToolRiskLevel.R1;
         }
         return switch (sideEffect) {
-            case NONE -> ToolRiskLevel.R1;
-            case REVERSIBLE -> ToolRiskLevel.R2;
-            case IRREVERSIBLE -> ToolRiskLevel.R3;
+            case NONE, READ_ONLY -> ToolRiskLevel.R1;
+            case WRITE_LOCAL -> ToolRiskLevel.R2;
+            case WRITE_EXTERNAL, DESTRUCTIVE -> ToolRiskLevel.R3;
         };
     }
 
@@ -263,10 +263,14 @@ public class ToolRegistryImpl implements ToolRegistry {
         if (riskLevel == null) {
             return SideEffect.NONE;
         }
+        // Reverse mapping picks the canonical representative for each level
+        // (R1→NONE, R2→WRITE_LOCAL, R3→DESTRUCTIVE). Round-trip is lossy for
+        // READ_ONLY / WRITE_EXTERNAL but those are recovered from the persisted
+        // risk_level int column via ToolRegistryEntity#getRiskLevelEnum.
         return switch (riskLevel) {
             case R1 -> SideEffect.NONE;
-            case R2 -> SideEffect.REVERSIBLE;
-            case R3 -> SideEffect.IRREVERSIBLE;
+            case R2 -> SideEffect.WRITE_LOCAL;
+            case R3 -> SideEffect.DESTRUCTIVE;
         };
     }
 

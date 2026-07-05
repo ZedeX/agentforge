@@ -14,6 +14,7 @@ import com.agent.tool.engine.exception.ToolApprovalException;
 import com.agent.tool.engine.exception.ToolQuotaExhaustedException;
 import com.agent.tool.engine.exception.ToolValidationException;
 import com.agent.tool.engine.model.ApprovalRecord;
+import com.agent.tool.engine.model.RiskAssessment;
 import com.agent.tool.engine.model.ToolCallAuditLog;
 import com.agent.tool.engine.model.ToolCallRequest;
 import com.agent.tool.engine.model.ToolCallResult;
@@ -127,17 +128,24 @@ public class ToolGatewayImpl implements ToolGateway {
 
         // 5. 风险分级 (优先用 request 携带的, 否则实时分类)
         ToolRiskLevel riskLevel = request.getRiskLevel();
+        RiskAssessment assessment;
         if (riskLevel == null) {
-            riskLevel = riskClassifier.classify(meta);
+            assessment = riskClassifier.classify(meta, request);
+            riskLevel = assessment.getRiskLevel();
+        } else {
+            // Caller-overridden risk level: still build an assessment so that
+            // approval / sandbox decisions follow the declared level.
+            assessment = new RiskAssessment(riskLevel, riskLevel.requiresApproval(),
+                    "caller-declared " + riskLevel);
         }
 
-        // 6. R3 审批检查
-        if (riskLevel.requiresApproval()) {
+        // 6. 审批检查 (R3 强制, R2 看近期审批, R1 跳过)
+        if (assessment.isRequiresApproval()) {
             Optional<ApprovalRecord> approval = approvalStore.findValid(toolId);
             if (approval.isEmpty()) {
                 ToolApprovalException ex = new ToolApprovalException(
                         ToolApprovalException.CODE_APPROVAL_REQUIRED,
-                        "R3 工具 [" + toolId + "] 缺少有效审批");
+                        "工具 [" + toolId + "] 缺少有效审批 (risk=" + riskLevel + ")");
                 auditCall(traceId, toolId, request.getInputJson(), null, ToolCallStatus.FAILED, ex.getMessage());
                 throw ex;
             }

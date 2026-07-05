@@ -17,6 +17,7 @@ import com.agent.tool.engine.exception.ToolApprovalException;
 import com.agent.tool.engine.exception.ToolQuotaExhaustedException;
 import com.agent.tool.engine.exception.ToolValidationException;
 import com.agent.tool.engine.model.ApprovalRecord;
+import com.agent.tool.engine.model.RiskAssessment;
 import com.agent.tool.engine.model.ToolCallAuditLog;
 import com.agent.tool.engine.model.ToolCallRequest;
 import com.agent.tool.engine.model.ToolCallResult;
@@ -138,25 +139,25 @@ class F8DecisionNodeTest {
     // ============ F8 风险分级 R1/R2/R3 分支 ============
 
     @Test
-    @DisplayName("UT-F8-005: 可回滚写操作分类 R2（executor=proxy, side_effect=reversible）")
+    @DisplayName("UT-F8-005: 可回滚写操作分类 R2（executor=proxy, side_effect=write_local）")
     void should_ClassifyR2_When_ToolIsWriteReversible() {
         // F8 R2 分支
-        RiskClassifier classifier = (meta) -> {
+        RiskClassifier classifier = (meta, req) -> {
             if (meta.getExecutorType() == ExecutorType.PROXY
-                    && meta.getSideEffect() == SideEffect.REVERSIBLE) {
-                return ToolRiskLevel.R2;
+                    && meta.getSideEffect() == SideEffect.WRITE_LOCAL) {
+                return new RiskAssessment(ToolRiskLevel.R2, false, "test R2");
             }
-            return ToolRiskLevel.R3;
+            return new RiskAssessment(ToolRiskLevel.R3, true, "test R3");
         };
 
-        ToolMeta meta = new ToolMeta("tool_db", "数据库更新", ExecutorType.PROXY, SideEffect.REVERSIBLE);
-        ToolRiskLevel level = classifier.classify(meta);
+        ToolMeta meta = new ToolMeta("tool_db", "数据库更新", ExecutorType.PROXY, SideEffect.WRITE_LOCAL);
+        ToolRiskLevel level = classifier.classify(meta, null).getRiskLevel();
 
         assertThat(level)
-                .as("executor=proxy + side_effect=reversible 应分类为 R2")
+                .as("executor=proxy + side_effect=write_local 应分类为 R2")
                 .isEqualTo(ToolRiskLevel.R2);
         assertThat(level.requiresApproval())
-                .as("R2 不需要审批")
+                .as("R2 enum 默认 requiresApproval=false (R2 是否真需审批由 RiskAssessment.isRequiresApproval() 决定)")
                 .isFalse();
         assertThat(level.requiresSandbox())
                 .as("R2 不需要沙箱")

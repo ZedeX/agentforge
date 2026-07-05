@@ -12,6 +12,7 @@ import com.agent.tool.engine.model.ToolCallRequest;
 import com.agent.tool.engine.model.ToolCallResult;
 import com.agent.tool.engine.model.ToolMeta;
 import com.agent.tool.engine.model.ToolSchema;
+import com.agent.tool.engine.risk.PiiDetector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,8 +48,8 @@ class ToolGatewayImplTest {
     @BeforeEach
     void setUp() {
         registry = mock(ToolRegistry.class);
-        riskClassifier = new RiskClassifierImpl();
         approvalStore = new ApprovalStoreImpl();
+        riskClassifier = new RiskClassifierImpl(new PiiDetector(), approvalStore);
         sandboxBorrower = new SandboxBorrowerImpl();
         cache = new ToolCacheImpl();
         auditor = new ToolCallAuditorImpl();
@@ -105,7 +106,7 @@ class ToolGatewayImplTest {
     @Test
     @DisplayName("R3 工具缺少审批: 抛 ToolApprovalException (CODE_APPROVAL_REQUIRED)")
     void should_ThrowApproval_When_R3MissingApproval() {
-        ToolMeta meta = new ToolMeta("tool_r3", "danger", ExecutorType.SANDBOX, SideEffect.IRREVERSIBLE);
+        ToolMeta meta = new ToolMeta("tool_r3", "danger", ExecutorType.SANDBOX, SideEffect.DESTRUCTIVE);
         ToolSchema schema = new ToolSchema(List.of());
         when(registry.findMeta("tool_r3")).thenReturn(meta);
         when(registry.findInputSchema("tool_r3")).thenReturn(schema);
@@ -169,7 +170,7 @@ class ToolGatewayImplTest {
     @Test
     @DisplayName("R3 工具审批通过: 沙箱借用并回收, 执行成功")
     void should_InvokeR3Success_When_ApprovedAndSandboxBorrowed() {
-        ToolMeta meta = new ToolMeta("tool_r3ok", "exec", ExecutorType.SANDBOX, SideEffect.IRREVERSIBLE);
+        ToolMeta meta = new ToolMeta("tool_r3ok", "exec", ExecutorType.SANDBOX, SideEffect.DESTRUCTIVE);
         ToolSchema schema = new ToolSchema(List.of());
         when(registry.findMeta("tool_r3ok")).thenReturn(meta);
         when(registry.findInputSchema("tool_r3ok")).thenReturn(schema);

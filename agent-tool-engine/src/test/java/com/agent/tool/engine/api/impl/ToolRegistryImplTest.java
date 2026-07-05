@@ -74,7 +74,7 @@ class ToolRegistryImplTest {
         assertThat(found).isNotNull();
         assertThat(found.getName()).isEqualTo("db_query");
         assertThat(found.getExecutorType()).isEqualTo(ExecutorType.PROXY);
-        assertThat(found.getSideEffect()).isEqualTo(SideEffect.REVERSIBLE);
+        assertThat(found.getSideEffect()).isEqualTo(SideEffect.WRITE_LOCAL);
     }
 
     @Test
@@ -141,7 +141,7 @@ class ToolRegistryImplTest {
     }
 
     @Test
-    @DisplayName("SideEffect -> RiskLevel 映射: NONE=R1, REVERSIBLE=R2, IRREVERSIBLE=R3")
+    @DisplayName("SideEffect -> RiskLevel 映射: NONE=R1, WRITE_LOCAL=R2, DESTRUCTIVE=R3")
     void should_MapSideEffectToRiskLevel_When_Register() {
         when(repository.existsByToolId(any())).thenReturn(false);
         when(repository.save(any(ToolRegistryEntity.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -150,8 +150,8 @@ class ToolRegistryImplTest {
         ToolMeta r1 = new ToolMeta("t_r1", "r1", ExecutorType.GENERAL, SideEffect.NONE);
         registry.register(r1, null, null);
 
-        // IRREVERSIBLE -> R3
-        ToolMeta r3 = new ToolMeta("t_r3", "r3", ExecutorType.SANDBOX, SideEffect.IRREVERSIBLE);
+        // DESTRUCTIVE -> R3
+        ToolMeta r3 = new ToolMeta("t_r3", "r3", ExecutorType.SANDBOX, SideEffect.DESTRUCTIVE);
         registry.register(r3, null, null);
 
         verify(repository, times(2)).save(any(ToolRegistryEntity.class));
