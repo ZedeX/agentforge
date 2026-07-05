@@ -1,0 +1,86 @@
+# memory-service prod profile (SERVICE_GROUP).
+# Aligned with doc 09 §12.3 — Milvus + embedding + RocketMQ consumer + XXL-Job distill schedule.
+server:
+  port: 8088
+
+grpc:
+  server:
+    port: 9088
+  client:
+    agent-model-gateway:
+      address: static://agent-model-gateway.agent-platform-prod:9094
+      negotiation-type: plaintext
+
+# Milvus connection (doc 09 §12.3)
+milvus:
+  host: milvus.agent-platform-infra
+  port: 19530
+  username: ${vault:secret/data/agent-platform/common/milvus:username}
+  password: ${vault:secret/data/agent-platform/common/milvus:password}
+  database: default
+  collection-prefix: agent_memory_
+  index-params:
+    metric-type: IP
+    index-type: HNSW
+    params:
+      M: 16
+      efConstruction: 200
+
+# memory service business config (doc 06-memory §4)
+memory:
+  extractor:
+    reflective-enabled: true
+    importance-threshold: 0.4
+  distiller:
+    threshold: 20
+    target-scene: GENERIC
+    target-tier: MEDIUM
+  ttl:
+    raw-ttl-days: 7
+    active-ttl-days: 30
+    distilled-ttl-days: 90
+  vector-store:
+    top-k: 10
+    score-threshold: 0.75
+  importance-scorer:
+    weights:
+      recency: 0.2
+      frequency: 0.2
+      relevance: 0.25
+      specificity: 0.15
+      tenant-priority: 0.2
+
+# Embedding model config
+embedding:
+  model:
+    provider: openai
+    name: text-embedding-3-small
+    dimension: 1536
+  cache:
+    enabled: true
+    max-size: 10000
+    ttl-minutes: 60
+  retry:
+    max-attempts: 3
+    backoff-ms: 200
+
+# RocketMQ consumer for memory.write topic
+rocketmq:
+  consumer:
+    group: CG_MEM_WRITE
+    topic: memory.write
+    consume-mode: concurrency
+    consume-thread-min: 5
+    consume-thread-max: 20
+
+# XXL-Job distill scheduler (doc 09 §12.3)
+xxl:
+  job:
+    admin:
+      addresses: http://xxl-job-admin.agent-platform-infra:8080/xxl-job-admin
+    access-token: ${vault:secret/data/agent-platform/service/jwt:signing_key}
+    executor:
+      app-name: agent-memory
+      port: 9999
+      log-path: /var/log/agent-platform/xxl-job
+      log-retention-days: 30

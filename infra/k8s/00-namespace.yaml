@@ -1,0 +1,80 @@
+# Four namespaces per doc 09 §13.3.
+# Apply: kubectl apply -f 00-namespace.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-platform-dev
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+    env: dev
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-platform-staging
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+    env: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-platform-prod
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+    env: prod
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-platform-infra
+  labels:
+    app.kubernetes.io/part-of: agent-platform
+    env: infra
+
+# ResourceQuota for prod namespace (doc 09 §13.3 / §14.3)
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: agent-platform-prod-quota
+  namespace: agent-platform-prod
+spec:
+  hard:
+    requests.cpu: "200"
+    requests.memory: 400Gi
+    limits.cpu: "400"
+    limits.memory: 800Gi
+    persistentvolumeclaims: "20"
+    services.loadbalancers: "2"
+    pods: "100"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: agent-platform-prod-limits
+  namespace: agent-platform-prod
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "200m"
+        memory: "512Mi"
+      default:
+        cpu: "1000m"
+        memory: "2Gi"
+      max:
+        cpu: "4000m"
+        memory: "8Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: agent-platform-infra-quota
+  namespace: agent-platform-infra
+spec:
+  hard:
+    requests.cpu: "100"
+    requests.memory: 300Gi
+    persistentvolumeclaims: "40"

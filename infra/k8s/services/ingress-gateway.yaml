@@ -1,0 +1,31 @@
+# Ingress for agent-gateway (only externally-exposed service).
+# Apply: kubectl apply -f ingress-gateway.yaml
+# Requires nginx ingress controller + TLS secret agent-platform-tls.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agent-gateway-ingress
+  namespace: agent-platform-prod
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/websocket-services: "agent-gateway"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.agent-platform.example.com]
+      secretName: agent-platform-tls
+  rules:
+    - host: api.agent-platform.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agent-gateway
+                port:
+                  number: 8080

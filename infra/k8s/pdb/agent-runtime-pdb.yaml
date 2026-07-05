@@ -1,0 +1,14 @@
+# PodDisruptionBudget for agent-runtime: ensure at least 2 pods available
+# during voluntary disruptions (node drain, cluster autoscaler).
+# Apply: kubectl apply -f agent-runtime-pdb.yaml
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent-runtime-pdb
+  namespace: agent-platform-prod
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: agent-runtime

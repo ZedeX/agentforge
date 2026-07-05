@@ -1,0 +1,20 @@
+# agent-tool-engine Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-tool-engine
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-tool-engine
+  ports:
+        - name: http
+          port: 8090
+          targetPort: 8090
+          protocol: TCP
+        - name: grpc
+          port: 9090
+          targetPort: 9090
+          protocol: TCP

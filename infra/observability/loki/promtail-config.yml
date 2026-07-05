@@ -1,0 +1,59 @@
+# Promtail 3.0 config (doc 09 §11.3).
+# Scrapes container stdout logs from K8s pod annotations.
+# Parses JSON log lines emitted by logback-spring.xml (LogstashEncoder).
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://loki.agent-platform-infra:3100/loki/api/v1/push
+    tenant_id: agent-platform
+
+scrape_configs:
+  # K8s pod discovery — scrapes /var/log/containers/*.log
+  - job_name: agent-platform-pods
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [agent-platform-prod, agent-platform-infra]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        target_label: app
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+    pipeline_stages:
+      # Parse JSON log line (emitted by logback-spring.xml LogstashEncoder)
+      - json:
+          expressions:
+            level: level
+            traceId: traceId
+            tenantId: tenantId
+            taskId: taskId
+            logger: logger
+            app: app
+            ts: "@timestamp"
+      # Promote fields to labels for fast filtering
+      - labels:
+          level:
+          app:
+      # Store traceId/tenantId/taskId as structured metadata (Loki 3.0 feature)
+      - structured_metadata:
+          traceId:
+          tenantId:
+          taskId:
+
+  # Container log files (fallback for non-JSON logs)
+  - job_name: container-logs
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: container
+          __path__: /var/log/containers/*.log

@@ -1,0 +1,16 @@
+# agent-observability Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-observability
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-observability
+  ports:
+        - name: http
+          port: 8104
+          targetPort: 8104
+          protocol: TCP

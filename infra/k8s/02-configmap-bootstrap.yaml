@@ -1,0 +1,52 @@
+# Shared bootstrap ConfigMap for all services. Each Deployment mounts this and
+# also gets the service-specific application.yml from Nacos.
+# Apply: kubectl apply -f 02-configmap-bootstrap.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-platform-bootstrap
+  namespace: agent-platform-prod
+data:
+  bootstrap.yml: |
+    spring:
+      application:
+        name: ${SPRING_APPLICATION_NAME}
+      profiles:
+        active: ${SPRING_PROFILES_ACTIVE:prod}
+      cloud:
+        nacos:
+          discovery:
+            server-addr: ${NACOS_ADDR:nacos-cluster.agent-platform-infra:8848}
+            namespace: agent-platform-${spring.profiles.active}
+            group: SERVICE_GROUP
+          config:
+            server-addr: ${NACOS_ADDR:nacos-cluster.agent-platform-infra:8848}
+            namespace: agent-platform-${spring.profiles.active}
+            group: SERVICE_GROUP
+            file-extension: yaml
+            shared-configs:
+              - data-id: datasource-common.yml
+                group: COMMON_GROUP
+                refresh: true
+              - data-id: redis-common.yml
+                group: COMMON_GROUP
+                refresh: true
+              - data-id: rocketmq-common.yml
+                group: COMMON_GROUP
+                refresh: true
+              - data-id: observability-common.yml
+                group: COMMON_GROUP
+                refresh: true
+              - data-id: governance-rules.yml
+                group: COMMON_GROUP
+                refresh: true
+        vault:
+          uri: http://vault.agent-platform-infra:8200
+          authentication: kubernetes
+          kubernetes:
+            role: agent-platform-${spring.application.name}
+            kubernetes-path: kubernetes
+          kv:
+            backend: agent-platform
+            application-name: ${spring.application.name}

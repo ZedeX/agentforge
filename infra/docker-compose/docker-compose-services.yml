@@ -1,0 +1,117 @@
+# Local business services stack. Depends on docker-compose.yml middleware running.
+# Start: docker-compose -f docker-compose-services.yml up -d
+# Image tag from .env IMAGE_TAG, default latest.
+#
+# PREREQUISITE:
+#   1. docker network create agent-platform_default  (or start docker-compose.yml first to auto-create)
+#   2. docker-compose -f docker-compose.yml up -d
+#   3. .\infra\scripts\build-all.ps1 -SkipTests
+
+version: "3.8"
+
+networks:
+  agent-platform:
+    external: true
+    name: agent-platform_default
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  environment:
+    SPRING_PROFILES_ACTIVE: dev
+    NACOS_ADDR: nacos:8848
+    SPRING_CLOUD_NACOS_DISCOVERY_NAMESPACE: agent-platform-dev
+    MYSQL_HOST: mysql
+    REDIS_HOST: redis
+    MILVUS_HOST: milvus
+    ROCKETMQ_NAMESRV: rocketmq-namesrv:9876
+    ES_HOST: elasticsearch
+    NEO4J_HOST: neo4j
+    MINIO_ENDPOINT: http://minio:9000
+    SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
+    HOSTNAME_HASH: "1"
+  networks: [agent-platform]
+
+services:
+  agent-gateway:
+    <<: *service-defaults
+    image: agentplatform/agent-gateway:${IMAGE_TAG:-latest}
+    container_name: ap-agent-gateway
+    ports: ["8080:8080"]
+    depends_on: [mysql, redis, nacos]
+
+  agent-session:
+    <<: *service-defaults
+    image: agentplatform/agent-session:${IMAGE_TAG:-latest}
+    container_name: ap-agent-session
+    ports: ["8082:8082"]
+    depends_on: [mysql, redis, nacos]
+
+  agent-task-orchestrator:
+    <<: *service-defaults
+    image: agentplatform/agent-task-orchestrator:${IMAGE_TAG:-latest}
+    container_name: ap-agent-task-orchestrator
+    ports: ["8084:8084", "9090:9090"]
+    depends_on: [mysql, redis, nacos, rocketmq-namesrv]
+
+  agent-memory:
+    <<: *service-defaults
+    image: agentplatform/agent-memory:${IMAGE_TAG:-latest}
+    container_name: ap-agent-memory
+    ports: ["8088:8088", "9088:9088"]
+    depends_on: [mysql, redis, nacos, milvus]
+
+  agent-tool-engine:
+    <<: *service-defaults
+    image: agentplatform/agent-tool-engine:${IMAGE_TAG:-latest}
+    container_name: ap-agent-tool-engine
+    ports: ["8090:8090", "9090:9090"]
+    depends_on: [mysql, redis, nacos, minio]
+
+  agent-runtime:
+    <<: *service-defaults
+    image: agentplatform/agent-runtime:${IMAGE_TAG:-latest}
+    container_name: ap-agent-runtime
+    ports: ["8092:8092", "9092:9092"]
+    depends_on: [redis, nacos]
+
+  agent-model-gateway:
+    <<: *service-defaults
+    image: agentplatform/agent-model-gateway:${IMAGE_TAG:-latest}
+    container_name: ap-agent-model-gateway
+    ports: ["8094:8094", "9094:9094"]
+    depends_on: [redis, nacos]
+
+  agent-repo:
+    <<: *service-defaults
+    image: agentplatform/agent-repo:${IMAGE_TAG:-latest}
+    container_name: ap-agent-repo
+    ports: ["8096:8096", "9096:9096"]
+    depends_on: [mysql, nacos, minio]
+
+  agent-knowledge:
+    <<: *service-defaults
+    image: agentplatform/agent-knowledge:${IMAGE_TAG:-latest}
+    container_name: ap-agent-knowledge
+    ports: ["8098:8098", "9098:9098"]
+    depends_on: [mysql, nacos, milvus, minio, elasticsearch]
+
+  agent-quality:
+    <<: *service-defaults
+    image: agentplatform/agent-quality:${IMAGE_TAG:-latest}
+    container_name: ap-agent-quality
+    ports: ["8100:8100", "9100:9100"]
+    depends_on: [mysql, nacos]
+
+  agent-risk-control:
+    <<: *service-defaults
+    image: agentplatform/agent-risk-control:${IMAGE_TAG:-latest}
+    container_name: ap-agent-risk-control
+    ports: ["8102:8102", "9102:9102"]
+    depends_on: [mysql, nacos]
+
+  agent-observability:
+    <<: *service-defaults
+    image: agentplatform/agent-observability:${IMAGE_TAG:-latest}
+    container_name: ap-agent-observability
+    ports: ["8104:8104"]
+    depends_on: [nacos]

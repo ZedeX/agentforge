@@ -1,0 +1,68 @@
+# Template for per-service Dockerfile. Use ARG SERVICE_NAME to build a specific service.
+# Build: docker build -t agentplatform/<svc>:<tag> --build-arg SERVICE_NAME=agent-runtime -f Dockerfile.template .
+
+# ---------- Stage 1: Maven build ----------
+FROM maven:3.9-eclipse-temurin-17 AS builder
+
+ARG SERVICE_NAME
+ENV SERVICE_NAME=${SERVICE_NAME}
+
+WORKDIR /build
+
+# Copy parent pom + all module poms first to leverage Docker layer cache
+COPY pom.xml .
+COPY agent-common/pom.xml agent-common/
+COPY agent-proto/pom.xml agent-proto/
+COPY agent-gateway/pom.xml agent-gateway/
+COPY agent-session/pom.xml agent-session/
+COPY agent-task-orchestrator/pom.xml agent-task-orchestrator/
+COPY agent-memory/pom.xml agent-memory/
+COPY agent-tool-engine/pom.xml agent-tool-engine/
+COPY agent-runtime/pom.xml agent-runtime/
+COPY agent-model-gateway/pom.xml agent-model-gateway/
+COPY agent-repo/pom.xml agent-repo/
+COPY agent-knowledge/pom.xml agent-knowledge/
+COPY agent-quality/pom.xml agent-quality/
+COPY agent-risk-control/pom.xml agent-risk-control/
+COPY agent-observability/pom.xml agent-observability/
+
+# Resolve dependencies offline (cached layer)
+RUN mvn -B -q dependency:go-offline -pl agent-common,agent-proto -am || true
+
+# Copy all sources
+COPY agent-common/src agent-common/src
+COPY agent-proto/src agent-proto/src
+COPY agent-gateway/src agent-gateway/src
+COPY agent-session/src agent-session/src
+COPY agent-task-orchestrator/src agent-task-orchestrator/src
+COPY agent-memory/src agent-memory/src
+COPY agent-tool-engine/src agent-tool-engine/src
+COPY agent-runtime/src agent-runtime/src
+COPY agent-model-gateway/src agent-model-gateway/src
+COPY agent-repo/src agent-repo/src
+COPY agent-knowledge/src agent-knowledge/src
+COPY agent-quality/src agent-quality/src
+COPY agent-risk-control/src agent-risk-control/src
+COPY agent-observability/src agent-observability/src
+
+# Build the target service and its dependencies
+RUN mvn -B -q package -pl ${SERVICE_NAME} -am -DskipTests
+
+# ---------- Stage 2: Runtime ----------
+FROM agentplatform/base:17-jre-skywalking-9.7
+
+ARG SERVICE_NAME
+ENV SPRING_APPLICATION_NAME=${SERVICE_NAME}
+
+LABEL service=${SERVICE_NAME}
+LABEL maintainer="agent-platform-team"
+
+WORKDIR /app
+
+# Copy the built jar (use wildcard to handle version suffix)
+COPY --from=builder /build/${SERVICE_NAME}/target/${SERVICE_NAME}-*.jar app.jar
+
+# Service-specific ports injected at per-service Dockerfile level
+# EXPOSE declared in derived image
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS_BASE $JAVA_OPTS -jar app.jar"]

@@ -1,0 +1,20 @@
+# agent-task-orchestrator Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-task-orchestrator
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-task-orchestrator
+  ports:
+        - name: http
+          port: 8084
+          targetPort: 8084
+          protocol: TCP
+        - name: grpc
+          port: 9090
+          targetPort: 9090
+          protocol: TCP

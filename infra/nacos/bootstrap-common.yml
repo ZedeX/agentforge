@@ -1,0 +1,45 @@
+# bootstrap.yml template for all services.
+# Replace ${SPRING_APPLICATION_NAME} at deploy time (ConfigMap envsubst or init container).
+# Copy to each service's src/main/resources/bootstrap.yml as baseline.
+
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME}
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        namespace: agent-platform-${spring.profiles.active}
+        group: SERVICE_GROUP
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        namespace: agent-platform-${spring.profiles.active}
+        group: SERVICE_GROUP
+        file-extension: yaml
+        shared-configs:
+          - data-id: datasource-common.yml
+            group: COMMON_GROUP
+            refresh: true
+          - data-id: redis-common.yml
+            group: COMMON_GROUP
+            refresh: true
+          - data-id: rocketmq-common.yml
+            group: COMMON_GROUP
+            refresh: true
+          - data-id: observability-common.yml
+            group: COMMON_GROUP
+            refresh: true
+          - data-id: governance-rules.yml
+            group: COMMON_GROUP
+            refresh: true
+    vault:
+      uri: ${VAULT_ADDR:http://localhost:8200}
+      authentication: kubernetes
+      kubernetes:
+        role: agent-platform-${spring.application.name}
+        kubernetes-path: kubernetes
+      kv:
+        backend: agent-platform
+        application-name: ${spring.application.name}

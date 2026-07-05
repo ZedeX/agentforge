@@ -1,0 +1,30 @@
+# Build artifacts
+**/target/
+**/*.class
+
+# IDE files
+**/.idea/
+**/.vscode/
+**/*.iml
+**/.settings/
+
+# Logs
+**/logs/
+**/*.log
+
+# Git
+**/.git/
+**/.gitignore
+
+# Docs (not needed in image)
+docs/
+**/*.md
+
+# Test artifacts
+**/test-results/
+**/coverage/
+
+# Temp files
+tmp/
+ci-logs/
+**/.DS_Store

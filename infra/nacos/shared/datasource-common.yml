@@ -1,0 +1,29 @@
+# Shared datasource config (COMMON_GROUP).
+# All services using MySQL inherit this HikariCP pool + Vault-resolved credentials.
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: ${spring.application.name}-pool
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+      leak-detection-threshold: 60000
+      data-source-properties:
+        cachePrepStmts: true
+        prepStmtCacheSize: 250
+        prepStmtCacheSqlLimit: 2048
+        useServerPrepStmts: true
+        useLocalSessionState: true
+        rewriteBatchedStatements: true
+
+# Vault-resolved MySQL connection (no plaintext here)
+mysql:
+  host: ${MYSQL_HOST:mysql.agent-platform-infra}
+  port: 3306
+  username: ${vault:secret/data/agent-platform/common/mysql:username}
+  password: ${vault:secret/data/agent-platform/common/mysql:password}

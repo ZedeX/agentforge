@@ -1,0 +1,20 @@
+# agent-runtime Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-runtime
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-runtime
+  ports:
+        - name: http
+          port: 8092
+          targetPort: 8092
+          protocol: TCP
+        - name: grpc
+          port: 9092
+          targetPort: 9092
+          protocol: TCP

@@ -1,0 +1,46 @@
+# Shared Redis config (COMMON_GROUP).
+# Redis Cluster (prod) + Lettuce pool + Redisson distributed lock.
+spring:
+  data:
+    redis:
+      cluster:
+        nodes:
+          - redis-0.redis.agent-platform-infra:6379
+          - redis-1.redis.agent-platform-infra:6379
+          - redis-2.redis.agent-platform-infra:6379
+          - redis-3.redis.agent-platform-infra:6379
+          - redis-4.redis.agent-platform-infra:6379
+          - redis-5.redis.agent-platform-infra:6379
+        max-redirects: 3
+        topology-refresh-period: 30s
+      password: ${vault:secret/data/agent-platform/common/redis:password}
+      timeout: 3s
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 5
+          max-wait: 2000ms
+        shutdown-timeout: 100ms
+        cluster:
+          refresh:
+            adaptive: true
+            period: 30s
+
+# Redisson distributed lock config (doc 09 §6.3)
+redisson:
+  config: |
+    clusterServersConfig:
+      nodeAddresses:
+        - redis://redis-0.redis.agent-platform-infra:6379
+        - redis://redis-1.redis.agent-platform-infra:6379
+        - redis://redis-2.redis.agent-platform-infra:6379
+        - redis://redis-3.redis.agent-platform-infra:6379
+        - redis://redis-4.redis.agent-platform-infra:6379
+        - redis://redis-5.redis.agent-platform-infra:6379
+      password: ${vault:secret/data/agent-platform/common/redis:password}
+      scanInterval: 2000
+      readMode: SLAVE
+      subscriptionMode: SLAVE
+    threads: 16
+    nettyThreads: 32

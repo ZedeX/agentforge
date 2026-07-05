@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback structured JSON template for all agent-platform services (doc 09 §11.3).
+  Copy to each service's src/main/resources/logback-spring.xml.
+  Outputs JSON to stdout (captured by Promtail via container logs).
+
+  Required dependencies (in each service pom.xml):
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>7.4</version>
+    </dependency>
+-->
+<configuration>
+    <springProperty scope="context" name="appName" source="spring.application.name"/>
+    <springProperty scope="context" name="env" source="spring.profiles.active"/>
+
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>tenantId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>taskId</includeMdcKeyName>
+            <includeMdcKeyName>agentId</includeMdcKeyName>
+            <customFields>
+                {"app":"${appName}","env":"${env}"}</customFields>
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <message>message</message>
+                <thread>thread</thread>
+                <level>level</level>
+                <logger>logger</logger>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <!-- Sensitive field masking (doc 09 §12.4 禁止事项: no plaintext secrets) -->
+    <appender name="MASKED_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <defaultMaskingMatcher>password|secret|apiKey|api_key|token|authorization</defaultMaskingMatcher>
+            </jsonGeneratorDecorator>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="JSON"/>
+    </root>
+
+    <logger name="com.agentplatform" level="INFO"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="io.grpc" level="WARN"/>
+</configuration>

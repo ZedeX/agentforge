@@ -1,0 +1,20 @@
+# agent-knowledge Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-knowledge
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-knowledge
+  ports:
+        - name: http
+          port: 8098
+          targetPort: 8098
+          protocol: TCP
+        - name: grpc
+          port: 9098
+          targetPort: 9098
+          protocol: TCP

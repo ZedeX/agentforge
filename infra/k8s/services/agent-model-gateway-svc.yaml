@@ -1,0 +1,20 @@
+# agent-model-gateway Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-model-gateway
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-model-gateway
+  ports:
+        - name: http
+          port: 8094
+          targetPort: 8094
+          protocol: TCP
+        - name: grpc
+          port: 9094
+          targetPort: 9094
+          protocol: TCP

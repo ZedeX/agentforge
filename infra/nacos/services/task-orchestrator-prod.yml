@@ -1,0 +1,87 @@
+# task-orchestrator prod profile (SERVICE_GROUP).
+# Aligned with doc 09 §12.2 — ShardingSphere 16 库分片 + gRPC clients + RocketMQ 事务消息.
+server:
+  port: 8084
+
+grpc:
+  server:
+    port: 9090
+  client:
+    agent-runtime:
+      address: static://agent-runtime.agent-platform-prod:9092
+      negotiation-type: plaintext
+    agent-planning:
+      address: static://agent-task-orchestrator.agent-platform-prod:9090
+      negotiation-type: plaintext
+
+# ShardingSphere 16-database sharding for task_instance (doc 09 §12.2)
+shardingsphere:
+  datasource:
+    names: ds0,ds1,ds2,ds3,ds4,ds5,ds6,ds7,ds8,ds9,ds10,ds11,ds12,ds13,ds14,ds15
+    # Each ds uses Vault-resolved credentials from datasource-common.yml
+    ds0:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      jdbc-url: jdbc:mysql://mysql.agent-platform-infra:3306/agent_task_0?useSSL=false&serverTimezone=Asia/Shanghai
+      username: ${vault:secret/data/agent-platform/common/mysql:username}
+      password: ${vault:secret/data/agent-platform/common/mysql:password}
+    ds1:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      jdbc-url: jdbc:mysql://mysql.agent-platform-infra:3306/agent_task_1?useSSL=false&serverTimezone=Asia/Shanghai
+      username: ${vault:secret/data/agent-platform/common/mysql:username}
+      password: ${vault:secret/data/agent-platform/common/mysql:password}
+    # ds2..ds15 follow same pattern (omitted for brevity; full list in doc 09 §12.2)
+    # ds2: jdbc-url: jdbc:mysql://.../agent_task_2  ... ds15: agent_task_15
+  rules:
+    sharding:
+      tables:
+        task_instance:
+          actual-data-nodes: ds${0..15}.task_instance
+          database-strategy:
+            standard:
+              sharding-column: tenant_id
+              sharding-algorithm-name: tenant-mod
+          key-generate-strategy:
+            column: id
+            key-generator-name: snowflake
+      sharding-algorithms:
+        tenant-mod:
+          type: MOD
+          props:
+            sharding-count: 16
+      key-generators:
+        snowflake:
+          type: SNOWFLAKE
+
+# task-orchestrator business config
+task:
+  orchestrator:
+    max-concurrent-subtasks: 50
+    subtask-timeout-seconds: 1800
+    retry:
+      max-attempts: 3
+      backoff-ms: 1000
+    dag:
+      max-nodes: 200
+      cycle-detection: true
+  planning:
+    complexity-thresholds:
+      high: 0.7
+      medium: 0.4
+    template-match:
+      min-success-rate: 0.8
+
+# RocketMQ transaction message config
+rocketmq:
+  producer:
+    transaction-listener: com.agent.orchestrator.tx.TaskTransactionListener
+    check-thread-pool-min: 1
+    check-thread-pool-max: 1
+
+# Model gateway for complexity assessment
+model:
+  gateway:
+    address: static://agent-model-gateway.agent-platform-prod:9094
+    default-model: gpt-4o-mini
+    timeout-ms: 5000

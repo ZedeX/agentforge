@@ -20,7 +20,7 @@
 | 06 | [agent-runtime](./06-agent-runtime-plan.md) | agent-runtime(8092/9092) | 10/10 | ✅ 已完成 | — |
 | 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 14/14 | ✅ 已完成 | Wave 18~29, 40 |
 | 08 | [agent-repo-knowledge](./08-agent-repo-knowledge-plan.md) | agent-repo(8096) + agent-knowledge(8098) | 12/12 | ✅ 已完成 | Wave 19~26, 40 |
-| 09 | [infra-deployment](./09-infra-deployment-plan.md) | infra/k8s + docker + nacos | 0/? | ⏳ 待开发 | — |
+| 09 | [infra-deployment](./09-infra-deployment-plan.md) | infra/k8s + docker + nacos | 13/13 | ✅ 已完成 | — |
 
 ### 各 Plan 详细进度
 
@@ -107,13 +107,16 @@
 | T11 KnowledgeBase gRPC 服务 | ✅ | Wave 26 | 4 RPC（IngestDocument / SearchChunks / ListBases / DeleteBase） |
 | T12 集成测试 | ✅ | Wave 40 | H2 + JPA + InProcess gRPC 6 E2E 场景（Ingest/ListBases/DeleteBase KB_IN_USE/force/not-found/SearchChunks） |
 
-#### Plan 09 — infra 部署（⏳ 待开发，0/? Task）
-- 13 个微服务的 Dockerfile（multi-stage build）
-- docker-compose 本地一键起
-- K8s Deployment + Service + HPA + Ingress
-- Nacos 配置中心 + Vault 密钥
-- SkyWalking / Prometheus / Loki 可观测组件
-- PowerShell 部署脚本
+#### Plan 09 — infra 部署（✅ 已完成，13/13 Task）
+- 90 个部署配置文件 (Dockerfile + docker-compose + K8s + Nacos + Vault + 可观测 + 脚本)
+- 13 微服务 Dockerfile (multi-stage build, base: JRE17 + SkyWalking 9.7)
+- docker-compose 本地一键起 (14 中间件 + 12 业务服务)
+- K8s: 4 namespace + 12 SA + 12 Deployment + 12 Service + 1 Ingress + 6 HPA + 1 PDB
+- Nacos 配置中心 (bootstrap + 5 shared + 2 服务级 prod + import 脚本)
+- Vault 密钥 (12 Policy + vault-seeds.sh + K8s SA 认证)
+- SkyWalking / Prometheus / Loki / Grafana 可观测组件
+- PowerShell 部署脚本 (build-all + deploy + deploy-middleware + health-check)
+- 验证: PS 8/8 OK, YAML 56/56 OK, JSON 1/1 OK
 - 依赖：全部业务服务可启动后执行
 
 ---
@@ -181,8 +184,8 @@
 - **Plan 06（agent-runtime）** ✅ 10/10，163 tests
 - **Plan 08（repo+knowledge）** ✅ 12/12，Wave 19~26 + Wave 40 闭合
 
-### 阶段 D：基础设施（P3）—— ⏳ 最后执行
-- **Plan 09（K8s/Docker/Nacos）** ⏳ 0/?，依赖全部服务可启动
+### 阶段 D：基础设施（P3）—— ✅ 已完成
+- **Plan 09（K8s/Docker/Nacos）** ✅ 13/13，90 文件，全部部署配置就绪
 
 ## 3. 关键约定（所有 plan 必须遵循）
 

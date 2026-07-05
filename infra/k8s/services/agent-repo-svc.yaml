@@ -1,0 +1,20 @@
+# agent-repo Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-repo
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-repo
+  ports:
+        - name: http
+          port: 8096
+          targetPort: 8096
+          protocol: TCP
+        - name: grpc
+          port: 9096
+          targetPort: 9096
+          protocol: TCP

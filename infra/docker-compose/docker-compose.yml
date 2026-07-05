@@ -1,0 +1,272 @@
+# Local development middleware stack for Agent Platform.
+# Start: docker-compose -f docker-compose.yml up -d
+# Stop:  docker-compose -f docker-compose.yml down
+# Volumes persisted under named volumes (see `volumes:` section below).
+#
+# NOTE: This is a single-node dev stack. For prod use Helm charts (see infra/scripts/deploy-middleware.ps1).
+
+version: "3.8"
+
+networks:
+  agent-platform:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  milvus-etcd-data:
+  milvus-minio-data:
+  milvus-data:
+  redis-data:
+  rocketmq-store:
+  es-data:
+  neo4j-data:
+  minio-data:
+  nacos-data:
+  vault-data:
+
+services:
+  # ===== MySQL 8.0.36 =====
+  mysql:
+    image: mysql:8.0.36
+    container_name: ap-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-agentplatform}
+      MYSQL_DATABASE: agent_platform
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../sql/mysql:/docker-entrypoint-initdb.d:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-agentplatform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [agent-platform]
+
+  # ===== Redis 7.2 =====
+  redis:
+    image: redis:7.2-alpine
+    container_name: ap-redis
+    restart: unless-stopped
+    ports: ["6379:6379"]
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-agentplatform}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-agentplatform}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [agent-platform]
+
+  # ===== Milvus 2.4 (standalone) — splits into etcd + minio + milvus =====
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: ap-milvus-etcd
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+    volumes:
+      - milvus-etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379
+    networks: [agent-platform]
+
+  milvus-minio:
+    image: minio/minio:RELEASE.2024-03-30T09-41-56Z
+    container_name: ap-milvus-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - milvus-minio-data:/minio_data
+    command: minio server /minio_data
+    networks: [agent-platform]
+
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: ap-milvus
+    depends_on: [milvus-etcd, milvus-minio]
+    ports: ["19530:19530", "9091:9091"]
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+    volumes:
+      - milvus-data:/var/lib/milvus
+    command: ["milvus", "run", "standalone"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks: [agent-platform]
+
+  # ===== RocketMQ 5.3 (single broker) =====
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.0
+    container_name: ap-rocketmq-namesrv
+    ports: ["9876:9876"]
+    command: sh mqnamesrv
+    networks: [agent-platform]
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.0
+    container_name: ap-rocketmq-broker
+    depends_on: [rocketmq-namesrv]
+    ports: ["10909:10909", "10911:10911"]
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    command: sh mqbroker -n rocketmq-namesrv:9876 --enable-proxy
+    volumes:
+      - rocketmq-store:/home/rocketmq/store
+    networks: [agent-platform]
+
+  # ===== Elasticsearch 8.13 (single node) =====
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: ap-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports: ["9200:9200", "9300:9300"]
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks: [agent-platform]
+
+  # ===== Neo4j 5.18 =====
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: ap-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-agentplatform}
+    ports: ["7474:7474", "7687:7687"]
+    volumes:
+      - neo4j-data:/data
+    networks: [agent-platform]
+
+  # ===== MinIO (for app object storage, separate from Milvus's minio) =====
+  minio:
+    image: minio/minio:RELEASE.2024-03-30T09-41-56Z
+    container_name: ap-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-agentplatform}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-agentplatform}
+    ports: ["9000:9000", "9001:9001"]
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks: [agent-platform]
+
+  # ===== Nacos 2.x (standalone) =====
+  nacos:
+    image: nacos/nacos-server:v2.3.0
+    container_name: ap-nacos
+    environment:
+      MODE: standalone
+      JVM_XMS: "512m"
+      JVM_XMX: "512m"
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-agentplatform-secret-key-2026}
+      NACOS_AUTH_IDENTITY_KEY: serverIdentity
+      NACOS_AUTH_IDENTITY_VALUE: agentplatform
+    ports: ["8848:8848", "9848:9848"]
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [agent-platform]
+
+  # ===== HashiCorp Vault (dev mode — DO NOT use in prod) =====
+  vault:
+    image: hashicorp/vault:1.15.2
+    container_name: ap-vault
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_TOKEN:-agentplatform}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports: ["8200:8200"]
+    cap_add: ["IPC_LOCK"]
+    volumes:
+      - vault-data:/vault/file
+    networks: [agent-platform]
+
+  # ===== SkyWalking OAP 9.7 =====
+  skywalking-oap:
+    image: apache/skywalking-oap-server:9.7.0
+    container_name: ap-skywalking-oap
+    environment:
+      SW_STORAGE: elasticsearch
+      SW_STORAGE_ES_CLUSTER_NODES: elasticsearch:9200
+      SW_HEALTH_CHECKER: default
+    ports: ["11800:11800", "12800:12800"]
+    depends_on: [elasticsearch]
+    healthcheck:
+      test: ["CMD-SHELL", "/skywalking/bin/swctl ch || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 15
+    networks: [agent-platform]
+
+  # NOTE: SkyWalking UI mapped to 18080 to avoid clashing with agent-gateway (8080).
+  skywalking-ui:
+    image: apache/skywalking-ui:9.7.0
+    container_name: ap-skywalking-ui
+    environment:
+      SW_OAP_ADDRESS: http://skywalking-oap:12800
+    ports: ["18080:8080"]
+    depends_on: [skywalking-oap]
+    networks: [agent-platform]
+
+  # ===== Prometheus + Grafana =====
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: ap-prometheus
+    ports: ["9090:9090"]
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/prometheus/alerts:/etc/prometheus/rules:ro
+    networks: [agent-platform]
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: ap-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-agentplatform}
+    ports: ["3000:3000"]
+    volumes:
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on: [prometheus]
+    networks: [agent-platform]
+
+  # ===== Loki + Promtail =====
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: ap-loki
+    ports: ["3100:3100"]
+    volumes:
+      - ../observability/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks: [agent-platform]
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: ap-promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+      - ../observability/loki/promtail-config.yml:/etc/promtail/promtail.yml:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    networks: [agent-platform]

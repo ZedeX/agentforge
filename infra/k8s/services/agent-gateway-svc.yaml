@@ -1,0 +1,16 @@
+# agent-gateway Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-gateway
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-gateway
+  ports:
+        - name: http
+          port: 8080
+          targetPort: 8080
+          protocol: TCP

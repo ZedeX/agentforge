@@ -1,0 +1,42 @@
+# HPA for agent-gateway (3-10 replicas, HTTP QPS driven).
+# Custom metric http_requests_qps requires Prometheus Adapter.
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent-gateway-hpa
+  namespace: agent-platform-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agent-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_qps
+        target:
+          type: AverageValue
+          averageValue: "1000"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60

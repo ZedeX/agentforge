@@ -1,0 +1,43 @@
+# Pre-aggregated recording rules for dashboard performance (doc 09 §11.2).
+# These rules compute frequently-used ratios once per evaluation interval
+# instead of recomputing on every dashboard refresh.
+
+groups:
+  - name: agent-platform-recording
+    interval: 30s
+    rules:
+      # Task success rate per service
+      - record: agent:task_success_rate
+        expr: |
+          sum(rate(agent_task_completed_total{status="success"}[5m])) by (service, namespace)
+          /
+          sum(rate(agent_task_submitted_total[5m])) by (service, namespace)
+
+      # Hallucination rate (P2/P1 alert thresholds: 5% / 10%)
+      - record: agent:hallucination_rate
+        expr: |
+          sum(rate(agent_hallucination_detected_total[5m])) by (service, tenant_id)
+          /
+          sum(rate(agent_task_completed_total[5m])) by (service, tenant_id)
+
+      # Tool call success rate
+      - record: agent:tool_call_success_rate
+        expr: |
+          sum(rate(tool_call_total{result="success"}[5m])) by (tool_id)
+          /
+          sum(rate(tool_call_total[5m])) by (tool_id)
+
+      # Token consumption rate (per minute)
+      - record: agent:token_per_minute
+        expr: |
+          sum(rate(model_usage_tokens_total[1m])) by (model, tenant_id)
+
+      # Cost per minute (cents)
+      - record: agent:cost_per_minute
+        expr: |
+          sum(rate(model_usage_cost_cent_total[1m])) by (tenant_id)
+
+      # Active agent instances (HPA custom metric source for agent-runtime)
+      - record: agent:active_instances
+        expr: |
+          sum(agent_runtime_active_instances) by (service, namespace)

@@ -1,0 +1,108 @@
+# agent-risk-control Deployment (doc 09 §13.2 + §14.3).
+# HPA target if applicable (see infra/k8s/hpa/).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-risk-control
+  namespace: agent-platform-prod
+  labels:
+    app: agent-risk-control
+    tier: service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-risk-control
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: agent-risk-control
+        tier: service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8102"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      serviceAccountName: agent-risk-control-sa
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: agent-risk-control
+          image: agentplatform/agent-risk-control:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8102
+              protocol: TCP
+            - name: grpc
+              containerPort: 9102
+              protocol: TCP
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: agent-risk-control
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: HOSTNAME_HASH
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: SW_AGENT_NAME
+              value: agent-platform-agent-risk-control
+            - name: SW_COLLECTOR_BACKEND_SERVICE
+              value: skywalking-oap.agent-platform-infra:11800
+            - name: JAVA_OPTS
+              value: "-Xms1024m -Xmx2048m"
+          envFrom:
+            - configMapRef:
+                name: agent-platform-bootstrap
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8102
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8102
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 5
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8102
+            failureThreshold: 30
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - "sleep 10 && curl -X POST http://localhost:8102/actuator/shutdown || true"
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /app/config
+              readOnly: true
+            - name: heapdump
+              mountPath: /var/log/agent-platform
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: agent-platform-bootstrap
+        - name: heapdump
+          emptyDir: {}

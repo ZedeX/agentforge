@@ -1,0 +1,24 @@
+# Hallucination rate alerts (doc 09 §1.2.6).
+# P2 warning at 5%, P1 critical at 10% (auto-pause agent).
+groups:
+  - name: hallucination-governance
+    rules:
+      # Daily hallucination rate > 5% -> P2
+      - alert: HallucinationRateWarning
+        expr: agent:hallucination_rate > 0.05
+        for: 10m
+        labels:
+          severity: P2
+        annotations:
+          summary: "Hallucination rate > 5% on {{ $labels.service }}"
+          description: "Daily hallucination rate exceeds 5% threshold (doc 09 §1.2.6)."
+
+      # Daily hallucination rate > 10% -> P1, auto-pause agent
+      - alert: HallucinationRateCritical
+        expr: agent:hallucination_rate > 0.10
+        for: 10m
+        labels:
+          severity: P1
+        annotations:
+          summary: "Hallucination rate CRITICAL > 10% on {{ $labels.service }}"
+          description: "Auto-pause agent triggered. Manual review required (doc 09 §1.2.6)."

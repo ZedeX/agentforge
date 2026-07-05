@@ -1,0 +1,16 @@
+# agent-session Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-session
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-session
+  ports:
+        - name: http
+          port: 8082
+          targetPort: 8082
+          protocol: TCP

@@ -1,0 +1,60 @@
+# Prometheus 2.51 scrape config (doc 09 §11.2).
+# Scrape all agent-platform services via Kubernetes service discovery + pod annotations.
+
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: agent-platform-prod
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager.agent-platform-infra:9093']
+
+scrape_configs:
+  # Auto-discover agent-platform services via pod annotations
+  - job_name: 'agent-platform-services'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: ['agent-platform-prod']
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: 'true'
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]
+        action: replace
+        target_label: __address__
+        regex: (.+);(.+)
+        replacement: $2:$1
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+
+  # SkyWalking OAP self-metrics
+  - job_name: 'skywalking-oap'
+    static_configs:
+      - targets: ['skywalking-oap.agent-platform-infra:12800']
+
+  # Middleware exporters
+  - job_name: 'mysql-exporter'
+    static_configs:
+      - targets: ['mysql-exporter.agent-platform-infra:9104']
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter.agent-platform-infra:9121']
+  - job_name: 'milvus'
+    static_configs:
+      - targets: ['milvus.agent-platform-infra:9091']

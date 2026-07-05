@@ -1,0 +1,17 @@
+# agent-risk-control service Dockerfile.
+# Build: docker build -t agentplatform/agent-risk-control:1.0.0 -f Dockerfile.agent-risk-control --build-arg SERVICE_NAME=agent-risk-control -f Dockerfile.template .
+
+FROM agentplatform/base:17-jre-skywalking-9.7
+
+LABEL service="agent-risk-control"
+LABEL tier="service"
+
+ENV SW_AGENT_NAME="agent-platform-agent-risk-control"
+ENV SW_COLLECTOR_BACKEND_SERVICE="skywalking-oap.agent-platform-infra:11800"
+
+EXPOSE 8102 9102
+
+VOLUME ["/var/log/agent-platform"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fs http://localhost:8102/actuator/health || exit 1

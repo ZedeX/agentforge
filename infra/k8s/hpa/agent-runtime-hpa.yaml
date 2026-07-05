@@ -1,0 +1,49 @@
+# HPA for agent-runtime (3-30 replicas, doc 09 §13.2 / §14.3).
+# Custom metric agent_active_instances requires Prometheus Adapter.
+# Apply: kubectl apply -f agent-runtime-hpa.yaml
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent-runtime-hpa
+  namespace: agent-platform-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agent-runtime
+  minReplicas: 3
+  maxReplicas: 30
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Pods
+      pods:
+        metric:
+          name: agent_active_instances
+        target:
+          type: AverageValue
+          averageValue: "20"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60

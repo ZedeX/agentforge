@@ -1,0 +1,44 @@
+# Drift governance alerts (doc 09 §2.3).
+# Three-tier thresholds: 0.3 (task-level P3) / 0.5 (system-level P2) / 0.7 (critical P1 auto-rollback).
+groups:
+  - name: drift-governance
+    rules:
+      # drift_score > 0.3 for 3 days -> P3, task-level correction
+      - alert: DriftScoreTaskLevel
+        expr: agent_drift_score > 0.3
+        for: 72h
+        labels:
+          severity: P3
+        annotations:
+          summary: "Drift score > 0.3 for 3 days on {{ $labels.agent_id }}"
+          description: "Trigger task-level correction (doc 09 §2.3)."
+
+      # drift_score > 0.5 single day -> P2, system-level
+      - alert: DriftScoreSystemLevel
+        expr: agent_drift_score > 0.5
+        for: 1h
+        labels:
+          severity: P2
+        annotations:
+          summary: "Drift score > 0.5 on {{ $labels.agent_id }}"
+          description: "Trigger system-level rollback (doc 09 §2.3)."
+
+      # drift_score > 0.7 single day -> P1, auto-rollback stable version
+      - alert: DriftScoreCritical
+        expr: agent_drift_score > 0.7
+        for: 5m
+        labels:
+          severity: P1
+        annotations:
+          summary: "Drift CRITICAL > 0.7 on {{ $labels.agent_id }}"
+          description: "Auto-rollback to stable agent_version (doc 09 §2.3)."
+
+      # Memory error rate > 5%
+      - alert: MemoryErrorRateHigh
+        expr: agent_memory_error_rate > 0.05
+        for: 1h
+        labels:
+          severity: P2
+        annotations:
+          summary: "Memory error rate > 5% in domain {{ $labels.domain }}"
+          description: "Trigger memory drift correction (doc 09 §2.2.2)."

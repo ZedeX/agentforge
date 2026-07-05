@@ -1,0 +1,17 @@
+# agent-task-orchestrator service Dockerfile.
+# Build: docker build -t agentplatform/agent-task-orchestrator:1.0.0 -f Dockerfile.agent-task-orchestrator --build-arg SERVICE_NAME=agent-task-orchestrator -f Dockerfile.template .
+
+FROM agentplatform/base:17-jre-skywalking-9.7
+
+LABEL service="agent-task-orchestrator"
+LABEL tier="service"
+
+ENV SW_AGENT_NAME="agent-platform-agent-task-orchestrator"
+ENV SW_COLLECTOR_BACKEND_SERVICE="skywalking-oap.agent-platform-infra:11800"
+
+EXPOSE 8084 9090
+
+VOLUME ["/var/log/agent-platform"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fs http://localhost:8084/actuator/health || exit 1

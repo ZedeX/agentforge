@@ -1,0 +1,61 @@
+# Shared observability config (COMMON_GROUP).
+# Actuator + Prometheus + SkyWalking + structured JSON logging.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus,health,info,metrics,shutdown
+      base-path: /actuator
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: db,redis,milvus,rocketmq
+        liveness:
+          include: ping
+    shutdown:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      namespace: agent-platform
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        grpc.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+        step: 30s
+
+# SkyWalking Agent configuration (also set via SW_AGENT_NAME env in Dockerfile)
+skywalking:
+  agent:
+    service-name: agent-platform-${spring.application.name}
+    namespace: agent-platform
+    collector-backend-service: skywalking-oap.agent-platform-infra:11800
+    sample-n-per-3-secs: 5000
+    ignore-suffix: .jpg,.png,.css,.js,.html
+
+# Logback structured JSON output (doc 09 §11.3)
+# logback-spring.xml in each service's classpath handles JSON encoding;
+# this section only sets levels.
+logging:
+  level:
+    com.agentplatform: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    io.grpc: WARN

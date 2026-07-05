@@ -1,0 +1,27 @@
+# Shared runtime base image for all agent-platform services.
+# Builds SkyWalking Agent + JRE 17 + common tools once, reused by per-service Dockerfiles.
+# Build: docker build -t agentplatform/base:17-jre-skywalking-9.7 -f Dockerfile.base .
+
+FROM eclipse-temurin:17-jre-jammy
+
+LABEL maintainer="agent-platform-team"
+LABEL base="agent-platform-runtime"
+
+# Install curl (healthcheck) + tzdata + ca-certificates; download SkyWalking Agent 9.7.0
+# NOTE: SkyWalking 9.7 Java Agent requires JDK 8+; compatible with JRE 17.
+ARG SKYWALKING_VERSION=9.7.0
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl tzdata ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://archive.apache.org/dist/skywalking/java-agent/${SKYWALKING_VERSION}/apache-skywalking-java-agent-${SKYWALKING_VERSION}.tgz \
+       | tar -xzf - -C /opt \
+    && ln -s /opt/skywalking-agent /skywalking \
+    && mkdir -p /var/log/agent-platform /app
+
+ENV TZ=Asia/Shanghai
+ENV LANG=C.UTF-8
+# NOTE: -XX:+ZGenerational (JDK 21+) removed — base image is JRE 17.
+# ZGC is production-ready in JDK 15+; generational ZGC lands in JDK 21.
+ENV JAVA_OPTS_BASE="-XX:+UseZGC -XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=50 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/log/agent-platform/heapdump -javaagent:/skywalking/skywalking-agent.jar"
+
+WORKDIR /app

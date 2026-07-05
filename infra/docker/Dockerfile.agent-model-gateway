@@ -1,0 +1,17 @@
+# agent-model-gateway service Dockerfile.
+# Build: docker build -t agentplatform/agent-model-gateway:1.0.0 -f Dockerfile.agent-model-gateway --build-arg SERVICE_NAME=agent-model-gateway -f Dockerfile.template .
+
+FROM agentplatform/base:17-jre-skywalking-9.7
+
+LABEL service="agent-model-gateway"
+LABEL tier="service"
+
+ENV SW_AGENT_NAME="agent-platform-agent-model-gateway"
+ENV SW_COLLECTOR_BACKEND_SERVICE="skywalking-oap.agent-platform-infra:11800"
+
+EXPOSE 8094 9094
+
+VOLUME ["/var/log/agent-platform"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fs http://localhost:8094/actuator/health || exit 1

@@ -1,0 +1,108 @@
+# agent-repo Deployment (doc 09 §13.2 + §14.3).
+# HPA target if applicable (see infra/k8s/hpa/).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-repo
+  namespace: agent-platform-prod
+  labels:
+    app: agent-repo
+    tier: service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-repo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: agent-repo
+        tier: service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8096"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      serviceAccountName: agent-repo-sa
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: agent-repo
+          image: agentplatform/agent-repo:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8096
+              protocol: TCP
+            - name: grpc
+              containerPort: 9096
+              protocol: TCP
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: agent-repo
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: HOSTNAME_HASH
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: SW_AGENT_NAME
+              value: agent-platform-agent-repo
+            - name: SW_COLLECTOR_BACKEND_SERVICE
+              value: skywalking-oap.agent-platform-infra:11800
+            - name: JAVA_OPTS
+              value: "-Xms1024m -Xmx2048m"
+          envFrom:
+            - configMapRef:
+                name: agent-platform-bootstrap
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8096
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8096
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 5
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8096
+            failureThreshold: 30
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - "sleep 10 && curl -X POST http://localhost:8096/actuator/shutdown || true"
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /app/config
+              readOnly: true
+            - name: heapdump
+              mountPath: /var/log/agent-platform
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: agent-platform-bootstrap
+        - name: heapdump
+          emptyDir: {}

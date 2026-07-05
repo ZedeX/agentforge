@@ -1,0 +1,32 @@
+# Shared RocketMQ config (COMMON_GROUP).
+# NOTE: yaml keys merged — single `rocketmq:` root with producer + topics + consumer-groups children.
+rocketmq:
+  name-server: rocketmq-namesrv.agent-platform-infra:9876
+  producer:
+    send-message-timeout: 5000
+    retry-times-when-send-failed: 2
+    retry-times-when-send-async-failed: 3
+    max-message-size: 4194304  # 4MB
+  # Topic registry (doc 09 §7.1)
+  topics:
+    task-subtask-execute: task.subtask.execute
+    task-subtask-done: task.subtask.done
+    task-state-change: task.state.change
+    task-subtask-cancel: task.subtask.cancel
+    tool-call-audit: tool.call.audit
+    memory-write: memory.write
+    quality-badcase: quality.badcase
+    governance-drift-alert: governance.drift.alert
+    memory-distill-request: memory.distill.request
+  # Consumer group registry
+  consumer-groups:
+    runtime-execute: CG_RUNTIME_EXECUTE
+    orchestrator-done: CG_ORCH_DONE
+    session-state: CG_SESSION_STATE
+    obs-state: CG_OBS_STATE
+    risk-audit: CG_RISK_AUDIT
+    mem-write: CG_MEM_WRITE
+    obs-badcase: CG_OBS_BADCASE
+    obs-drift: CG_OBS_DRIFT
+    risk-drift: CG_RISK_DRIFT
+    mem-distill: CG_MEM_DISTILL

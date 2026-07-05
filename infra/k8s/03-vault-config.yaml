@@ -1,0 +1,33 @@
+# Vault Kubernetes auth method setup (run once per cluster, by cluster admin).
+# Requires Vault CLI and cluster admin kubeconfig.
+#
+# This yaml only declares a placeholder ConfigMap documenting the SA -> Vault role binding.
+# Actual Vault roles + policies are created via infra/vault/vault-seeds.sh.
+#
+# Setup steps:
+#   1. vault auth enable kubernetes
+#   2. vault write auth/kubernetes/config \
+#        kubernetes_host="https://kubernetes.default.svc:443" \
+#        kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+#   3. For each service, create role + policy (see vault-seeds.sh)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-auth-method-doc
+  namespace: agent-platform-infra
+data:
+  vault-roles.txt: |
+    Vault roles per service (created by infra/vault/vault-seeds.sh):
+      agent-platform-agent-gateway          -> secret/data/agent-platform/common/*
+      agent-platform-agent-session          -> secret/data/agent-platform/common/*
+      agent-platform-agent-task-orchestrator -> secret/data/agent-platform/common/*
+      agent-platform-agent-memory           -> secret/data/agent-platform/common/*
+      agent-platform-agent-tool-engine      -> secret/data/agent-platform/common/*
+      agent-platform-agent-runtime          -> secret/data/agent-platform/common/* + service/jwt
+      agent-platform-agent-model-gateway    -> secret/data/agent-platform/common/* + model/*
+      agent-platform-agent-repo             -> secret/data/agent-platform/common/*
+      agent-platform-agent-knowledge       -> secret/data/agent-platform/common/*
+      agent-platform-agent-quality          -> secret/data/agent-platform/common/*
+      agent-platform-agent-risk-control     -> secret/data/agent-platform/common/* + service/jwt
+      agent-platform-agent-observability    -> secret/data/agent-platform/common/*

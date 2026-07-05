@@ -1,0 +1,20 @@
+# agent-risk-control Service (ClusterIP).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-risk-control
+  namespace: agent-platform-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-risk-control
+  ports:
+        - name: http
+          port: 8102
+          targetPort: 8102
+          protocol: TCP
+        - name: grpc
+          port: 9102
+          targetPort: 9102
+          protocol: TCP
