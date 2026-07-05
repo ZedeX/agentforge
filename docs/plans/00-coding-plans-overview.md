@@ -16,8 +16,8 @@
 | 02 | [agent-gateway-session](./02-agent-gateway-session-plan.md) | agent-gateway(8080) + agent-session(8082) | 10/10 | ✅ 已完成 | Wave 5~11 |
 | 03 | [agent-memory](./03-agent-memory-plan.md) | agent-memory(8088/9088) | 10/10 | ✅ 已完成 | Wave 30~39 |
 | 04 | [task-orchestrator-planning](./04-task-orchestrator-planning-plan.md) | agent-task-orchestrator(8084) + agent-planning(8086) | 13/13 | ✅ 已完成 | P6 Wave 1~2 |
-| 05 | [agent-tool-engine](./05-agent-tool-engine-plan.md) | agent-tool-engine(8090/9090) | 0/12 | ⏳ 待开发 | — |
-| 06 | [agent-runtime](./06-agent-runtime-plan.md) | agent-runtime(8092/9092) | 0/10 | ⏳ 待开发 | — |
+| 05 | [agent-tool-engine](./05-agent-tool-engine-plan.md) | agent-tool-engine(8090/9090) | 12/12 | ✅ 已完成 | — |
+| 06 | [agent-runtime](./06-agent-runtime-plan.md) | agent-runtime(8092/9092) | 10/10 | ✅ 已完成 | — |
 | 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 14/14 | ✅ 已完成 | Wave 18~29, 40 |
 | 08 | [agent-repo-knowledge](./08-agent-repo-knowledge-plan.md) | agent-repo(8096) + agent-knowledge(8098) | 12/12 | ✅ 已完成 | Wave 19~26, 40 |
 | 09 | [infra-deployment](./09-infra-deployment-plan.md) | infra/k8s + docker + nacos | 0/? | ⏳ 待开发 | — |
@@ -66,15 +66,20 @@
 | T12 重规划模式选择 | ✅ | 增量 / 全量 / 人工 |
 | T13 端到端集成测试 | ✅ | H2 + jedis-mock + InProcess gRPC |
 
-#### Plan 05 — agent-tool-engine（⏳ 待开发，0/12 Task）
+#### Plan 05 — agent-tool-engine（✅ 已完成，12/12 Task）
+224 unit tests, 49 classes. T1-T12 全部完成。
 - 4 RPC：CallTool / RegisterTool / ListTools / GetToolMeta
 - 9 项核心能力：ToolRegistry / ToolGateway / RiskClassifier / ApprovalStore / SandboxBorrower / ToolCache / ToolCallAuditor / ToolSemanticRecaller / ResultCleaner
 - 依赖：agent-proto / agent-common；F8 工具选择骨架已有（P7-3）
 
-#### Plan 06 — agent-runtime（⏳ 待开发，0/10 Task）
-- 4 RPC：StartAgent / GetStepState / CancelAgent / ReportStepResult
-- 6 项核心能力：ReActLoop / ModelGatewayClient / ToolEngineClient / ReflexionEngine / StepStateSyncer / TokenWatermarkMonitor
-- 依赖：agent-proto / agent-common / Redis；F6 ReAct 骨架已有（P7-4）
+#### Plan 06 — agent-runtime（✅ 已完成，10/10 Task）
+163 unit tests, 72+ classes. T1-T10 全部完成。
+- 5 RPC：StartAgent / Step / GetState / Pause / Resume
+- ReActLoop (Think→Act→Observe) + ReflexionEngine + SessionManager
+- ModelGatewayClient + ToolEngineClient (gRPC stub + Resilience4j CB/Retry)
+- TokenWatermarkMonitor + StepStateSyncer + TokenBudgetCalculator
+- Resilience4j 熔断 (model-gateway: 5 failures→30s, tool-engine: 3 failures→30s) + 重试 (3 attempts, exponential backoff)
+- 依赖：agent-proto / agent-common；F6 ReAct 骨架已有（P7-4）
 
 #### Plan 07 — agent-model-gateway（✅ 已完成，14/14 Task）
 | Task | 状态 | 完成 Wave | 说明 |
@@ -166,14 +171,14 @@
 - **Plan 01（proto+common）** ✅ Wave 1~4 闭合
 - **Plan 02（gateway+session）** ✅ Wave 5~11 闭合（接入层提前完成便于联调）
 
-### 阶段 B：核心引擎层（P1）—— ✅ 基本完成
+### 阶段 B：核心引擎层（P1）—— ✅ 已完成
 - **Plan 03（memory）** ✅ 10/10，Wave 30~39 闭合
 - **Plan 04（task-orchestrator+planning）** ✅ 13/13，P6 Wave 1~2 闭合
 - **Plan 07（model-gateway）** ✅ 14/14，Wave 18~29 + Wave 40 闭合
-- **Plan 05（tool-engine）** ⏳ 0/12，待启动（唯一未完成的 P1 计划）
+- **Plan 05（tool-engine）** ✅ 12/12，224 tests
 
-### 阶段 C：运行时与能力层（P2）—— 🔄 进行中
-- **Plan 06（agent-runtime）** ⏳ 0/10，依赖 task/memory/tool/model 全部完成
+### 阶段 C：运行时与能力层（P2）—— ✅ 已完成
+- **Plan 06（agent-runtime）** ✅ 10/10，163 tests
 - **Plan 08（repo+knowledge）** ✅ 12/12，Wave 19~26 + Wave 40 闭合
 
 ### 阶段 D：基础设施（P3）—— ⏳ 最后执行
@@ -304,9 +309,7 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 
 | 优先级 | Plan / Task | 理由 |
 |---|---|---|
-| 高 | Plan 05 agent-tool-engine | 解锁 Plan 06 agent-runtime 依赖；唯一未完成的 P1 计划 |
-| 高 | Plan 06 agent-runtime | 依赖 task/memory/tool/model 全部完成（tool 待做） |
-| 中 | Plan 09 infra-deployment | 8/9 计划已完成，可开始 K8s/Docker/Nacos 部署 |
+| 高 | Plan 09 infra-deployment | 8/9 计划已完成，可开始 K8s/Docker/Nacos 部署 |
 | 最后 | 全平台文档同步 | Wave 47 最终验证 |
 
 ## 6. 变更记录
@@ -318,3 +321,4 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 | v2.1 | 2026-07-04 | 同步 Wave 36 进度：①Plan 03 进度 7/10 → 8/10（T5 EmbeddingClient HTTP 实现完成）；②CI streak 33 → 36；③依赖图 Plan 03 标注 8/10；④阶段 B 描述更新（T5 移出待做列表）；⑤优先级排序表移除已完成的 T5 |
 | v2.2 | 2026-07-04 | 同步 Wave 37 进度：①Plan 03 进度 8/10 → 9/10（T10 MemoryService gRPC 4 RPC 完成）；②CI streak 36 → 39；③依赖图 Plan 03 标注 9/10；④T10 标记完成并更新说明；⑤优先级排序表移除已完成的 T10 |
 | v2.3 | 2026-07-04 | 同步 Wave 40 进度：①Plan 07 进度 13/14 → 14/14（T14 集成测试 6 E2E 场景完成）；②Plan 08 进度 7/12 → 12/12（T10 Milvus 双轨 + T12 集成测试 6 E2E 场景完成）；③CI streak 39 → 42；④依赖图全量更新（Plan 03/04/07/08 标记 ✅）；⑤阶段 B → ✅ 基本完成，阶段 C → 🔄 进行中；⑥优先级排序更新（Plan 05/06 高优先级） |
+| v2.4 | 2026-07-06 | 同步进度：①Plan 05 进度 0/12 → 12/12（224 tests, 49 classes, T1-T12 全部完成）；②Plan 06 进度 0/10 → 10/10（163 tests, 72+ classes, T1-T10 全部完成）；③阶段 B → ✅ 已完成，阶段 C → ✅ 已完成；④优先级排序更新（仅剩 Plan 09 infra-deployment） |
