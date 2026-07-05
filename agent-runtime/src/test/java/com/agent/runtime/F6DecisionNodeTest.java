@@ -191,14 +191,16 @@ class F6DecisionNodeTest {
         when(engine.isExhausted(any())).thenReturn(true);
 
         RetryContext retryContext = new RetryContext(3, 2);
-        retryContext.setResult(ReflexionResult.EXHAUSTED);
+        // 2026-07-05 T3: ReflexionResult 枚举升级 (RETRY/EXHAUSTED/RESET → CONTINUE/RETRY/REPLAN/ABORT)
+        // 原 EXHAUSTED 语义合并到 ABORT
+        retryContext.setResult(ReflexionResult.ABORT);
 
         assertThat(engine.isExhausted(retryContext))
                 .as("retry_count=3 > max=2 应判定为已耗尽")
                 .isTrue();
         assertThat(retryContext.getResult())
-                .as("RetryContext 结果应为 EXHAUSTED")
-                .isEqualTo(ReflexionResult.EXHAUSTED);
+                .as("RetryContext 结果应为 ABORT（原 EXHAUSTED 语义已合并）")
+                .isEqualTo(ReflexionResult.ABORT);
 
         // 抛 MaxRetryExceededException 模拟转人工审核
         assertThatThrownBy(() -> {
