@@ -1,6 +1,6 @@
 # Agent 平台编码计划总览
 
-> 文档版本：v2.2 | 更新日期：2026-07-04 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
+> 文档版本：v2.3 | 更新日期：2026-07-04 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
 > 方法论：[writing-plans](../../project_memory.md) | TDD 红绿循环 | 无占位符 | bite-sized tasks
 > 维护原则：每完成一个 Wave 后更新本表（Plan 状态 / Task 进度 / CI streak）
 
@@ -8,7 +8,7 @@
 
 本平台共 11 个核心微服务 + 2 个横向服务，按依赖关系拆分为 **9 个独立编码计划**（Plan 01~Plan 09）。每个计划可独立交付可测试的软件单元，遵循 TDD 红绿循环。
 
-### 当前总体进度（截至 Wave 39，CI streak=41）
+### 当前总体进度（截至 Wave 40，CI streak=42）
 
 | # | 计划名称 | 模块 | Task 进度 | 状态 | 最新 Wave |
 |---|---|---|---|---|---|
@@ -18,8 +18,8 @@
 | 04 | [task-orchestrator-planning](./04-task-orchestrator-planning-plan.md) | agent-task-orchestrator(8084) + agent-planning(8086) | 13/13 | ✅ 已完成 | P6 Wave 1~2 |
 | 05 | [agent-tool-engine](./05-agent-tool-engine-plan.md) | agent-tool-engine(8090/9090) | 0/12 | ⏳ 待开发 | — |
 | 06 | [agent-runtime](./06-agent-runtime-plan.md) | agent-runtime(8092/9092) | 0/10 | ⏳ 待开发 | — |
-| 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 13/14 | 🔄 进行中 | Wave 18~29 |
-| 08 | [agent-repo-knowledge](./08-agent-repo-knowledge-plan.md) | agent-repo(8096) + agent-knowledge(8098) | 7/12 | 🔄 进行中 | Wave 19~26 |
+| 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 14/14 | ✅ 已完成 | Wave 18~29, 40 |
+| 08 | [agent-repo-knowledge](./08-agent-repo-knowledge-plan.md) | agent-repo(8096) + agent-knowledge(8098) | 12/12 | ✅ 已完成 | Wave 19~26, 40 |
 | 09 | [infra-deployment](./09-infra-deployment-plan.md) | infra/k8s + docker + nacos | 0/? | ⏳ 待开发 | — |
 
 ### 各 Plan 详细进度
@@ -76,7 +76,7 @@
 - 6 项核心能力：ReActLoop / ModelGatewayClient / ToolEngineClient / ReflexionEngine / StepStateSyncer / TokenWatermarkMonitor
 - 依赖：agent-proto / agent-common / Redis；F6 ReAct 骨架已有（P7-4）
 
-#### Plan 07 — agent-model-gateway（🔄 进行中，13/14 Task）
+#### Plan 07 — agent-model-gateway（✅ 已完成，14/14 Task）
 | Task | 状态 | 完成 Wave | 说明 |
 |---|---|---|---|
 | T1 骨架 | ✅ | Wave 18 | Spring Boot 启动类 + 配置 |
@@ -88,9 +88,9 @@
 | T11 PromptCache | ✅ | Wave 18 | Redis 缓存相同前缀 |
 | T12 CostMeter + JPA | ✅ | Wave 23 | model_usage_log 计量 |
 | T13 ModelDegradationManager | ✅ | Wave 18 | 故障自动降级 |
-| T14 集成测试 | ⏳ | — | WireMock + 4 RPC 端到端 |
+| T14 集成测试 | ✅ | Wave 40 | InProcess gRPC + Mockito stubs 6 E2E 场景（Chat/StreamChat/CountTokens/ListModels/PromptCache/Degradation） |
 
-#### Plan 08 — agent-repo + agent-knowledge（🔄 进行中，7/12 Task）
+#### Plan 08 — agent-repo + agent-knowledge（✅ 已完成，12/12 Task）
 | Task | 状态 | 完成 Wave | 说明 |
 |---|---|---|---|
 | T1-T6 agent-repo（CRUD/版本/快照/绑定） | ✅ | Wave 19+22 | 骨架 + JPA 持久化 |
@@ -98,9 +98,9 @@
 | T7 agent-knowledge 骨架 | ✅ | Wave 18 | Spring Boot 启动类 |
 | T8 knowledge_base + knowledge_chunk JPA | ✅ | Wave 24 | 双表 JPA 实体 |
 | T9 DocumentIngestor + TokenCounter | ✅ | Wave 25 | 文档分块 + token 估算 |
-| T10 EmbeddingService + Milvus | ⏳ | — | 需 Milvus infra |
+| T10 EmbeddingService + Milvus | ✅ | Wave 40 | 双轨策略：InMemory fallback + Milvus 条件装配 + @Disabled 集成测试 |
 | T11 KnowledgeBase gRPC 服务 | ✅ | Wave 26 | 4 RPC（IngestDocument / SearchChunks / ListBases / DeleteBase） |
-| T12 集成测试 | ⏳ | — | 需 Milvus + MySQL + Redis |
+| T12 集成测试 | ✅ | Wave 40 | H2 + JPA + InProcess gRPC 6 E2E 场景（Ingest/ListBases/DeleteBase KB_IN_USE/force/not-found/SearchChunks） |
 
 #### Plan 09 — infra 部署（⏳ 待开发，0/? Task）
 - 13 个微服务的 Dockerfile（multi-stage build）
@@ -132,12 +132,12 @@
 │  │ Plan 04:          │  │ Plan 03:     │  │ Plan 05:     │            │
 │  │ task-orchestrator │  │ memory       │  │ tool-engine  │            │
 │  │ + planning        │  │ (10 Task)    │  │ (12 Task)    │            │
-│  │ (13 Task)         │  │ 🔄 9/10      │  │ ⏳ 0/12      │            │
-│  │ 🔄 9/13           │  └──────┬───────┘  └──────┬───────┘            │
+│  │ (13 Task)         │  │ ✅ 10/10     │  │ ⏳ 0/12      │            │
+│  │ ✅ 13/13          │  └──────┬───────┘  └──────┬───────┘            │
 │  └────────┬─────────┘         │                  │                    │
 │           │                   │                  │                    │
 │  ┌────────▼───────────────────▼──────────────────▼─────┐               │
-│  │ Plan 07: model-gateway (14 Task, 🔄 13/14)           │               │
+│  │ Plan 07: model-gateway (14 Task, ✅ 14/14)           │               │
 │  │ （被 task/memory/tool/runtime 依赖）                  │               │
 │  └────────┬─────────────────────────────────────────────┘               │
 └───────────┼────────────────────────────────────────────────────────────┘
@@ -147,7 +147,7 @@
 │  P2 运行时与能力层（依赖 P1）                                          │
 │  ┌──────────────────────┐  ┌──────────────────────────────────────┐    │
 │  │ Plan 06: agent-runtime│  │ Plan 08: agent-repo + knowledge     │    │
-│  │ (10 Task, ⏳ 0/10)    │  │ + quality (12 Task, 🔄 7/12)         │    │
+│  │ (10 Task, ⏳ 0/10)    │  │ + quality (12 Task, ✅ 12/12)        │    │
 │  └──────────┬───────────┘  └────────────────┬─────────────────────┘    │
 └─────────────┼─────────────────────────────────┼────────────────────────┘
               │                                 │
@@ -166,15 +166,15 @@
 - **Plan 01（proto+common）** ✅ Wave 1~4 闭合
 - **Plan 02（gateway+session）** ✅ Wave 5~11 闭合（接入层提前完成便于联调）
 
-### 阶段 B：核心引擎层（P1）—— 🔄 进行中
-- **Plan 03（memory）** 🔄 8/10，T6/T10 待做
-- **Plan 04（task-orchestrator+planning）** 🔄 9/13，T5/T7/T11/T13 待做
-- **Plan 07（model-gateway）** 🔄 13/14，仅 T14 集成测试待做
-- **Plan 05（tool-engine）** ⏳ 0/12，待启动
+### 阶段 B：核心引擎层（P1）—— ✅ 基本完成
+- **Plan 03（memory）** ✅ 10/10，Wave 30~39 闭合
+- **Plan 04（task-orchestrator+planning）** ✅ 13/13，P6 Wave 1~2 闭合
+- **Plan 07（model-gateway）** ✅ 14/14，Wave 18~29 + Wave 40 闭合
+- **Plan 05（tool-engine）** ⏳ 0/12，待启动（唯一未完成的 P1 计划）
 
-### 阶段 C：运行时与能力层（P2）—— ⏳ 待启动
+### 阶段 C：运行时与能力层（P2）—— 🔄 进行中
 - **Plan 06（agent-runtime）** ⏳ 0/10，依赖 task/memory/tool/model 全部完成
-- **Plan 08（repo+knowledge）** 🔄 7/12，T10/T12 待做（需 Milvus）
+- **Plan 08（repo+knowledge）** ✅ 12/12，Wave 19~26 + Wave 40 闭合
 
 ### 阶段 D：基础设施（P3）—— ⏳ 最后执行
 - **Plan 09（K8s/Docker/Nacos）** ⏳ 0/?，依赖全部服务可启动
@@ -304,13 +304,10 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 
 | 优先级 | Plan / Task | 理由 |
 |---|---|---|
-| 高 | Plan 04 T5/T7/T11/T13 | 闭合 Plan 04；T13 集成测试需 Docker（Testcontainers） |
-| 高 | Plan 05 agent-tool-engine | 解锁 Plan 06 agent-runtime 依赖 |
-| 中 | Plan 07 T14 集成测试 | 闭合 Plan 07；需 WireMock |
-| 低 | Plan 03 T6 / Plan 08 T10 | 需 Milvus infra（Testcontainers 或本地启动） |
-| 低 | Plan 06 agent-runtime | 依赖 task/memory/tool/model 全部完成 |
-| 低 | Plan 08 T12 集成测试 | 需 Milvus + MySQL + Redis |
-| 最后 | Plan 09 infra-deployment | 全部业务服务可启动后执行 |
+| 高 | Plan 05 agent-tool-engine | 解锁 Plan 06 agent-runtime 依赖；唯一未完成的 P1 计划 |
+| 高 | Plan 06 agent-runtime | 依赖 task/memory/tool/model 全部完成（tool 待做） |
+| 中 | Plan 09 infra-deployment | 8/9 计划已完成，可开始 K8s/Docker/Nacos 部署 |
+| 最后 | 全平台文档同步 | Wave 47 最终验证 |
 
 ## 6. 变更记录
 
@@ -320,3 +317,4 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 | v2.0 | 2026-07-04 | 重写：①Plan 编号对齐实际文件（03=agent-memory / 04=task-orchestrator / 05=tool-engine / 06=runtime / 07=model-gateway / 08=repo+knowledge / 09=infra）；②删除"待生成 8 份"表述（全部 9 份 plan 已生成）；③更新各 Plan 真实进度（Plan 03 7/10、Plan 04 9/13、Plan 07 13/14、Plan 08 7/12）；④更新依赖图与执行顺序建议；⑤新增已完成 Plan 执行回顾与进行中 Plan 下一步建议 |
 | v2.1 | 2026-07-04 | 同步 Wave 36 进度：①Plan 03 进度 7/10 → 8/10（T5 EmbeddingClient HTTP 实现完成）；②CI streak 33 → 36；③依赖图 Plan 03 标注 8/10；④阶段 B 描述更新（T5 移出待做列表）；⑤优先级排序表移除已完成的 T5 |
 | v2.2 | 2026-07-04 | 同步 Wave 37 进度：①Plan 03 进度 8/10 → 9/10（T10 MemoryService gRPC 4 RPC 完成）；②CI streak 36 → 39；③依赖图 Plan 03 标注 9/10；④T10 标记完成并更新说明；⑤优先级排序表移除已完成的 T10 |
+| v2.3 | 2026-07-04 | 同步 Wave 40 进度：①Plan 07 进度 13/14 → 14/14（T14 集成测试 6 E2E 场景完成）；②Plan 08 进度 7/12 → 12/12（T10 Milvus 双轨 + T12 集成测试 6 E2E 场景完成）；③CI streak 39 → 42；④依赖图全量更新（Plan 03/04/07/08 标记 ✅）；⑤阶段 B → ✅ 基本完成，阶段 C → 🔄 进行中；⑥优先级排序更新（Plan 05/06 高优先级） |

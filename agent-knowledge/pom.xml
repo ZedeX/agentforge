@@ -74,6 +74,20 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- T10: Milvus SDK Java — vector database client (conditionally activated) -->
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+            <version>${milvus-sdk.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- T10: WebClient for HTTP embedding API -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -95,6 +109,12 @@
             <artifactId>grpc-testing</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- T10: MockWebServer — 模拟 embedding HTTP 端点（版本由 Spring Boot BOM 管理） -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -111,6 +131,9 @@
                     <excludes combine.children="append">
                         <exclude>**/model/**</exclude>
                         <exclude>**/exception/**</exclude>
+                        <!-- T10: Milvus implementation excluded — requires live Milvus for coverage -->
+                        <exclude>**/milvus/**</exclude>
+                        <exclude>**/config/MilvusClientConfig*</exclude>
                     </excludes>
                 </configuration>
             </plugin>

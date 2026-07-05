@@ -21,3 +21,13 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+
+# T10: Milvus + Embedding configuration
+knowledge:
+  milvus:
+    enabled: false
+    host: localhost
+    port: 19530
+  embedding:
+    http-enabled: false
+    endpoint: http://localhost:8094/v1/embeddings

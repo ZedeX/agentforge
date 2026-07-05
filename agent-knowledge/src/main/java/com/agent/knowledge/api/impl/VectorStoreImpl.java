@@ -2,6 +2,7 @@ package com.agent.knowledge.api.impl;
 
 import com.agent.knowledge.api.VectorStore;
 import com.agent.knowledge.model.SearchResult;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,12 +13,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * In-memory vector store (doc 07-knowledge §6).
+ * In-memory vector store fallback (doc 07-knowledge §6, Plan 08 T10).
  *
- * <p>Skeleton stage: in-memory cosine similarity over ConcurrentHashMap per KB collection.
- * Milvus SDK integration (HNSW index / collection lifecycle) deferred to Plan 08 T10.</p>
+ * <p>In-memory cosine similarity over ConcurrentHashMap per KB collection.
+ * Active when {@code knowledge.milvus.enabled=false} (default) or property is missing.
+ * Milvus SDK integration is provided by
+ * {@link com.agent.knowledge.milvus.MilvusVectorStoreImpl} when Milvus is enabled.</p>
  */
 @Component
+@ConditionalOnProperty(name = "knowledge.milvus.enabled", havingValue = "false", matchIfMissing = true)
 public class VectorStoreImpl implements VectorStore {
 
     private static class VectorEntry {

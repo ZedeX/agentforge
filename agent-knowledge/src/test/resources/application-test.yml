@@ -1,7 +1,7 @@
 server:
   port: 0
 
-# T11: 测试环境禁用 gRPC 服务端（避免端口占用），gRPC 逻辑由单测直接调用
+# T10: test environment disable gRPC server (avoid port conflicts)
 grpc:
   server:
     port: -1
@@ -19,3 +19,11 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+
+# T10: test environment disable Milvus
+knowledge:
+  milvus:
+    enabled: false
+  embedding:
+    http-enabled: false
