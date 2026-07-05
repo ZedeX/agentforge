@@ -1,0 +1,76 @@
+server:
+  port: 8090
+
+# gRPC 服务端端口（ToolEngine 4 RPC，T12 实现）+ 客户端（调用 agent-memory RecallMemory）
+grpc:
+  server:
+    port: 9090
+  client:
+    # T10: 调用 agent-memory RecallMemory RPC（gRPC 端口 9088）
+    memory-service:
+      address: static://localhost:9088
+      negotiation-type: plaintext
+
+spring:
+  application:
+    name: agent-tool-engine
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_tool?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+      database: 0
+      timeout: 2000ms
+
+# Tool Engine 模块配置（对齐 doc 05-tool-engine §13）
+tool:
+  # ToolCache（doc 05 §6）
+  cache:
+    enabled: true
+    ttl-seconds: 300
+    max-entries: 10000
+  # Rate Limiter（doc 05 §6.5）
+  rate-limit:
+    default-qps: 10
+  # Docker 沙箱（doc 05 §5）
+  sandbox:
+    enabled: true
+    pool-size: 5
+    max-concurrent: 20
+    idle-timeout-ms: 600000
+    exec-timeout-ms: 60000
+    image: agent-sandbox:latest
+    cpu-cores: 1.0
+    memory-bytes: 536870912
+    tmpfs-bytes: 67108864
+  # 审批（doc 05 §4.4）
+  approval:
+    enabled: true
+    r2-timeout-ms: 300000
+    r3-timeout-ms: 1800000
+  # 结果清洗（doc 05 §9）
+  cleaner:
+    max-bytes: 8192
+  # Docker 客户端（doc 05 §5.2，默认关闭，生产环境开启）
+  docker:
+    enabled: false
+    host: unix:///var/run/docker.sock
+    api-version: v1.43
+  # agent-memory gRPC 客户端（doc 05 §8，默认关闭，生产环境开启）
+  memory-client:
+    enabled: false
+    address: static://localhost:9088
+    timeout-ms: 2000

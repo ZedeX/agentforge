@@ -171,6 +171,13 @@
                 <artifactId>agent-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- Guava: 显式管理版本, 避免 docker-java-core 等传递依赖拉入旧版 19.0
+                 (grpc 1.62+ 需 Guava 32+, 否则 NoSuchMethodError: Preconditions.checkArgument) -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
             <!-- Awaitility: async assertion library (replaces Thread.sleep in tests)
                  See docs/tests/tdd-audit-report-v1.md FN-010 for context. -->
             <dependency>
