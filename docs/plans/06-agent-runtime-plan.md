@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在 `agent-runtime`（端口 8092 / gRPC 9092）模块补齐运行时全栈能力：AgentRuntime gRPC 服务（4 RPC：StartAgent / GetStepState / CancelAgent / ReportStepResult），覆盖 ReActLoop 循环（Think→Act→Observe）、ModelGatewayClient 模型客户端、ToolEngineClient 工具客户端、ReflexionEngine 反思、StepStateSyncer 步骤同步、TokenWatermarkMonitor 水印监控六项核心能力。已有 16 个骨架文件（api 接口 + enums + exception + model POJO），本计划 T1~T10 落地全部业务逻辑、JPA Entity、ReAct 循环编排、熔断重试与端到端集成测试，对齐 v5 审核 §6 P6-6 整改项与 doc 06-runtime 设计。
+**Goal:** 在 `agent-runtime`（端口 8092 / gRPC 9092）模块补齐运行时全栈能力：AgentRuntime gRPC 服务（5 RPC：StartAgent / Step / GetState / Pause / Resume），覆盖 ReActLoop 循环（Think→Act→Observe）、ModelGatewayClient 模型客户端、ToolEngineClient 工具客户端、ReflexionEngine 反思、StepStateSyncer 步骤同步、TokenWatermarkMonitor 水印监控六项核心能力。已有 16 个骨架文件（api 接口 + enums + exception + model POJO），本计划 T1~T10 落地全部业务逻辑、JPA Entity、ReAct 循环编排、熔断重试与端到端集成测试，对齐 v5 审核 §6 P6-6 整改项与 doc 06-runtime 设计。
 
-**Architecture:** 单 Spring Boot 应用 `agent-runtime`，对外暴露 gRPC 服务 AgentRuntime（端口 9092）+ Actuator（8092）。内部以 `step_state` 表（MySQL 逻辑库 `agent_runtime`）记录每步 ReAct 状态，ReActLoop 是核心循环（Think 调 ModelGateway / Act 调 ToolEngine / Observe 反思），TokenWatermarkMonitor 监控 token 消耗防止超限。上游接收 agent-task-orchestrator 的 StartAgent 指令，下游对接 agent-model-gateway（LLM 推理）+ agent-tool-engine（工具调用）+ agent-memory（记忆召回）。依赖 agent-proto（Protobuf 契约 `runtime.proto` / `common.proto`）与 agent-common（ReActPhaseType / TokenLevel / ErrorCode / BusinessException）。
+> **proto 契约对齐说明（2026-07-05 修订）：** 实际 `agent_runtime.proto` 定义 5 RPC（StartAgent / Step / GetState / Pause / Resume），而非早期 Plan 草案描述的 4 RPC（StartAgent / GetStepState / CancelAgent / ReportStepResult）。本计划统一以 proto 为准实现，文档已同步更新。
+
+**Architecture:** 单 Spring Boot 应用 `agent-runtime`，对外暴露 gRPC 服务 AgentRuntime（端口 9092）+ Actuator（8092）。内部以 `step_state` 表（MySQL 逻辑库 `agent_runtime`）记录每步 ReAct 状态，ReActLoop 是核心循环（Think 调 ModelGateway / Act 调 ToolEngine / Observe 反思），TokenWatermarkMonitor 监控 token 消耗防止超限。上游接收 agent-task-orchestrator 的 StartAgent 指令，下游对接 agent-model-gateway（LLM 推理）+ agent-tool-engine（工具调用）+ agent-memory（记忆召回）。依赖 agent-proto（Protobuf 契约 `agent_runtime.proto` / `common.proto`）与 agent-common（ReActPhaseType / TokenLevel / ErrorCode / BusinessException）。
 
 **Tech Stack:** Java 17 / Spring Boot 3.2.5 / grpc-spring-boot-starter 3.1.0.RELEASE（net.devh）/ spring-boot-starter-data-jpa / MySQL Connector 8 / Resilience4j 2.2.0（熔断 + 重试）/ Caffeine 3.1.8（本地缓存）/ Jackson / Lombok / JUnit 5 / Mockito 5 / AssertJ 3.25.3 / Awaitility 4.2.0 / H2（MySQL 模式，测试备选）/ Testcontainers 1.19.7（可选集成路径）/ WireMock 3.x（model-gateway / tool-engine mock）
 
@@ -16,8 +18,8 @@
 |---|---|---|
 | agent-runtime HTTP / gRPC 端口 | doc 00-overview §3.1 | 8092（HTTP） / 9092（gRPC） |
 | 逻辑库 | doc 01-database §0.4 / §2.3 | `agent_runtime`（step_state / agent_session / token_usage_log） |
-| AgentRuntime gRPC 4 RPC | `agent-proto/src/main/proto/runtime.proto` | StartAgent / GetStepState / CancelAgent / ReportStepResult |
-| proto 生成包名 | runtime.proto / common.proto | `agentplatform.runtime.v1` / `agentplatform.common.v1` |
+| AgentRuntime gRPC 5 RPC | `agent-proto/src/main/proto/agent_runtime.proto` | StartAgent / Step / GetState / Pause / Resume |
+| proto 生成包名 | agent_runtime.proto / common.proto | `agentplatform.agent_runtime.v1` / `agentplatform.common.v1` |
 | ReAct 三阶段 | doc 06-runtime §3.1 + ReActPhaseType 枚举 | THINK（思考）/ ACT（行动）/ OBSERVE（观察） |
 | 反思结果 | doc 06-runtime §3.2 + ReflexionResult 枚举 | CONTINUE（继续）/ RETRY（重试当前步）/ REPLAN（请求重规划）/ ABORT（终止） |
 | Token 水位等级 | doc 06-runtime §3.3 + TokenLevel 枚举 | GREEN（<60%）/ YELLOW（60-80%）/ RED（>80%）/ EXCEEDED（超限） |
@@ -31,9 +33,11 @@
 | ModelGateway 调用 | doc 06-runtime §8.1 | gRPC ChatCompletion（agent-model-gateway:8080），支持 stream + non-stream |
 | ToolEngine 调用 | doc 06-runtime §8.2 | gRPC CallTool（agent-tool-engine:9090），含审批回调 |
 | Memory 调用 | doc 06-runtime §8.3 | gRPC RecallMemory（agent-memory:9088），Think 前注入历史经验 |
-| StartAgent 流程 | doc 06-runtime §9.1 | 创建 session → 初始化 StepState → 启动 ReActLoop（异步）→ 返回 session_id |
-| CancelAgent 流程 | doc 06-runtime §9.2 | 标记 session CANCELLING → 中断当前 step → 释放资源 → 状态 CANCELLED |
-| ReportStepResult 流程 | doc 06-runtime §9.3 | 子任务回调：校验 session → 更新 step → 触发下一轮 ReAct |
+| StartAgent 流程 | doc 06-runtime §9.1 | 创建 session（agent_instance_id）→ 初始化 StepState → 返回 STARTED |
+| Step 流程 | proto §14 | 单步执行：Think → Act → Observe → Reflexion → 返回 StepResponse（含 phase / status / token_used / finished） |
+| GetState 流程 | proto §67 | 返回 AgentState 快照（current_step / token_used / cost_used / status） |
+| Pause 流程 | proto §85 | 暂停当前会话：标记 PAUSED → 中断当前 step → 返回 paused_at |
+| Resume 流程 | proto §97 | 恢复会话：标记 RUNNING → 重新启动 ReActLoop → 返回 resumed_at |
 | 错误码域 | doc 06-runtime §12.4 | SESSION_NOT_FOUND(404) / SESSION_ALREADY_FINISHED(409) / MAX_STEPS_EXCEEDED(429) / TOKEN_BUDGET_EXCEEDED(429) / CIRCUIT_OPEN(503) / MAX_RETRY_EXCEEDED(503) / REACT_LOOP_INTERRUPTED(500) / MODEL_GATEWAY_UNAVAILABLE(503) / TOOL_ENGINE_UNAVAILABLE(503) |
 | gRPC 服务类签名 | doc 06-runtime §11.1 | `@GrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBase` |
 | 配置参数 | doc 06-runtime §13 | `runtime.react.maxSteps=20` / `runtime.react.tokenBudget=32000` / `runtime.react.tokenYellowThreshold=0.6` / `runtime.react.tokenRedThreshold=0.8` / `runtime.reflexion.interval=3` / `runtime.circuit.model.failureThreshold=5` / `runtime.circuit.tool.failureThreshold=3` / `runtime.circuit.openDurationMs=30000` / `runtime.retry.maxAttempts=3` / `runtime.retry.initialBackoffMs=200` / `runtime.retry.multiplier=3.0` |
@@ -102,7 +106,7 @@
 | `.../watermark/TokenBudgetCalculator.java` | T8 | token 预算计算（tiktoken 估算） |
 | `.../circuit/CircuitBreakerRegistry.java` | T9 | Resilience4j 熔断器封装 |
 | `.../retry/RetryExecutor.java` | T9 | Resilience4j 重试封装 |
-| `.../grpc/AgentRuntimeGrpcImpl.java` | T10 | AgentRuntime gRPC 4 RPC 实现 |
+| `.../grpc/AgentRuntimeGrpcImpl.java` | T10 | AgentRuntime gRPC 5 RPC 实现（StartAgent / Step / GetState / Pause / Resume） |
 | `.../grpc/StepStateMapper.java` | T10 | proto ↔ JPA 映射 |
 | `.../grpc/GrpcExceptionAdvice.java` | T10 | gRPC Status 异常翻译 |
 

@@ -1,0 +1,70 @@
+server:
+  port: 8092
+
+# gRPC 服务端端口（AgentRuntime 5 RPC: StartAgent/Step/GetState/Pause/Resume）
+# + 客户端（调用 agent-model-gateway / agent-tool-engine / agent-memory）
+grpc:
+  server:
+    port: 9092
+  client:
+    # agent-model-gateway: Chat / StreamChat RPC（gRPC 端口 9094）
+    model-gateway:
+      address: static://localhost:9094
+      negotiation-type: plaintext
+    # agent-tool-engine: Invoke RPC（gRPC 端口 9090）
+    tool-engine:
+      address: static://localhost:9090
+      negotiation-type: plaintext
+    # agent-memory: Recall RPC（gRPC 端口 9088）
+    memory-service:
+      address: static://localhost:9088
+      negotiation-type: plaintext
+
+spring:
+  application:
+    name: agent-runtime
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_runtime?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# agent-runtime 模块配置（对齐 doc 06-runtime §13）
+runtime:
+  # gRPC 客户端开关（默认关闭，生产环境开启；测试环境保持关闭避免实际连接）
+  model-gateway-client:
+    enabled: false
+  tool-engine-client:
+    enabled: false
+  memory-client:
+    enabled: false
+  # ReAct 循环（doc 06 §4.1 / §4.2）
+  react:
+    max-steps: 20
+    token-budget: 32000
+    token-yellow-threshold: 0.6
+    token-red-threshold: 0.8
+  # Reflexion 反思（doc 06 §5.1：每 3 步触发一次）
+  reflexion:
+    interval: 3
+  # 熔断器（doc 06 §6.1：ModelGateway 连续 5 次失败 / ToolEngine 连续 3 次失败）
+  circuit:
+    model:
+      failure-threshold: 5
+      open-duration-ms: 30000
+    tool:
+      failure-threshold: 3
+      open-duration-ms: 30000
+  # 重试器（doc 06 §6.2：3 次指数退避 200/600/1800 ms）
+  retry:
+    max-attempts: 3
+    initial-backoff-ms: 200
+    multiplier: 3.0
