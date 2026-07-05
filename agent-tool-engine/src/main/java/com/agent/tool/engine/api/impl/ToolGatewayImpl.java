@@ -275,8 +275,8 @@ public class ToolGatewayImpl implements ToolGateway {
             return List.of();
         }
         try {
-            String query = meta.getName() + " " + (meta.getDescription() == null ? "" : meta.getDescription());
-            List<ToolRecallResult> hints = recaller.recall(query, 3);
+            List<ToolRecallResult> hints = recaller.recall(
+                    request.getTenantId(), meta.getToolId(), request.getParams(), 3);
             if (!hints.isEmpty()) {
                 log.debug("召回 hint: toolId={}, hints={}", meta.getToolId(), hints.size());
             }

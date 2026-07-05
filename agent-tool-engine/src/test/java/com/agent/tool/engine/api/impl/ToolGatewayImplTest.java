@@ -390,7 +390,7 @@ class ToolGatewayImplTest {
         when(registry.findInputSchema("tool_recall")).thenReturn(new ToolSchema(List.of()));
         when(riskClassifier.classify(eq(meta), any()))
                 .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
-        when(recaller.recall(anyString(), eq(3)))
+        when(recaller.recall(anyString(), eq("tool_recall"), any(), eq(3)))
                 .thenReturn(List.of(
                         new ToolRecallResult("hint1", "weather", 0.9)
                 ));
@@ -399,11 +399,8 @@ class ToolGatewayImplTest {
 
         gateway.invoke(requestWithParams("tool_recall", Map.of()));
 
-        // Verify recaller was called with a query containing the tool name.
-        ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
-        verify(recaller, times(1)).recall(queryCaptor.capture(), eq(3));
-        assertThat(queryCaptor.getValue()).contains("tool_recall");
-        assertThat(queryCaptor.getValue()).contains("weather query");
+        // Verify recaller was called with the new 4-arg API (tenantId, toolId, params, topK).
+        verify(recaller, times(1)).recall(anyString(), eq("tool_recall"), any(), eq(3));
     }
 
     // ============ Additional edge-case tests ============
