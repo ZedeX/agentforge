@@ -58,6 +58,14 @@ public class ToolApprovalEntity implements Serializable {
     @Column(name = "task_id", nullable = false, length = 32)
     private String taskId;
 
+    /** 租户 ID (R2 近期审批匹配用). */
+    @Column(name = "tenant_id", length = 32)
+    private String tenantId;
+
+    /** 参数 hash (R2 近期审批匹配用, SHA-256). */
+    @Column(name = "params_hash", length = 64)
+    private String paramsHash;
+
     /** Agent ID. */
     @Column(name = "agent_id", nullable = false)
     private Long agentId;

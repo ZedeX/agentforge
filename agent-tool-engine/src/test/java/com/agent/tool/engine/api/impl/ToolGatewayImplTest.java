@@ -1,5 +1,6 @@
 package com.agent.tool.engine.api.impl;
 
+import com.agent.tool.engine.api.ApprovalStore;
 import com.agent.tool.engine.api.ToolRegistry;
 import com.agent.tool.engine.enums.ExecutorType;
 import com.agent.tool.engine.enums.SideEffect;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,7 +40,7 @@ class ToolGatewayImplTest {
 
     private ToolRegistry registry;
     private RiskClassifierImpl riskClassifier;
-    private ApprovalStoreImpl approvalStore;
+    private ApprovalStore approvalStore;
     private SandboxBorrowerImpl sandboxBorrower;
     private ToolCacheImpl cache;
     private ToolCallAuditorImpl auditor;
@@ -48,7 +50,7 @@ class ToolGatewayImplTest {
     @BeforeEach
     void setUp() {
         registry = mock(ToolRegistry.class);
-        approvalStore = new ApprovalStoreImpl();
+        approvalStore = mock(ApprovalStore.class);
         riskClassifier = new RiskClassifierImpl(new PiiDetector(), approvalStore);
         sandboxBorrower = new SandboxBorrowerImpl();
         cache = new ToolCacheImpl();
@@ -181,7 +183,7 @@ class ToolGatewayImplTest {
         approval.setPrimaryApprover("u_p");
         approval.setSecondaryApprover("u_s");
         approval.setExpireAt(Instant.now().plus(Duration.ofHours(1)));
-        approvalStore.save(approval);
+        when(approvalStore.findValid("tool_r3ok")).thenReturn(Optional.of(approval));
 
         ToolCallRequest request = new ToolCallRequest("tool_r3ok", "{}");
         request.setTenantId("tn_r3");
