@@ -143,14 +143,14 @@ class F8DecisionNodeTest {
     void should_ClassifyR2_When_ToolIsWriteReversible() {
         // F8 R2 分支
         RiskClassifier classifier = (meta, req) -> {
-            if (meta.getExecutorType() == ExecutorType.PROXY
+            if (meta.getExecutorType() == ExecutorType.HTTP_API
                     && meta.getSideEffect() == SideEffect.WRITE_LOCAL) {
                 return new RiskAssessment(ToolRiskLevel.R2, false, "test R2");
             }
             return new RiskAssessment(ToolRiskLevel.R3, true, "test R3");
         };
 
-        ToolMeta meta = new ToolMeta("tool_db", "数据库更新", ExecutorType.PROXY, SideEffect.WRITE_LOCAL);
+        ToolMeta meta = new ToolMeta("tool_db", "数据库更新", ExecutorType.HTTP_API, SideEffect.WRITE_LOCAL);
         ToolRiskLevel level = classifier.classify(meta, null).getRiskLevel();
 
         assertThat(level)

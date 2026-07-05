@@ -16,6 +16,12 @@ public class ToolEngineException extends RuntimeException {
         this.httpStatus = httpStatus;
     }
 
+    public ToolEngineException(String errorCode, int httpStatus, String message, Throwable cause) {
+        super(message, cause);
+        this.errorCode = errorCode;
+        this.httpStatus = httpStatus;
+    }
+
     public String getErrorCode() {
         return errorCode;
     }

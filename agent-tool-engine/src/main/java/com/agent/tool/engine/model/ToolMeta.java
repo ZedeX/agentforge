@@ -26,6 +26,14 @@ public class ToolMeta implements Serializable {
     private ToolRiskLevel riskLevel;
     private String tenantId;
     private int quotaLimit;
+    /** Execution endpoint (HTTP URL for HTTP_API, script path for SHELL/PYTHON, server name for MCP). */
+    private String endpoint;
+    /** Per-tool execution timeout in millis (0 → use gateway default). */
+    private long timeoutMs;
+    /** Whether the tool result is cacheable (R1 + READ_ONLY typically true). */
+    private boolean cacheable = true;
+    /** Whether the tool is currently enabled for invocation (disabled → 403). */
+    private boolean enabled = true;
 
     public ToolMeta() {
     }
@@ -108,6 +116,38 @@ public class ToolMeta implements Serializable {
 
     public void setQuotaLimit(int quotaLimit) {
         this.quotaLimit = quotaLimit;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    public void setEndpoint(String endpoint) {
+        this.endpoint = endpoint;
+    }
+
+    public long getTimeoutMs() {
+        return timeoutMs;
+    }
+
+    public void setTimeoutMs(long timeoutMs) {
+        this.timeoutMs = timeoutMs;
+    }
+
+    public boolean isCacheable() {
+        return cacheable;
+    }
+
+    public void setCacheable(boolean cacheable) {
+        this.cacheable = cacheable;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     @Override

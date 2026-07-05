@@ -1,198 +1,445 @@
 package com.agent.tool.engine.api.impl;
 
 import com.agent.tool.engine.api.ApprovalStore;
+import com.agent.tool.engine.api.RiskClassifier;
+import com.agent.tool.engine.api.ToolCache;
 import com.agent.tool.engine.api.ToolRegistry;
+import com.agent.tool.engine.api.ToolSemanticRecaller;
+import com.agent.tool.engine.cache.ParamsHasher;
+import com.agent.tool.engine.config.ToolEngineProperties;
 import com.agent.tool.engine.enums.ExecutorType;
 import com.agent.tool.engine.enums.SideEffect;
 import com.agent.tool.engine.enums.ToolCallStatus;
+import com.agent.tool.engine.enums.ToolRiskLevel;
 import com.agent.tool.engine.exception.ToolApprovalException;
+import com.agent.tool.engine.exception.ToolDisabledException;
+import com.agent.tool.engine.exception.ToolEngineException;
 import com.agent.tool.engine.exception.ToolQuotaExhaustedException;
 import com.agent.tool.engine.exception.ToolValidationException;
+import com.agent.tool.engine.gateway.RateLimiter;
+import com.agent.tool.engine.gateway.ToolExecutor;
 import com.agent.tool.engine.model.ApprovalRecord;
+import com.agent.tool.engine.model.RiskAssessment;
+import com.agent.tool.engine.model.ToolCallAuditLog;
 import com.agent.tool.engine.model.ToolCallRequest;
 import com.agent.tool.engine.model.ToolCallResult;
 import com.agent.tool.engine.model.ToolMeta;
+import com.agent.tool.engine.model.ToolRecallResult;
 import com.agent.tool.engine.model.ToolSchema;
-import com.agent.tool.engine.risk.PiiDetector;
-import com.agent.tool.engine.sandbox.InMemorySandboxBorrower;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
-import java.time.Duration;
-import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link ToolGatewayImpl} 单元测试.
+ * {@link ToolGatewayImpl} unit tests (plan 05 T8 Red → Green).
  *
- * <p>使用 mock {@link ToolRegistry} (T3 之后 ToolRegistryImpl 已迁移至 JPA 实现,
- * 不再有无参构造). 其余六大组件 (riskClassifier / approvalStore / sandboxBorrower /
- * cache / auditor / resultCleaner) 仍使用真实 in-memory Impl 组合测试,
- * 覆盖缓存命中 / 校验失败 / 配额耗尽 / 审批缺失 / R1 直执行 / R3 沙箱执行 7 条决策路径.</p>
+ * <p>13 test cases covering the 10-step orchestration:
+ * validate / loadTool / acquirePermit / assessRisk / recall / awaitApproval /
+ * tryCache / execute / clean / audit + cacheWrite.</p>
+ *
+ * <p>Strategy: mock ToolRegistry / RiskClassifier / ApprovalStore / ToolCache /
+ * ToolCallAuditor / ToolSemanticRecaller / RateLimiter / ToolExecutor; use real
+ * ResultCleanerImpl + ToolEngineProperties for end-to-end behavior verification.</p>
  */
 class ToolGatewayImplTest {
 
     private ToolRegistry registry;
-    private RiskClassifierImpl riskClassifier;
+    private RiskClassifier riskClassifier;
     private ApprovalStore approvalStore;
-    private InMemorySandboxBorrower sandboxBorrower;
-    private ToolCacheImpl cache;
+    private ToolCache cache;
     private ToolCallAuditorImpl auditor;
     private ResultCleanerImpl resultCleaner;
+    private ToolSemanticRecaller recaller;
+    private RateLimiter rateLimiter;
+    private ToolEngineProperties properties;
+    private ToolExecutor httpExecutor;
+    private ToolExecutor shellExecutor;
+
     private ToolGatewayImpl gateway;
 
     @BeforeEach
     void setUp() {
         registry = mock(ToolRegistry.class);
+        riskClassifier = mock(RiskClassifier.class);
         approvalStore = mock(ApprovalStore.class);
-        riskClassifier = new RiskClassifierImpl(new PiiDetector(), approvalStore);
-        sandboxBorrower = new InMemorySandboxBorrower();
-        cache = new ToolCacheImpl();
+        cache = mock(ToolCache.class);
         auditor = new ToolCallAuditorImpl();
         resultCleaner = new ResultCleanerImpl();
+        recaller = mock(ToolSemanticRecaller.class);
+        rateLimiter = new RateLimiter(); // in-memory, no Redis
+        properties = new ToolEngineProperties();
+        httpExecutor = mock(ToolExecutor.class);
+        when(httpExecutor.type()).thenReturn(ExecutorType.HTTP_API);
+        shellExecutor = mock(ToolExecutor.class);
+        when(shellExecutor.type()).thenReturn(ExecutorType.SHELL);
+
+        when(recaller.recall(anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of());
+
         gateway = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
-                sandboxBorrower, cache, auditor, resultCleaner);
+                cache, auditor, resultCleaner, recaller, rateLimiter, properties,
+                httpExecutor, shellExecutor);
     }
 
+    // ============ Helper ============
+
+    private ToolMeta r1HttpTool(String toolId) {
+        ToolMeta meta = new ToolMeta(toolId, toolId, ExecutorType.HTTP_API, SideEffect.READ_ONLY);
+        meta.setEndpoint("http://example.com/api");
+        meta.setCacheable(true);
+        return meta;
+    }
+
+    private ToolMeta r3ShellTool(String toolId) {
+        ToolMeta meta = new ToolMeta(toolId, toolId, ExecutorType.SHELL, SideEffect.DESTRUCTIVE);
+        meta.setEndpoint("rm -rf /tmp/test");
+        return meta;
+    }
+
+    private ToolCallRequest requestWithParams(String toolId, Map<String, Object> params) {
+        ToolCallRequest req = new ToolCallRequest();
+        req.setToolId(toolId);
+        req.setTenantId("tn_test");
+        req.setTraceId("trace_test");
+        req.setInputJson("{\"q\":\"test\"}");
+        req.setParams(params != null ? params : new HashMap<>());
+        return req;
+    }
+
+    private ToolCallResult successResult(String toolId) {
+        return new ToolCallResult(toolId, "ok output", ToolCallStatus.SUCCESS);
+    }
+
+    // ============ 13 Test Cases ============
+
     @Test
-    @DisplayName("R1 工具合法调用: 直接执行成功")
-    void should_InvokeSuccess_When_R1ToolValid() {
-        ToolMeta meta = new ToolMeta("tool_read", "read", ExecutorType.GENERAL, SideEffect.NONE);
-        ToolSchema schema = new ToolSchema(List.of());
-        when(registry.findMeta("tool_read")).thenReturn(meta);
-        when(registry.findInputSchema("tool_read")).thenReturn(schema);
+    @DisplayName("1. call_r1_readOnly_callsExecutor_returnsResult")
+    void call_R1ReadOnly_CallsExecutor_ReturnsResult() {
+        ToolMeta meta = r1HttpTool("tool_r1");
+        when(registry.findMeta("tool_r1")).thenReturn(meta);
+        when(registry.findInputSchema("tool_r1")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_r1"));
 
-        ToolCallRequest request = new ToolCallRequest("tool_read", "{\"q\":\"test\"}");
-        request.setTenantId("tn_1");
-        request.setTraceId("trace_1");
-
-        ToolCallResult result = gateway.invoke(request);
+        ToolCallResult result = gateway.invoke(requestWithParams("tool_r1", Map.of("q", "test")));
 
         assertThat(result.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
-        assertThat(result.getToolId()).isEqualTo("tool_read");
+        assertThat(result.getOutput()).contains("ok output");
+        verify(httpExecutor, times(1)).execute(eq(meta), any(), anyLong());
         assertThat(auditor.count()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("未注册工具: 抛 ToolValidationException")
-    void should_ThrowValidation_When_ToolNotRegistered() {
-        // mock 默认返回 null, 无需 stub
-        ToolCallRequest request = new ToolCallRequest("tool_ghost", "{}");
+    @DisplayName("2. call_r1_cacheHit_skipsExecutor")
+    void call_R1CacheHit_SkipsExecutor() {
+        ToolMeta meta = r1HttpTool("tool_c");
+        when(registry.findMeta("tool_c")).thenReturn(meta);
+        when(registry.findInputSchema("tool_c")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        ToolCallResult cached = successResult("tool_c");
+        when(cache.get(eq("tool_c"), anyString(), eq("tn_test")))
+                .thenReturn(Optional.of(cached));
 
-        assertThatThrownBy(() -> gateway.invoke(request))
-                .isInstanceOf(ToolValidationException.class)
-                .hasMessageContaining("未注册");
+        ToolCallResult result = gateway.invoke(requestWithParams("tool_c", Map.of("q", "same")));
+
+        assertThat(result.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
+        verify(cache, never()).put(anyString(), anyString(), anyString(), any(), any());
+        assertThat(auditor.count()).isEqualTo(1); // cache-hit audit
     }
 
     @Test
-    @DisplayName("参数 schema 校验失败 (缺必填字段): 抛 ToolValidationException")
-    void should_ThrowValidation_When_SchemaValidationFails() {
-        ToolMeta meta = new ToolMeta("tool_v", "validate", ExecutorType.GENERAL, SideEffect.NONE);
-        ToolSchema schema = new ToolSchema(List.of("orderId"));
-        when(registry.findMeta("tool_v")).thenReturn(meta);
-        when(registry.findInputSchema("tool_v")).thenReturn(schema);
+    @DisplayName("3. call_r2_noRecentApproval_blocksUntilApproved")
+    void call_R2NoRecentApproval_ThrowsApprovalRequired() {
+        ToolMeta meta = new ToolMeta("tool_r2", "r2tool", ExecutorType.HTTP_API, SideEffect.WRITE_LOCAL);
+        meta.setEndpoint("http://example.com/write");
+        when(registry.findMeta("tool_r2")).thenReturn(meta);
+        when(registry.findInputSchema("tool_r2")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R2, true, "R2 requires approval"));
+        when(approvalStore.findValid("tool_r2")).thenReturn(Optional.empty());
 
-        ToolCallRequest request = new ToolCallRequest("tool_v", "{\"tenantId\":\"tn_1\"}");
+        assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_r2", Map.of())))
+                .isInstanceOf(ToolApprovalException.class);
 
-        assertThatThrownBy(() -> gateway.invoke(request))
-                .isInstanceOf(ToolValidationException.class)
-                .hasMessageContaining("参数 schema");
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
+        assertThat(auditor.count()).isEqualTo(1); // failure audit
     }
 
     @Test
-    @DisplayName("R3 工具缺少审批: 抛 ToolApprovalException (CODE_APPROVAL_REQUIRED)")
-    void should_ThrowApproval_When_R3MissingApproval() {
-        ToolMeta meta = new ToolMeta("tool_r3", "danger", ExecutorType.SANDBOX, SideEffect.DESTRUCTIVE);
-        ToolSchema schema = new ToolSchema(List.of());
+    @DisplayName("4. call_r3_skipsCache_callsExecutorInSandbox")
+    void call_R3SkipsCache_CallsExecutorInSandbox() {
+        ToolMeta meta = r3ShellTool("tool_r3");
         when(registry.findMeta("tool_r3")).thenReturn(meta);
-        when(registry.findInputSchema("tool_r3")).thenReturn(schema);
+        when(registry.findInputSchema("tool_r3")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R3, true, "R3"));
+        ApprovalRecord approval = new ApprovalRecord();
+        approval.setToolId("tool_r3");
+        approval.setStatus(ApprovalRecord.STATUS_APPROVED);
+        when(approvalStore.findValid("tool_r3")).thenReturn(Optional.of(approval));
+        when(shellExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_r3"));
 
-        ToolCallRequest request = new ToolCallRequest("tool_r3", "{}");
+        ToolCallResult result = gateway.invoke(requestWithParams("tool_r3", Map.of()));
 
-        assertThatThrownBy(() -> gateway.invoke(request))
-                .isInstanceOf(ToolApprovalException.class)
-                .satisfies(ex -> {
-                    ToolApprovalException aex = (ToolApprovalException) ex;
-                    assertThat(aex.getErrorCode()).isEqualTo(ToolApprovalException.CODE_APPROVAL_REQUIRED);
-                });
+        assertThat(result.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
+        verify(shellExecutor, times(1)).execute(eq(meta), any(), anyLong());
+        // R3 not cacheable → cache.get never called
+        verify(cache, never()).get(anyString(), anyString(), anyString());
+        verify(cache, never()).put(anyString(), anyString(), anyString(), any(), any());
     }
 
     @Test
-    @DisplayName("租户配额耗尽: 抛 ToolQuotaExhaustedException (429)")
-    void should_ThrowQuota_When_QuotaExhausted() {
-        ToolMeta meta = new ToolMeta("tool_q", "q", ExecutorType.GENERAL, SideEffect.NONE);
-        meta.setQuotaLimit(1);
-        ToolSchema schema = new ToolSchema(List.of());
-        when(registry.findMeta("tool_q")).thenReturn(meta);
-        when(registry.findInputSchema("tool_q")).thenReturn(schema);
+    @DisplayName("5. call_rateLimited_throwsQuotaExhausted")
+    void call_RateLimited_ThrowsQuotaExhausted() {
+        ToolMeta meta = r1HttpTool("tool_rl");
+        when(registry.findMeta("tool_rl")).thenReturn(meta);
+        when(registry.findInputSchema("tool_rl")).thenReturn(new ToolSchema(List.of()));
 
-        ToolCallRequest req1 = new ToolCallRequest("tool_q", "{}");
-        req1.setTenantId("tn_quota");
-        gateway.invoke(req1); // 第一次成功, 用尽配额
+        // Custom RateLimiter that always rejects
+        RateLimiter rejectingLimiter = mock(RateLimiter.class);
+        when(rejectingLimiter.tryAcquire(anyString(), anyString())).thenReturn(false);
+        gateway = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
+                cache, auditor, resultCleaner, recaller, rejectingLimiter, properties,
+                httpExecutor, shellExecutor);
 
-        ToolCallRequest req2 = new ToolCallRequest("tool_q", "{}");
-        req2.setTenantId("tn_quota");
-
-        assertThatThrownBy(() -> gateway.invoke(req2))
+        assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_rl", Map.of())))
                 .isInstanceOf(ToolQuotaExhaustedException.class)
                 .satisfies(ex -> {
                     ToolQuotaExhaustedException qex = (ToolQuotaExhaustedException) ex;
                     assertThat(qex.getHttpStatus()).isEqualTo(429);
-                    assertThat(qex.getErrorCode()).isEqualTo("RATE_LIMITED");
                 });
-        assertThat(gateway.getQuotaUsed("tn_quota")).isEqualTo(1);
+
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
+        verify(riskClassifier, never()).classify(any(), any());
+        assertThat(auditor.count()).isEqualTo(1); // failure audit
     }
 
     @Test
-    @DisplayName("相同 inputHash 二次调用: 命中缓存, fromCache=true")
-    void should_ReturnCachedResult_When_CacheHit() {
-        ToolMeta meta = new ToolMeta("tool_c", "cacheable", ExecutorType.GENERAL, SideEffect.NONE);
-        ToolSchema schema = new ToolSchema(List.of());
-        when(registry.findMeta("tool_c")).thenReturn(meta);
-        when(registry.findInputSchema("tool_c")).thenReturn(schema);
+    @DisplayName("6. call_toolDisabled_throws")
+    void call_ToolDisabled_Throws() {
+        ToolMeta meta = r1HttpTool("tool_dis");
+        meta.setEnabled(false);
+        when(registry.findMeta("tool_dis")).thenReturn(meta);
+        when(registry.findInputSchema("tool_dis")).thenReturn(new ToolSchema(List.of()));
 
-        ToolCallRequest request = new ToolCallRequest("tool_c", "{\"q\":\"same\"}");
-        request.setInputHash("hash_same");
+        assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_dis", Map.of())))
+                .isInstanceOf(ToolDisabledException.class)
+                .satisfies(ex -> {
+                    ToolDisabledException dex = (ToolDisabledException) ex;
+                    assertThat(dex.getHttpStatus()).isEqualTo(403);
+                    assertThat(dex.getErrorCode()).isEqualTo("TOOL_DISABLED");
+                });
 
-        ToolCallResult r1 = gateway.invoke(request);
-        assertThat(r1.isFromCache()).isFalse();
-
-        ToolCallResult r2 = gateway.invoke(request);
-        assertThat(r2.isFromCache()).isTrue();
-        assertThat(r2.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
-        assertThat(auditor.count()).isEqualTo(2); // 一次执行 + 一次缓存命中
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
+        assertThat(auditor.count()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("R3 工具审批通过: 沙箱借用并回收, 执行成功")
-    void should_InvokeR3Success_When_ApprovedAndSandboxBorrowed() {
-        ToolMeta meta = new ToolMeta("tool_r3ok", "exec", ExecutorType.SANDBOX, SideEffect.DESTRUCTIVE);
-        ToolSchema schema = new ToolSchema(List.of());
-        when(registry.findMeta("tool_r3ok")).thenReturn(meta);
-        when(registry.findInputSchema("tool_r3ok")).thenReturn(schema);
+    @DisplayName("7. call_validationFailed_throws")
+    void call_ValidationFailed_Throws() {
+        ToolMeta meta = r1HttpTool("tool_v");
+        when(registry.findMeta("tool_v")).thenReturn(meta);
+        when(registry.findInputSchema("tool_v"))
+                .thenReturn(new ToolSchema(List.of("orderId")));
 
+        ToolCallRequest req = requestWithParams("tool_v", Map.of());
+        req.setInputJson("{\"missingField\":\"x\"}"); // missing "orderId"
+
+        assertThatThrownBy(() -> gateway.invoke(req))
+                .isInstanceOf(ToolValidationException.class)
+                .hasMessageContaining("参数 schema 校验失败");
+
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
+        assertThat(auditor.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("8. call_executorFailed_recordsAuditAndThrows")
+    void call_ExecutorFailed_RecordsAuditAndThrows() {
+        ToolMeta meta = r1HttpTool("tool_fail");
+        when(registry.findMeta("tool_fail")).thenReturn(meta);
+        when(registry.findInputSchema("tool_fail")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenThrow(new ToolEngineException("TOOL_EXECUTION_FAILED", 500, "executor boom"));
+
+        assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_fail", Map.of())))
+                .isInstanceOf(ToolEngineException.class)
+                .hasMessageContaining("executor boom");
+
+        assertThat(auditor.count()).isEqualTo(1);
+        assertThat(auditor.allLogs().get(0).getStatus()).isEqualTo(ToolCallStatus.FAILED);
+        assertThat(auditor.allLogs().get(0).getErrorStack()).contains("executor boom");
+    }
+
+    @Test
+    @DisplayName("9. call_executorTimeout_killsSandbox_recordsTimeout")
+    void call_ExecutorTimeout_RecordsTimeout() {
+        ToolMeta meta = r3ShellTool("tool_to");
+        when(registry.findMeta("tool_to")).thenReturn(meta);
+        when(registry.findInputSchema("tool_to")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R3, true, "R3"));
         ApprovalRecord approval = new ApprovalRecord();
-        approval.setToolId("tool_r3ok");
+        approval.setToolId("tool_to");
         approval.setStatus(ApprovalRecord.STATUS_APPROVED);
-        approval.setPrimaryApprover("u_p");
-        approval.setSecondaryApprover("u_s");
-        approval.setExpireAt(Instant.now().plus(Duration.ofHours(1)));
-        when(approvalStore.findValid("tool_r3ok")).thenReturn(Optional.of(approval));
+        when(approvalStore.findValid("tool_to")).thenReturn(Optional.of(approval));
+        ToolCallResult timeoutResult = new ToolCallResult("tool_to", "", ToolCallStatus.TIMEOUT);
+        timeoutResult.setErrorStack("sandbox exec timed out");
+        when(shellExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(timeoutResult);
 
-        ToolCallRequest request = new ToolCallRequest("tool_r3ok", "{}");
-        request.setTenantId("tn_r3");
+        ToolCallResult result = gateway.invoke(requestWithParams("tool_to", Map.of()));
 
-        ToolCallResult result = gateway.invoke(request);
+        assertThat(result.getStatus()).isEqualTo(ToolCallStatus.TIMEOUT);
+        assertThat(auditor.count()).isEqualTo(1);
+        assertThat(auditor.allLogs().get(0).getStatus()).isEqualTo(ToolCallStatus.TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("10. call_writesAudit_always")
+    void call_WritesAudit_Always() {
+        ToolMeta meta = r1HttpTool("tool_audit");
+        when(registry.findMeta("tool_audit")).thenReturn(meta);
+        when(registry.findInputSchema("tool_audit")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_audit"));
+
+        gateway.invoke(requestWithParams("tool_audit", Map.of()));
+
+        assertThat(auditor.count()).isEqualTo(1);
+        ToolCallAuditLog log = auditor.allLogs().get(0);
+        assertThat(log.getToolId()).isEqualTo("tool_audit");
+        assertThat(log.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
+        assertThat(log.getTenantId()).isEqualTo("tn_test");
+        assertThat(log.getInputJson()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("11. call_appliesResultCleaner")
+    void call_AppliesResultCleaner() {
+        ToolMeta meta = r1HttpTool("tool_clean");
+        when(registry.findMeta("tool_clean")).thenReturn(meta);
+        when(registry.findInputSchema("tool_clean")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        // Output containing PII (phone) — cleaner should redact.
+        ToolCallResult raw = new ToolCallResult("tool_clean",
+                "联系 13800138000 获取结果", ToolCallStatus.SUCCESS);
+        when(httpExecutor.execute(eq(meta), any(), anyLong())).thenReturn(raw);
+
+        ToolCallResult result = gateway.invoke(requestWithParams("tool_clean", Map.of()));
 
         assertThat(result.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
-        assertThat(sandboxBorrower.activeCount()).isZero(); // 沙箱已回收
+        assertThat(result.getOutput()).doesNotContain("13800138000");
+        assertThat(result.getOutput()).contains("1**********");
+    }
+
+    @Test
+    @DisplayName("12. call_populatesCacheOnSuccess")
+    void call_PopulatesCacheOnSuccess() {
+        ToolMeta meta = r1HttpTool("tool_cw");
+        when(registry.findMeta("tool_cw")).thenReturn(meta);
+        when(registry.findInputSchema("tool_cw")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(cache.get(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_cw"));
+
+        Map<String, Object> params = Map.of("q", "test");
+        gateway.invoke(requestWithParams("tool_cw", params));
+
+        String expectedHash = ParamsHasher.hash(params);
+        verify(cache, times(1)).put(eq("tool_cw"), eq(expectedHash),
+                eq("tn_test"), any(), any());
+    }
+
+    @Test
+    @DisplayName("13. call_includesRecallerHints")
+    void call_IncludesRecallerHints() {
+        ToolMeta meta = r1HttpTool("tool_recall");
+        meta.setDescription("weather query");
+        when(registry.findMeta("tool_recall")).thenReturn(meta);
+        when(registry.findInputSchema("tool_recall")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(recaller.recall(anyString(), eq(3)))
+                .thenReturn(List.of(
+                        new ToolRecallResult("hint1", "weather", 0.9)
+                ));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_recall"));
+
+        gateway.invoke(requestWithParams("tool_recall", Map.of()));
+
+        // Verify recaller was called with a query containing the tool name.
+        ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
+        verify(recaller, times(1)).recall(queryCaptor.capture(), eq(3));
+        assertThat(queryCaptor.getValue()).contains("tool_recall");
+        assertThat(queryCaptor.getValue()).contains("weather query");
+    }
+
+    // ============ Additional edge-case tests ============
+
+    @Test
+    @DisplayName("14. call_unregisteredTool_throwsValidation")
+    void call_UnregisteredTool_ThrowsValidation() {
+        // registry.findMeta returns null by default (no stubbing)
+
+        assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_ghost", Map.of())))
+                .isInstanceOf(ToolValidationException.class)
+                .hasMessageContaining("未注册");
+
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
         assertThat(auditor.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("15. call_nullRequest_throwsValidation")
+    void call_NullRequest_ThrowsValidation() {
+        assertThatThrownBy(() -> gateway.invoke(null))
+                .isInstanceOf(ToolValidationException.class);
+    }
+
+    @Test
+    @DisplayName("16. call_unsupportedExecutorType_throwsValidation")
+    void call_UnsupportedExecutorType_ThrowsValidation() {
+        ToolMeta meta = new ToolMeta("tool_mcp", "mcp", ExecutorType.MCP, SideEffect.NONE);
+        when(registry.findMeta("tool_mcp")).thenReturn(meta);
+        when(registry.findInputSchema("tool_mcp")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+
+        // No MCP executor registered (only HTTP_API + SHELL in setUp)
+        assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_mcp", Map.of())))
+                .isInstanceOf(ToolValidationException.class)
+                .hasMessageContaining("不支持的执行器类型");
     }
 }

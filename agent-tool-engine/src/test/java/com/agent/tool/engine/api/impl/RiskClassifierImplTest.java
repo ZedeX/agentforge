@@ -48,7 +48,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("SideEffect=NONE: 分类 R1")
     void classify_none_returnsR1() {
-        ToolMeta meta = new ToolMeta("t1", "n", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("t1", "n", ExecutorType.HTTP_API, SideEffect.NONE);
 
         RiskAssessment assessment = classifier.classify(meta, null);
 
@@ -59,7 +59,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("SideEffect=READ_ONLY: 分类 R1")
     void classify_readOnly_returnsR1() {
-        ToolMeta meta = new ToolMeta("t2", "n", ExecutorType.GENERAL, SideEffect.READ_ONLY);
+        ToolMeta meta = new ToolMeta("t2", "n", ExecutorType.HTTP_API, SideEffect.READ_ONLY);
 
         RiskAssessment assessment = classifier.classify(meta, null);
 
@@ -70,7 +70,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("SideEffect=WRITE_LOCAL: 分类 R2")
     void classify_writeLocal_returnsR2() {
-        ToolMeta meta = new ToolMeta("t3", "n", ExecutorType.GENERAL, SideEffect.WRITE_LOCAL);
+        ToolMeta meta = new ToolMeta("t3", "n", ExecutorType.HTTP_API, SideEffect.WRITE_LOCAL);
 
         RiskAssessment assessment = classifier.classify(meta, null);
 
@@ -80,7 +80,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("SideEffect=WRITE_EXTERNAL: 分类 R3")
     void classify_writeExternal_returnsR3() {
-        ToolMeta meta = new ToolMeta("t4", "n", ExecutorType.GENERAL, SideEffect.WRITE_EXTERNAL);
+        ToolMeta meta = new ToolMeta("t4", "n", ExecutorType.HTTP_API, SideEffect.WRITE_EXTERNAL);
 
         RiskAssessment assessment = classifier.classify(meta, null);
 
@@ -91,7 +91,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("SideEffect=DESTRUCTIVE: 分类 R3")
     void classify_destructive_returnsR3() {
-        ToolMeta meta = new ToolMeta("t5", "n", ExecutorType.GENERAL, SideEffect.DESTRUCTIVE);
+        ToolMeta meta = new ToolMeta("t5", "n", ExecutorType.HTTP_API, SideEffect.DESTRUCTIVE);
 
         RiskAssessment assessment = classifier.classify(meta, null);
 
@@ -104,7 +104,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("声明 R3 + SideEffect=NONE: 不降级, 仍为 R3")
     void classify_neverDowngrades_whenDeclaredHigher() {
-        ToolMeta meta = new ToolMeta("t6", "n", ExecutorType.GENERAL,
+        ToolMeta meta = new ToolMeta("t6", "n", ExecutorType.HTTP_API,
                 SideEffect.NONE, ToolRiskLevel.R3);
 
         RiskAssessment assessment = classifier.classify(meta, null);
@@ -116,7 +116,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("声明 R1 + SideEffect=DESTRUCTIVE: 升级到 R3 (取 max)")
     void classify_upgrades_whenSideEffectHigher() {
-        ToolMeta meta = new ToolMeta("t7", "n", ExecutorType.GENERAL,
+        ToolMeta meta = new ToolMeta("t7", "n", ExecutorType.HTTP_API,
                 SideEffect.DESTRUCTIVE, ToolRiskLevel.R1);
 
         RiskAssessment assessment = classifier.classify(meta, null);
@@ -129,7 +129,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R1 工具 + 参数含手机号: 强制升级 R3 + 审批")
     void classify_r1WithPii_boostsToR3() {
-        ToolMeta meta = new ToolMeta("t8", "n", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("t8", "n", ExecutorType.HTTP_API, SideEffect.NONE);
         ToolCallRequest request = new ToolCallRequest("t8",
                 "{\"phone\":\"13800138000\"}");
 
@@ -143,7 +143,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R1 工具 + 参数含邮箱: 强制升级 R3")
     void classify_r1WithEmailPii_boostsToR3() {
-        ToolMeta meta = new ToolMeta("t9", "n", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("t9", "n", ExecutorType.HTTP_API, SideEffect.NONE);
         ToolCallRequest request = new ToolCallRequest("t9",
                 "{\"email\":\"user@example.com\"}");
 
@@ -156,7 +156,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R1 工具 + 参数含身份证: 强制升级 R3")
     void classify_r1WithIdCard_boostsToR3() {
-        ToolMeta meta = new ToolMeta("t10", "n", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("t10", "n", ExecutorType.HTTP_API, SideEffect.NONE);
         ToolCallRequest request = new ToolCallRequest("t10",
                 "{\"id\":\"110101199001011234\"}");
 
@@ -169,7 +169,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R1 工具 + 参数含 API key: 强制升级 R3")
     void classify_r1WithApiKey_boostsToR3() {
-        ToolMeta meta = new ToolMeta("t11", "n", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("t11", "n", ExecutorType.HTTP_API, SideEffect.NONE);
         // sk- + 40 个字母数字
         ToolCallRequest request = new ToolCallRequest("t11",
                 "{\"key\":\"sk-"
@@ -186,7 +186,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R2 + 无近期审批: requiresApproval=true")
     void classify_r2NoRecentApproval_requiresApproval() {
-        ToolMeta meta = new ToolMeta("t12", "n", ExecutorType.GENERAL, SideEffect.WRITE_LOCAL);
+        ToolMeta meta = new ToolMeta("t12", "n", ExecutorType.HTTP_API, SideEffect.WRITE_LOCAL);
         ToolCallRequest request = new ToolCallRequest("t12", "{}");
         request.setTenantId("tn_1");
         request.setInputHash("hash_1");
@@ -203,7 +203,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R2 + 同租户 1h 内同 toolId 同 paramsHash 已批: requiresApproval=false")
     void classify_r2RecentApproval_skipsApproval() {
-        ToolMeta meta = new ToolMeta("t13", "n", ExecutorType.GENERAL, SideEffect.WRITE_LOCAL);
+        ToolMeta meta = new ToolMeta("t13", "n", ExecutorType.HTTP_API, SideEffect.WRITE_LOCAL);
         ToolCallRequest request = new ToolCallRequest("t13", "{}");
         request.setTenantId("tn_1");
         request.setInputHash("hash_x");
@@ -233,7 +233,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("R1 + 无 request: 默认无需审批")
     void classify_r1NoRequest_noApproval() {
-        ToolMeta meta = new ToolMeta("t14", "n", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("t14", "n", ExecutorType.HTTP_API, SideEffect.NONE);
 
         RiskAssessment assessment = classifier.classify(meta, null);
 
@@ -244,7 +244,7 @@ class RiskClassifierImplTest {
     @Test
     @DisplayName("default classify(meta) 方法返回 ToolRiskLevel (向后兼容)")
     void classify_defaultMethod_returnsLevel() {
-        ToolMeta meta = new ToolMeta("t15", "n", ExecutorType.GENERAL, SideEffect.DESTRUCTIVE);
+        ToolMeta meta = new ToolMeta("t15", "n", ExecutorType.HTTP_API, SideEffect.DESTRUCTIVE);
 
         ToolRiskLevel level = classifier.classify(meta);
 

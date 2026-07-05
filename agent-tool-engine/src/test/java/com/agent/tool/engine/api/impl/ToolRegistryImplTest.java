@@ -51,7 +51,7 @@ class ToolRegistryImplTest {
     @Test
     @DisplayName("toolId 缺失时: register 自动生成 tool-xxx 并保存")
     void should_GenerateToolId_When_NotProvided() {
-        ToolMeta meta = new ToolMeta(null, "auto_name", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta(null, "auto_name", ExecutorType.HTTP_API, SideEffect.NONE);
         when(repository.existsByToolId(any())).thenReturn(false);
         when(repository.save(any(ToolRegistryEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -66,14 +66,14 @@ class ToolRegistryImplTest {
     @DisplayName("注册后: findMeta 返回元数据 (Entity -> ToolMeta 转换)")
     void should_FindMeta_When_Registered() {
         ToolRegistryEntity entity = buildEntity("tool_db", "db_query",
-                ExecutorType.PROXY, ToolRiskLevel.R2.getLevel());
+                ExecutorType.HTTP_API, ToolRiskLevel.R2.getLevel());
         when(repository.findByToolId("tool_db")).thenReturn(Optional.of(entity));
 
         ToolMeta found = registry.findMeta("tool_db");
 
         assertThat(found).isNotNull();
         assertThat(found.getName()).isEqualTo("db_query");
-        assertThat(found.getExecutorType()).isEqualTo(ExecutorType.PROXY);
+        assertThat(found.getExecutorType()).isEqualTo(ExecutorType.HTTP_API);
         assertThat(found.getSideEffect()).isEqualTo(SideEffect.WRITE_LOCAL);
     }
 
@@ -81,7 +81,7 @@ class ToolRegistryImplTest {
     @DisplayName("注册后: findInputSchema 解析 JSON 返回 requiredFields")
     void should_FindInputSchema_When_Registered() {
         ToolRegistryEntity entity = buildEntity("tool_v", "validate",
-                ExecutorType.GENERAL, ToolRiskLevel.R1.getLevel());
+                ExecutorType.HTTP_API, ToolRiskLevel.R1.getLevel());
         entity.setInputSchema("{\"type\":\"object\",\"required\":[\"orderId\",\"tenantId\"]}");
         when(repository.findByToolId("tool_v")).thenReturn(Optional.of(entity));
 
@@ -116,7 +116,7 @@ class ToolRegistryImplTest {
     @DisplayName("重复 toolId: register 抛 ToolValidationException")
     void should_Throw_When_DuplicateToolId() {
         when(repository.existsByToolId("tool_dup")).thenReturn(true);
-        ToolMeta meta = new ToolMeta("tool_dup", "dup", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("tool_dup", "dup", ExecutorType.HTTP_API, SideEffect.NONE);
 
         assertThatThrownBy(() -> registry.register(meta, null, null))
                 .isInstanceOf(ToolValidationException.class)
@@ -129,7 +129,7 @@ class ToolRegistryImplTest {
     @DisplayName("unregister 已注册工具: 设置 status=OFFLINE 并返回 true")
     void should_Unregister_When_Exists() {
         ToolRegistryEntity entity = buildEntity("tool_del", "del",
-                ExecutorType.GENERAL, ToolRiskLevel.R1.getLevel());
+                ExecutorType.HTTP_API, ToolRiskLevel.R1.getLevel());
         when(repository.findByToolId("tool_del")).thenReturn(Optional.of(entity));
         when(repository.save(any())).thenReturn(entity);
 
@@ -147,11 +147,11 @@ class ToolRegistryImplTest {
         when(repository.save(any(ToolRegistryEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // NONE -> R1
-        ToolMeta r1 = new ToolMeta("t_r1", "r1", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta r1 = new ToolMeta("t_r1", "r1", ExecutorType.HTTP_API, SideEffect.NONE);
         registry.register(r1, null, null);
 
         // DESTRUCTIVE -> R3
-        ToolMeta r3 = new ToolMeta("t_r3", "r3", ExecutorType.SANDBOX, SideEffect.DESTRUCTIVE);
+        ToolMeta r3 = new ToolMeta("t_r3", "r3", ExecutorType.SHELL, SideEffect.DESTRUCTIVE);
         registry.register(r3, null, null);
 
         verify(repository, times(2)).save(any(ToolRegistryEntity.class));

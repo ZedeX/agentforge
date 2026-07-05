@@ -21,7 +21,7 @@ class ToolSemanticRecallerImplTest {
     @Test
     @DisplayName("无匹配工具时: 返回空列表")
     void should_ReturnEmpty_When_NoMatch() {
-        ToolMeta meta = new ToolMeta("tool_weather", "天气查询", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("tool_weather", "天气查询", ExecutorType.HTTP_API, SideEffect.NONE);
         meta.setDescription("查询天气预报");
         recaller.index(meta);
 
@@ -33,7 +33,7 @@ class ToolSemanticRecallerImplTest {
     @Test
     @DisplayName("名称完全匹配: 返回结果且 score >= 0.3 阈值")
     void should_ReturnMatch_When_NameMatches() {
-        ToolMeta meta = new ToolMeta("tool_order", "查询订单", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("tool_order", "查询订单", ExecutorType.HTTP_API, SideEffect.NONE);
         recaller.index(meta);
 
         List<ToolRecallResult> results = recaller.recall("查询订单", 3);
@@ -46,10 +46,10 @@ class ToolSemanticRecallerImplTest {
     @Test
     @DisplayName("多工具匹配: 按 score 降序重排取 Top-K")
     void should_RerankByScore_When_MultipleMatch() {
-        ToolMeta metaA = new ToolMeta("tool_a", "查询订单A", ExecutorType.GENERAL, SideEffect.NONE);
-        ToolMeta metaB = new ToolMeta("tool_b", "查询订单B", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta metaA = new ToolMeta("tool_a", "查询订单A", ExecutorType.HTTP_API, SideEffect.NONE);
+        ToolMeta metaB = new ToolMeta("tool_b", "查询订单B", ExecutorType.HTTP_API, SideEffect.NONE);
         metaB.setDescription("查询订单 高级版");
-        ToolMeta metaC = new ToolMeta("tool_c", "无关工具", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta metaC = new ToolMeta("tool_c", "无关工具", ExecutorType.HTTP_API, SideEffect.NONE);
         recaller.index(metaA);
         recaller.index(metaB);
         recaller.index(metaC);
@@ -65,7 +65,7 @@ class ToolSemanticRecallerImplTest {
     @Test
     @DisplayName("空 query 或 topK<=0: 返回空列表")
     void should_ReturnEmpty_When_QueryBlank() {
-        ToolMeta meta = new ToolMeta("tool_x", "x", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta meta = new ToolMeta("tool_x", "x", ExecutorType.HTTP_API, SideEffect.NONE);
         recaller.index(meta);
 
         assertThat(recaller.recall(null, 3)).isEmpty();
@@ -77,9 +77,9 @@ class ToolSemanticRecallerImplTest {
     @Test
     @DisplayName("匹配数超过 topK: 仅返回 Top-K 条")
     void should_RespectTopK_When_MoreMatchesThanK() {
-        ToolMeta m1 = new ToolMeta("t1", "search", ExecutorType.GENERAL, SideEffect.NONE);
-        ToolMeta m2 = new ToolMeta("t2", "search", ExecutorType.GENERAL, SideEffect.NONE);
-        ToolMeta m3 = new ToolMeta("t3", "search", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta m1 = new ToolMeta("t1", "search", ExecutorType.HTTP_API, SideEffect.NONE);
+        ToolMeta m2 = new ToolMeta("t2", "search", ExecutorType.HTTP_API, SideEffect.NONE);
+        ToolMeta m3 = new ToolMeta("t3", "search", ExecutorType.HTTP_API, SideEffect.NONE);
         recaller.index(m1);
         recaller.index(m2);
         recaller.index(m3);
@@ -93,7 +93,7 @@ class ToolSemanticRecallerImplTest {
     @DisplayName("index null 或无 toolId: 安全跳过")
     void should_SkipIndex_When_NullOrNoToolId() {
         recaller.index(null);
-        ToolMeta noId = new ToolMeta(null, "x", ExecutorType.GENERAL, SideEffect.NONE);
+        ToolMeta noId = new ToolMeta(null, "x", ExecutorType.HTTP_API, SideEffect.NONE);
         recaller.index(noId);
 
         assertThat(recaller.size()).isZero();

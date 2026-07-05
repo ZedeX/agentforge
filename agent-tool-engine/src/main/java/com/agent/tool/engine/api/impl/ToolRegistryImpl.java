@@ -168,7 +168,7 @@ public class ToolRegistryImpl implements ToolRegistry {
                 meta.getDescription() != null ? meta.getDescription() : "",
                 ToolType.ATOMIC, // 默认原子工具
                 riskLevel.getLevel(),
-                meta.getExecutorType() != null ? meta.getExecutorType() : ExecutorType.GENERAL,
+                meta.getExecutorType() != null ? meta.getExecutorType() : ExecutorType.HTTP_API,
                 "grpc://tool-service/" + meta.getName(),  // 默认 endpoint
                 30000  // 默认 30s 超时
         );

@@ -53,7 +53,7 @@ class ToolEntityRepositoryTest {
     void should_PersistAndFind_When_ToolRegistrySaved() {
         ToolRegistryEntity entity = new ToolRegistryEntity(
                 "tool_t2_1", "t2-search", "T2 搜索工具", "测试搜索工具",
-                ToolType.ATOMIC, ToolRiskLevel.R1.getLevel(), ExecutorType.GENERAL,
+                ToolType.ATOMIC, ToolRiskLevel.R1.getLevel(), ExecutorType.HTTP_API,
                 "grpc://tool-service/Search", 3000);
         entity.setSceneTags("[\"search\",\"qa\"]");
         entity.setInputSchema("{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}");
@@ -70,7 +70,7 @@ class ToolEntityRepositoryTest {
         Optional<ToolRegistryEntity> found = registryRepository.findByToolId("tool_t2_1");
         assertThat(found).isPresent();
         assertThat(found.get().getName()).isEqualTo("t2-search");
-        assertThat(found.get().getExecutorType()).isEqualTo(ExecutorType.GENERAL);
+        assertThat(found.get().getExecutorType()).isEqualTo(ExecutorType.HTTP_API);
         assertThat(found.get().getRiskLevelEnum()).isEqualTo(ToolRiskLevel.R1);
         assertThat(found.get().getStatusEnum()).isEqualTo(ToolStatus.ENABLED);
     }
@@ -253,7 +253,7 @@ class ToolEntityRepositoryTest {
     private ToolRegistryEntity buildRegistryEntity(String toolId, String name, int riskLevel) {
         ToolRegistryEntity entity = new ToolRegistryEntity(
                 toolId, name, name + " display", "desc",
-                ToolType.ATOMIC, riskLevel, ExecutorType.GENERAL,
+                ToolType.ATOMIC, riskLevel, ExecutorType.HTTP_API,
                 "grpc://tool/" + name, 5000);
         entity.setSceneTags("[\"test\"]");
         entity.setInputSchema("{}");
