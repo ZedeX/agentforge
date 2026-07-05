@@ -69,6 +69,7 @@ public class ToolEngineProperties {
         private boolean enabled = true;
         private int poolSize = 5;
         private int maxConcurrent = 20;
+        private long borrowTimeoutMs = 10000L;
         private long idleTimeoutMs = 600000;
         private long execTimeoutMs = 60000;
         private String image = "agent-sandbox:latest";
@@ -82,6 +83,8 @@ public class ToolEngineProperties {
         public void setPoolSize(int poolSize) { this.poolSize = poolSize; }
         public int getMaxConcurrent() { return maxConcurrent; }
         public void setMaxConcurrent(int maxConcurrent) { this.maxConcurrent = maxConcurrent; }
+        public long getBorrowTimeoutMs() { return borrowTimeoutMs; }
+        public void setBorrowTimeoutMs(long borrowTimeoutMs) { this.borrowTimeoutMs = borrowTimeoutMs; }
         public long getIdleTimeoutMs() { return idleTimeoutMs; }
         public void setIdleTimeoutMs(long idleTimeoutMs) { this.idleTimeoutMs = idleTimeoutMs; }
         public long getExecTimeoutMs() { return execTimeoutMs; }

@@ -14,6 +14,7 @@ import com.agent.tool.engine.model.ToolCallResult;
 import com.agent.tool.engine.model.ToolMeta;
 import com.agent.tool.engine.model.ToolSchema;
 import com.agent.tool.engine.risk.PiiDetector;
+import com.agent.tool.engine.sandbox.InMemorySandboxBorrower;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,7 @@ class ToolGatewayImplTest {
     private ToolRegistry registry;
     private RiskClassifierImpl riskClassifier;
     private ApprovalStore approvalStore;
-    private SandboxBorrowerImpl sandboxBorrower;
+    private InMemorySandboxBorrower sandboxBorrower;
     private ToolCacheImpl cache;
     private ToolCallAuditorImpl auditor;
     private ResultCleanerImpl resultCleaner;
@@ -52,7 +53,7 @@ class ToolGatewayImplTest {
         registry = mock(ToolRegistry.class);
         approvalStore = mock(ApprovalStore.class);
         riskClassifier = new RiskClassifierImpl(new PiiDetector(), approvalStore);
-        sandboxBorrower = new SandboxBorrowerImpl();
+        sandboxBorrower = new InMemorySandboxBorrower();
         cache = new ToolCacheImpl();
         auditor = new ToolCallAuditorImpl();
         resultCleaner = new ResultCleanerImpl();
