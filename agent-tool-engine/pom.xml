@@ -157,6 +157,7 @@
                 <configuration>
                     <excludes combine.children="append">
                         <exclude>**/model/**</exclude>
+                        <exclude>**/entity/**</exclude>
                         <exclude>**/exception/**</exclude>
                         <exclude>**/config/**</exclude>
                         <!-- Docker SDK 条件装配，测试环境不加载，覆盖率 0% -->

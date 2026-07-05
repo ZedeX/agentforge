@@ -21,6 +21,11 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
         format_sql: true
 
+# JDBC 参数绑定日志 (调试 @Modifying 查询)
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: TRACE
+
 # 测试环境禁用 Docker 沙箱 + Redis 连接 + Memory gRPC 客户端
 tool:
   docker:

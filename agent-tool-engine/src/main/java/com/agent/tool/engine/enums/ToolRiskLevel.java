@@ -49,4 +49,13 @@ public enum ToolRiskLevel {
         }
         throw new IllegalArgumentException("Unknown ToolRiskLevel: " + code);
     }
+
+    public static ToolRiskLevel fromLevel(int level) {
+        for (ToolRiskLevel r : values()) {
+            if (r.level == level) {
+                return r;
+            }
+        }
+        throw new IllegalArgumentException("Unknown ToolRiskLevel level: " + level);
+    }
 }
