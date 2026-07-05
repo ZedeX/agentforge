@@ -6,6 +6,8 @@ import com.agent.runtime.api.dto.ModelChatRequest;
 import com.agent.runtime.api.dto.ModelChatResponse;
 import com.agent.runtime.api.dto.ModelMessage;
 import com.agent.runtime.api.dto.ModelToolCall;
+import com.agent.runtime.circuit.ResilienceDecorator;
+import com.agent.runtime.config.Resilience4jConfig;
 import com.agent.runtime.config.RuntimeProperties;
 import com.agent.runtime.exception.ModelGatewayTimeoutException;
 import com.agent.runtime.exception.ModelGatewayUnavailableException;
@@ -26,24 +28,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
- * T4 ModelGatewayClientImpl 单元测试 (gRPC in-process server).
+ * T4 ModelGatewayClientImpl unit tests (gRPC in-process server).
  *
- * <p>验证 {@link ModelGatewayClientImpl} 通过真实 gRPC 链路调用
- * {@link FakeModelGatewayService} 的 9 个场景:
- * <ol>
- *   <li>{@code chat_returnsCompletion} — 正常 prompt → 返回模型回复文本</li>
- *   <li>{@code chat_stream_returnsChunks} — stream 模式 → 聚合多个 chunk</li>
- *   <li>{@code chat_includesSystemAndUserMessages} — 验证请求体包含 system + user 消息</li>
- *   <li>{@code chat_passesTemperatureAndMaxTokens} — 验证 temperature / maxTokens 参数传递</li>
- *   <li>{@code chat_throwsOnUnavailable} — UNAVAILABLE → {@link ModelGatewayUnavailableException}</li>
- *   <li>{@code chat_throwsOnDeadlineExceeded} — DEADLINE_EXCEEDED → {@link ModelGatewayTimeoutException}</li>
- *   <li>{@code chat_returnsToolCallDecision} — tool_call → 解析 {@link ModelToolCall}</li>
- *   <li>{@code chat_returnsFinalAnswer} — final_answer 内容</li>
- *   <li>{@code chat_recordsTokenUsage} — 返回 token usage (prompt / completion / total)</li>
- * </ol>
+ * <p>Verifies {@link ModelGatewayClientImpl} through real gRPC wire calling
+ * {@link FakeModelGatewayService} in 9 scenarios.
  *
- * <p>基础设施: {@link InProcessServerBuilder} + {@link InProcessChannelBuilder}, directExecutor,
- * 无真实端口、无 Spring 上下文、无 Docker, 启动开销极小。
+ * <p>Infrastructure: {@link InProcessServerBuilder} + {@link InProcessChannelBuilder}, directExecutor,
+ * no real port, no Spring context, no Docker.
  */
 class ModelGatewayClientImplTest {
 
@@ -66,7 +57,18 @@ class ModelGatewayClientImplTest {
                 .build();
         ModelGatewayGrpc.ModelGatewayBlockingStub stub =
                 ModelGatewayGrpc.newBlockingStub(channel);
-        client = new ModelGatewayClientImpl(stub, new RuntimeProperties());
+
+        // Create ResilienceDecorator with high thresholds to avoid interference
+        RuntimeProperties props = new RuntimeProperties();
+        props.getCircuit().getModel().setFailureThreshold(100);
+        props.getCircuit().getTool().setFailureThreshold(100);
+        props.getRetry().setMaxAttempts(1);
+        props.getRetry().setInitialBackoffMs(10);
+        Resilience4jConfig config = new Resilience4jConfig(props);
+        ResilienceDecorator resilience = new ResilienceDecorator(
+                config.circuitBreakerRegistry(), config.retryRegistry());
+
+        client = new ModelGatewayClientImpl(stub, resilience);
     }
 
     @AfterAll

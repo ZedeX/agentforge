@@ -3,6 +3,8 @@ package com.agent.runtime.api.impl;
 import agentplatform.tool.v1.ToolGatewayGrpc;
 import com.agent.runtime.api.dto.ToolInvokeRequest;
 import com.agent.runtime.api.dto.ToolInvokeResult;
+import com.agent.runtime.circuit.ResilienceDecorator;
+import com.agent.runtime.config.Resilience4jConfig;
 import com.agent.runtime.config.RuntimeProperties;
 import com.agent.runtime.exception.ToolApprovalRequiredException;
 import com.agent.runtime.exception.ToolExecutionTimeoutException;
@@ -25,23 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
- * T5 ToolEngineClientImpl 单元测试 (gRPC in-process server).
+ * T5 ToolEngineClientImpl unit tests (gRPC in-process server).
  *
- * <p>验证 {@link ToolEngineClientImpl} 通过真实 gRPC 链路调用
- * {@link FakeToolGatewayService} 的 8 个场景:
- * <ol>
- *   <li>{@code callTool_returnsResult} — toolId + params → 返回 ToolInvokeResult (status=success)</li>
- *   <li>{@code callTool_passesAgentContext} — 验证请求体包含 callId / taskId / agentId</li>
- *   <li>{@code callTool_throwsOnNotFound} — NOT_FOUND → {@link ToolNotFoundException}</li>
- *   <li>{@code callTool_throwsOnApprovalRequired} — PERMISSION_DENIED → {@link ToolApprovalRequiredException}</li>
- *   <li>{@code callTool_throwsOnQuotaExhausted} — RESOURCE_EXHAUSTED → {@link ToolQuotaExhaustedException}</li>
- *   <li>{@code callTool_throwsOnTimeout} — DEADLINE_EXCEEDED → {@link ToolExecutionTimeoutException}</li>
- *   <li>{@code callTool_returnsCleanedStdout} — outputJson 已清洗 (无 PII)</li>
- *   <li>{@code callTool_recordsCallIdAndCacheFlag} — 返回 callId / fromCache</li>
- * </ol>
- *
- * <p>基础设施: {@link InProcessServerBuilder} + {@link InProcessChannelBuilder}, directExecutor,
- * 无真实端口、无 Spring 上下文、无 Docker, 启动开销极小。
+ * <p>Infrastructure: {@link InProcessServerBuilder} + {@link InProcessChannelBuilder}, directExecutor,
+ * no real port, no Spring context, no Docker.
  */
 class ToolEngineClientImplTest {
 
@@ -64,7 +53,18 @@ class ToolEngineClientImplTest {
                 .build();
         ToolGatewayGrpc.ToolGatewayBlockingStub stub =
                 ToolGatewayGrpc.newBlockingStub(channel);
-        client = new ToolEngineClientImpl(stub, new RuntimeProperties());
+
+        // Create ResilienceDecorator with high thresholds to avoid interference
+        RuntimeProperties props = new RuntimeProperties();
+        props.getCircuit().getModel().setFailureThreshold(100);
+        props.getCircuit().getTool().setFailureThreshold(100);
+        props.getRetry().setMaxAttempts(1);
+        props.getRetry().setInitialBackoffMs(10);
+        Resilience4jConfig config = new Resilience4jConfig(props);
+        ResilienceDecorator resilience = new ResilienceDecorator(
+                config.circuitBreakerRegistry(), config.retryRegistry());
+
+        client = new ToolEngineClientImpl(stub, resilience);
     }
 
     @AfterAll

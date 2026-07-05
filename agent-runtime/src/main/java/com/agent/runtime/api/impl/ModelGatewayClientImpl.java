@@ -8,7 +8,7 @@ import com.agent.runtime.api.ModelGatewayClient;
 import com.agent.runtime.api.dto.ModelChatChunk;
 import com.agent.runtime.api.dto.ModelChatRequest;
 import com.agent.runtime.api.dto.ModelChatResponse;
-import com.agent.runtime.config.RuntimeProperties;
+import com.agent.runtime.circuit.ResilienceDecorator;
 import com.agent.runtime.exception.ModelGatewayTimeoutException;
 import com.agent.runtime.exception.ModelGatewayUnavailableException;
 import io.grpc.Status;
@@ -26,6 +26,7 @@ import java.util.stream.StreamSupport;
 
 /**
  * Real model gateway client implementation backed by gRPC stubs (T4, doc 06-runtime §3).
+ * T9: Resilience4j circuit breaker + retry decoration applied.
  *
  * <p>Activated only when {@code runtime.model-gateway-client.enabled=true}. In test/standalone
  * environments where no real gateway is reachable, {@link MockModelGatewayClient} takes over.
@@ -38,6 +39,8 @@ import java.util.stream.StreamSupport;
  *   <li>Translate gRPC {@link StatusRuntimeException} → {@link ModelGatewayUnavailableException}
  *       / {@link ModelGatewayTimeoutException}.</li>
  *   <li>Legacy {@link #chat(String)} delegates to {@link #chat(ModelChatRequest)} with single user message.</li>
+ *   <li>Circuit breaker: {@code model-gateway} (5 failures → open 30s).</li>
+ *   <li>Retry: 3 attempts with exponential backoff (200/600/1800 ms).</li>
  * </ul>
  */
 @Component
@@ -48,11 +51,13 @@ public class ModelGatewayClientImpl implements ModelGatewayClient {
 
     private final ModelGatewayGrpc.ModelGatewayBlockingStub blockingStub;
     private final ChatCompletionMapper mapper;
+    private final ResilienceDecorator resilience;
 
     public ModelGatewayClientImpl(ModelGatewayGrpc.ModelGatewayBlockingStub blockingStub,
-                                  RuntimeProperties properties) {
+                                  ResilienceDecorator resilience) {
         this.blockingStub = blockingStub;
         this.mapper = new ChatCompletionMapper();
+        this.resilience = resilience;
     }
 
     @Override
@@ -61,16 +66,19 @@ public class ModelGatewayClientImpl implements ModelGatewayClient {
         log.debug("ModelGateway chat: callId={}, scene={}, tier={}, timeoutMs={}",
                 request.getCallId(), request.getScene(), request.getTier(), request.getTimeoutMs());
 
-        ChatResponse resp;
-        try {
-            resp = blockingStub.withDeadlineAfter(request.getTimeoutMs(), TimeUnit.MILLISECONDS)
-                    .chat(proto);
-        } catch (StatusRuntimeException ex) {
-            throw translateException(ex, request.getCallId());
-        }
-        log.debug("ModelGateway chat done: callId={}, model={}, tokens={}",
-                resp.getCallId(), resp.getModel(), resp.getInputTokens() + resp.getOutputTokens());
-        return mapper.fromProto(resp);
+        ModelChatResponse resp = resilience.decorateModelGateway(() -> {
+            ChatResponse r;
+            try {
+                r = blockingStub.withDeadlineAfter(request.getTimeoutMs(), TimeUnit.MILLISECONDS)
+                        .chat(proto);
+            } catch (StatusRuntimeException ex) {
+                throw translateException(ex, request.getCallId());
+            }
+            log.debug("ModelGateway chat done: callId={}, model={}, tokens={}",
+                    r.getCallId(), r.getModel(), r.getInputTokens() + r.getOutputTokens());
+            return mapper.fromProto(r);
+        }).get();
+        return resp;
     }
 
     @Override

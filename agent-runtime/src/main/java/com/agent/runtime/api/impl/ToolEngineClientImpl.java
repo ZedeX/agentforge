@@ -5,7 +5,7 @@ import agentplatform.tool.v1.ToolInvokeRequest;
 import agentplatform.tool.v1.ToolInvokeResponse;
 import com.agent.runtime.api.ToolEngineClient;
 import com.agent.runtime.api.dto.ToolInvokeResult;
-import com.agent.runtime.config.RuntimeProperties;
+import com.agent.runtime.circuit.ResilienceDecorator;
 import com.agent.runtime.exception.ToolApprovalRequiredException;
 import com.agent.runtime.exception.ToolEngineException;
 import com.agent.runtime.exception.ToolExecutionTimeoutException;
@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Real tool engine client implementation backed by gRPC stubs (T5, doc 06-runtime §4).
+ * T9: Resilience4j circuit breaker + retry decoration applied.
  *
  * <p>Activated only when {@code runtime.tool-engine-client.enabled=true}. In test/standalone
  * environments where no real gateway is reachable, {@link MockToolEngineClient} takes over.
@@ -35,6 +36,8 @@ import java.util.concurrent.TimeUnit;
  *   <li>Async variant via {@link #invokeAsync(com.agent.runtime.api.dto.ToolInvokeRequest)} runs sync call on common pool.</li>
  *   <li>Translate gRPC {@link StatusRuntimeException} → typed {@link ToolEngineException} subclasses (T5 §12.4).</li>
  *   <li>Legacy {@link #invoke(String, String)} delegates to {@link #invoke(com.agent.runtime.api.dto.ToolInvokeRequest)}.</li>
+ *   <li>Circuit breaker: {@code tool-engine} (3 failures → open 30s).</li>
+ *   <li>Retry: 3 attempts with exponential backoff (200/600/1800 ms).</li>
  * </ul>
  */
 @Component
@@ -45,11 +48,13 @@ public class ToolEngineClientImpl implements ToolEngineClient {
 
     private final ToolGatewayGrpc.ToolGatewayBlockingStub blockingStub;
     private final ToolCallMapper mapper;
+    private final ResilienceDecorator resilience;
 
     public ToolEngineClientImpl(ToolGatewayGrpc.ToolGatewayBlockingStub blockingStub,
-                                RuntimeProperties properties) {
+                                ResilienceDecorator resilience) {
         this.blockingStub = blockingStub;
         this.mapper = new ToolCallMapper();
+        this.resilience = resilience;
     }
 
     @Override
@@ -58,16 +63,19 @@ public class ToolEngineClientImpl implements ToolEngineClient {
         log.debug("ToolEngine invoke: callId={}, toolId={}, agentId={}, timeoutMs={}",
                 request.getCallId(), request.getToolId(), request.getAgentId(), request.getTimeoutMs());
 
-        ToolInvokeResponse resp;
-        try {
-            resp = blockingStub.withDeadlineAfter(request.getTimeoutMs(), TimeUnit.MILLISECONDS)
-                    .invoke(proto);
-        } catch (StatusRuntimeException ex) {
-            throw translateException(ex, request.getCallId(), request.getToolId());
-        }
-        log.debug("ToolEngine invoke done: callId={}, status={}, durationMs={}, fromCache={}",
-                resp.getCallId(), resp.getStatus(), resp.getDurationMs(), resp.getFromCache());
-        return mapper.fromProto(resp);
+        ToolInvokeResult result = resilience.decorateToolEngine(() -> {
+            ToolInvokeResponse resp;
+            try {
+                resp = blockingStub.withDeadlineAfter(request.getTimeoutMs(), TimeUnit.MILLISECONDS)
+                        .invoke(proto);
+            } catch (StatusRuntimeException ex) {
+                throw translateException(ex, request.getCallId(), request.getToolId());
+            }
+            log.debug("ToolEngine invoke done: callId={}, status={}, durationMs={}, fromCache={}",
+                    resp.getCallId(), resp.getStatus(), resp.getDurationMs(), resp.getFromCache());
+            return mapper.fromProto(resp);
+        }).get();
+        return result;
     }
 
     @Override

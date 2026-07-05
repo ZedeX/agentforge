@@ -30,6 +30,8 @@ public class Resilience4jConfig {
     public static final String CB_TOOL_ENGINE = "tool-engine";
     /** 重试器名称：default */
     public static final String RETRY_DEFAULT = "default";
+    /** 重试器配置名称（不能用 'default'，保留字） */
+    private static final String RETRY_CONFIG = "retry-config";
 
     private final RuntimeProperties properties;
 
@@ -58,14 +60,13 @@ public class Resilience4jConfig {
                 .permittedNumberOfCallsInHalfOpenState(1)
                 .build();
 
-        // Resilience4j 2.x: 用 Map 构造 Registry，自动注册所有配置
-        java.util.Map<String, CircuitBreakerConfig> configs = new java.util.HashMap<>();
-        configs.put(CB_MODEL_GATEWAY, modelConfig);
-        configs.put(CB_TOOL_ENGINE, toolConfig);
-        CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(configs);
-        // 预创建实例，使后续 registry.find(name) 可用（Resilience4j 2.x find() 只返回已创建的实例）
-        registry.circuitBreaker(CB_MODEL_GATEWAY);
-        registry.circuitBreaker(CB_TOOL_ENGINE);
+        // Resilience4j 2.x: 先创建默认 Registry，再注册配置
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+        registry.addConfiguration(CB_MODEL_GATEWAY, modelConfig);
+        registry.addConfiguration(CB_TOOL_ENGINE, toolConfig);
+        // 预创建实例：用同名配置创建同名实例
+        registry.circuitBreaker(CB_MODEL_GATEWAY, CB_MODEL_GATEWAY);
+        registry.circuitBreaker(CB_TOOL_ENGINE, CB_TOOL_ENGINE);
         return registry;
     }
 
@@ -82,12 +83,11 @@ public class Resilience4jConfig {
                                 retryCfg.getMultiplier()))
                 .build();
 
-        // Resilience4j 2.x: 用 Map 构造 Registry
-        java.util.Map<String, RetryConfig> configs = new java.util.HashMap<>();
-        configs.put(RETRY_DEFAULT, config);
-        RetryRegistry registry = RetryRegistry.of(configs);
-        // 预创建实例，使后续 registry.find(name) 可用
-        registry.retry(RETRY_DEFAULT);
+        // Resilience4j 2.x: 先创建默认 Registry，再注册配置
+        RetryRegistry registry = RetryRegistry.ofDefaults();
+        registry.addConfiguration(RETRY_CONFIG, config);
+        // 预创建实例：实例名 default，配置名 retry-config
+        registry.retry(RETRY_DEFAULT, RETRY_CONFIG);
         return registry;
     }
 }
