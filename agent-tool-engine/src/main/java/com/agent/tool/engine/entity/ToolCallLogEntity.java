@@ -67,11 +67,11 @@ public class ToolCallLogEntity implements Serializable {
     private int toolVersion;
 
     /** 入参快照（脱敏后, JSON 字符串）. */
-    @Column(name = "input", nullable = false, columnDefinition = "JSON")
+    @Column(name = "input", nullable = false, columnDefinition = "TEXT")
     private String input;
 
     /** 输出快照（截断, JSON 字符串）. */
-    @Column(name = "output", columnDefinition = "JSON")
+    @Column(name = "output", columnDefinition = "TEXT")
     private String output;
 
     /** 状态: success / failed / timeout / blocked. */
@@ -109,6 +109,34 @@ public class ToolCallLogEntity implements Serializable {
     /** 链路 ID. */
     @Column(name = "trace_id", nullable = false, length = 64)
     private String traceId;
+
+    /** 租户 ID (T9 audit field). */
+    @Column(name = "tenant_id", length = 32)
+    private String tenantId;
+
+    /** 入参 hash (T9 audit field, ParamsHasher 64-char hex). */
+    @Column(name = "params_hash", length = 64)
+    private String paramsHash;
+
+    /** 调用开始时间 (T9 audit field). */
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    /** 调用结束时间 (T9 audit field). */
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    /** 退出码 (T9 audit field, sandbox exec exit code). */
+    @Column(name = "exit_code")
+    private Integer exitCode;
+
+    /** 沙箱容器 ID (T9 audit field, null for non-sandbox executors). */
+    @Column(name = "sandbox_container_id", length = 64)
+    private String sandboxContainerId;
+
+    /** 是否命中缓存 (T9 audit field). */
+    @Column(name = "cache_hit", nullable = false)
+    private boolean cacheHit = false;
 
     /** 创建时间. */
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -48,4 +48,17 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLogEntity, 
 
     /** 按工具 ID + 状态计数. */
     long countByToolIdAndStatus(String toolId, String status);
+
+    // ==================== T9 audit query methods ====================
+
+    /** 按租户 ID + 时间范围分页查询 (T9). */
+    Page<ToolCallLogEntity> findByTenantIdAndCreatedAtBetween(
+            String tenantId, Instant start, Instant end, Pageable pageable);
+
+    /** 按租户 ID + 工具 ID 分页查询 (T9). */
+    Page<ToolCallLogEntity> findByTenantIdAndToolId(
+            String tenantId, String toolId, Pageable pageable);
+
+    /** 按租户 ID + 状态计数 (T9). */
+    long countByTenantIdAndStatus(String tenantId, String status);
 }

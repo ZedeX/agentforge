@@ -20,6 +20,10 @@ public class ToolCallRequest implements Serializable {
     private String tenantId;
     private String traceId;
     private String inputHash;
+    /** Caller agent id (T9 audit field, nullable for cross-agent calls). */
+    private Long agentId;
+    /** Task id (shard key, T9 audit field). */
+    private String taskId;
 
     public ToolCallRequest() {
     }
@@ -83,5 +87,21 @@ public class ToolCallRequest implements Serializable {
 
     public void setInputHash(String inputHash) {
         this.inputHash = inputHash;
+    }
+
+    public Long getAgentId() {
+        return agentId;
+    }
+
+    public void setAgentId(Long agentId) {
+        this.agentId = agentId;
+    }
+
+    public String getTaskId() {
+        return taskId;
+    }
+
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
     }
 }
