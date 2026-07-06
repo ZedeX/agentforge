@@ -96,6 +96,12 @@ scratch/
 wave*-commit-msg.txt
 wave*-build.bat
 agent-log-temp.md
+# Task-level commit message scratch files (from Plan execution)
+t[0-9]*-commit-msg.txt
+t[0-9]*-summary.txt
+
+# ---- IDE: Trae-CN (local agent runtime) ----
+.trae/
 
 # ---- Build tooling caches ----
 .flattened-pom.xml

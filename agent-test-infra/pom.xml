@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.agentforge</groupId>
+        <artifactId>agentforge-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>agent-test-infra</artifactId>
+    <packaging>jar</packaging>
+    <name>agent-test-infra</name>
+    <description>Shared test infrastructure: Gatling load simulations + cross-service e2e tests (docs/tests/test-strategy.md §4.2)</description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <scala.version>2.13.14</scala.version>
+        <gatling.version>3.11.2</gatling.version>
+        <gatling-plugin.version>4.9.6</gatling-plugin.version>
+        <!-- Skip default surefire tests; this module only hosts perf + e2e test code. -->
+        <skip.surefire.tests>true</skip.surefire.tests>
+    </properties>
+
+    <dependencies>
+        <!-- Gatling test framework (Scala DSL) — version from parent dependencyManagement. -->
+        <dependency>
+            <groupId>io.gatling</groupId>
+            <artifactId>gatling-test-framework</artifactId>
+            <version>${gatling.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Scala library for Simulation classes. -->
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>${scala.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Internal modules — provided scope so test-infra can reference e2e fixtures
+             without dragging every runtime dep transitively. -->
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-proto</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-common</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Test dependencies: Spring Boot test + AssertJ + gRPC testing for cross-service e2e. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Testcontainers for e2e tests that need real middleware (auto-skipped without Docker). -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- MySQL Testcontainers module used by ContainerFactory.sharedMySQL(). -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Redis Testcontainers module used by ContainerFactory.sharedRedis()
+             (same version as agent-session for consistency). -->
+        <dependency>
+            <groupId>com.redis</groupId>
+            <artifactId>testcontainers-redis</artifactId>
+            <version>2.2.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Scala compiler for *.scala Simulation sources under src/test/scala. -->
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+                <version>4.9.2</version>
+                <executions>
+                    <execution>
+                        <id>scala-test-compile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                        <configuration>
+                            <scalaVersion>${scala.version}</scalaVersion>
+                            <!-- Gatling 3.11.5 requires Scala 2.13.x; jvmArgs aligns with JDK 17. -->
+                            <jvmArgs>
+                                <jvmArg>-Xss10M</jvmArg>
+                            </jvmArgs>
+                            <args>
+                                <arg>-deprecation</arg>
+                                <arg>-feature</arg>
+                                <arg>-unchecked</arg>
+                                <arg>-language:implicitConversions</arg>
+                                <arg>-language:postfixOps</arg>
+                            </args>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Gatling Maven Plugin — invoked via `mvn -Pe2e-perf -pl agent-test-infra gatling:test`.
+                 SimulationClass is configurable per-run via -Dgatling.simulationClass. -->
+            <plugin>
+                <groupId>io.gatling</groupId>
+                <artifactId>gatling-maven-plugin</artifactId>
+                <version>${gatling-plugin.version}</version>
+                <configuration>
+                    <resultsDirectory>${project.build.directory}/gatling-results</resultsDirectory>
+                    <!-- Default simulation; override with -Dgatling.simulationClass=com.agentforge.testinfra.simulation.AgentForgeFullSuiteSimulation -->
+                    <simulationClass>com.agentforge.testinfra.simulation.AgentCreationSimulation</simulationClass>
+                    <!-- CI runs full load; local smoke runs with reduced throughput. -->
+                    <skip>false</skip>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire: disabled by default (this module hosts Gatling + e2e only).
+                 To run in-process e2e tests locally:
+                   mvn -pl agent-test-infra -Dskip.surefire.tests=false -Dtest=CrossServiceProtoE2ETest test -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>${skip.surefire.tests}</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -82,6 +82,11 @@
         <awaitility.version>4.2.1</awaitility.version>
         <testcontainers.version>1.19.7</testcontainers.version>
         <spring-boot-test.version>3.2.5</spring-boot-test.version>
+        <!-- Performance testing: JMH microbenchmarks + Gatling load simulations -->
+        <jmh.version>1.37</jmh.version>
+        <gatling.version>3.11.2</gatling.version>
+        <gatling-plugin.version>4.9.6</gatling-plugin.version>
+        <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
 
         <!-- Observability -->
         <skywalking.version>9.2.0</skywalking.version>
@@ -124,6 +129,9 @@
         <module>agent-model-gateway</module>
         <module>agent-repo</module>
         <module>agent-knowledge</module>
+        <!-- E2E + perf test infrastructure: Gatling simulations + cross-service e2e
+             (docs/tests/test-strategy.md §4.2). Built with -Pe2e-perf. -->
+        <module>agent-test-infra</module>
     </modules>
 
     <dependencyManagement>
@@ -192,6 +200,45 @@
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <!-- JMH: Java Microbenchmark Harness for perf tier (docs/tests/test-strategy.md §perf) -->
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-core</artifactId>
+                <version>${jmh.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-generator-annprocess</artifactId>
+                <version>${jmh.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <!-- Gatling: load testing framework for e2e perf simulations (agent-test-infra module) -->
+            <dependency>
+                <groupId>io.gatling</groupId>
+                <artifactId>gatling-test-framework</artifactId>
+                <version>${gatling.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <!-- Testcontainers: real-container integration tests (docs/tests/test-strategy.md §it/e2e) -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>${testcontainers.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${testcontainers.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>mysql</artifactId>
+                <version>${testcontainers.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
@@ -337,6 +384,39 @@
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>${spring-boot.version}</version>
                 </plugin>
+                <!-- JMH via exec-maven-plugin: runs org.openjdk.jmh.Main on *PerfTest classes.
+                     Usage: mvn -Pperf clean test (exec:java bound to test phase in perf profile)
+                     Results: target/jmh-results/jmh-result.json -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${exec-maven-plugin.version}</version>
+                    <configuration>
+                        <mainClass>org.openjdk.jmh.Main</mainClass>
+                        <classpathScope>test</classpathScope>
+                        <arguments>
+                            <argument>-wi</argument><argument>3</argument>
+                            <argument>-i</argument><argument>5</argument>
+                            <argument>-f</argument><argument>1</argument>
+                            <argument>-w</argument><argument>1s</argument>
+                            <argument>-r</argument><argument>2s</argument>
+                            <argument>-rf</argument><argument>json</argument>
+                            <argument>-rff</argument><argument>${project.build.directory}/jmh-results/jmh-result.json</argument>
+                            <argument>.*PerfTest</argument>
+                        </arguments>
+                    </configuration>
+                </plugin>
+                <!-- Gatling Maven Plugin: runs load simulations during e2e-perf profile.
+                     Usage: mvn -Pe2e-perf gatling:test (in agent-test-infra module) -->
+                <plugin>
+                    <groupId>io.gatling</groupId>
+                    <artifactId>gatling-maven-plugin</artifactId>
+                    <version>${gatling-plugin.version}</version>
+                    <configuration>
+                        <simulationClass>com.agentforge.testinfra.simulation.AgentForgeFullSuiteSimulation</simulationClass>
+                        <resultsDirectory>${project.build.directory}/gatling-results</resultsDirectory>
+                    </configuration>
+                </plugin>
                 <!-- protobuf-maven-plugin (referenced by agent-proto) -->
                 <plugin>
                     <groupId>org.xolstice.maven.plugins</groupId>
@@ -396,6 +476,68 @@
                                 <exclude>**/ShortTermMemoryServiceTest.java</exclude>
                                 <exclude>**/*TestcontainersTest.java</exclude>
                             </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Profile: run JMH microbenchmarks (*PerfTest classes).
+             Usage: mvn -Pperf clean test
+             Binds exec-maven-plugin:java goal to test phase; skips surefire unit tests + jacoco-check.
+             Results: target/jmh-results/jmh-result.json -->
+        <profile>
+            <id>perf</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jacoco-check</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-jmh</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Profile: run Testcontainers e2e tests + Gatling load simulations.
+             Usage: mvn -Pe2e-perf clean verify (requires Docker for Testcontainers)
+             Also activates Gatling in agent-test-infra module. -->
+        <profile>
+            <id>e2e-perf</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*TestcontainersTest.java</include>
+                                <include>**/EndToEndTest.java</include>
+                                <include>**/*E2ETest.java</include>
+                            </includes>
                         </configuration>
                     </plugin>
                 </plugins>
