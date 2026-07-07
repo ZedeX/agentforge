@@ -195,14 +195,19 @@
 - grpc-spring-boot-starter `ClientAuth` 只有 REQUIRE/OFF（无 WANT）
 - Maven 未安装 → 通过 Scoop + proxy 修复安装（`scoop config proxy 127.0.0.1:1089`）
 
-### Wave 3 待做（R-11 ~ S-11 MED）
+### Wave 3 完成（R-11 ~ S-11 MED）— commit 79dcc27
 
-| ID | 修复 | 涉及模块 |
+| ID | 修复 | 变更文件 |
 |---|---|---|
-| R-11 | 审计落库失败不再吞异常 | agent-risk-control |
-| S-08 | validateParams 改 JSON Schema 解析 | agent-tool-engine |
-| S-09 | checkpoint 序列化改 Jackson | agent-runtime |
-| S-11 | CostMeter 改 BigDecimal | agent-model-gateway |
-| S-05/S-07 | JVM 堆对齐 + server.shutdown=graceful | 全模块 application.yml |
+| R-11 | 审计落库失败不再吞异常：成功路径抛出，错误路径 addSuppressed | `ToolGatewayImpl.java` + 2 TDD tests |
+| S-08 | validateParams 改 Jackson JSON 解析，替代 contains() 字符串匹配 | `ToolGatewayImpl.java` + 3 TDD tests |
+| S-09 | checkpoint 序列化改 Jackson ObjectMapper，替代 String.format | `ReActLoopImpl.java` |
+| S-11 | CostMeter 内部改 BigDecimal 计算，保持 double 接口不变 | `CostMeterImpl.java` |
+| S-05 | 12 个 K8s Deployment JVM 堆对齐（Xmx=75% pod limit） | 12 deployment YAMLs |
+| S-07 | bootstrap ConfigMap 加 server.shutdown=graceful + 30s timeout | `02-configmap-bootstrap.yaml` |
 
-**测试验证**：agent-gateway 47 ✅ / agent-tool-engine 235 ✅(5 skipped) / agent-risk-control 18 ✅
+**测试验证**：agent-tool-engine 23 ✅ / agent-model-gateway 8 ✅ / agent-runtime 编译 ✅
+
+---
+
+**Wave 1~3 安全加固完成总结**：4 CRITICAL + 5 HIGH + 5 MED = 14 条全部修复。TDD 红绿循环验证。6 个 commits 推送至 main。
