@@ -21,7 +21,7 @@
 | 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 14/14 | ✅ 已完成 | Wave 18~29, 40 |
 | 08 | [agent-repo-knowledge](./08-agent-repo-knowledge-plan.md) | agent-repo(8096) + agent-knowledge(8098) | 12/12 | ✅ 已完成 | Wave 19~26, 40 |
 | 09 | [infra-deployment](./09-infra-deployment-plan.md) | infra/k8s + docker + nacos | 13/13 | ✅ 已完成 | — |
-| 10 | [cross-service-compensation-and-exception](./10-cross-service-compensation-and-exception-plan.md) | agent-common + 全服务 | 6/6 Phase | 🔄 进行中 | Wave 45~47 |
+| 10 | [cross-service-compensation-and-exception](./10-cross-service-compensation-and-exception-plan.md) | agent-common + 全服务 | 6/6 Phase | ✅ 已完成 | Wave 45~47 |
 
 ### 各 Plan 详细进度
 
@@ -120,7 +120,7 @@
 - 验证: PS 8/8 OK, YAML 56/56 OK, JSON 1/1 OK
 - 依赖：全部业务服务可启动后执行
 
-#### Plan 10 — 跨服务补偿事务 + 异常处理标准化（🔄 进行中，6 Phase）
+#### Plan 10 — 跨服务补偿事务 + 异常处理标准化（✅ 已完成，6 Phase）
 [PRD + 实施计划](./10-cross-service-compensation-and-exception-plan.md) | [ADR-006](../adr/ADR-006-exception-handling-standard.md)
 
 | Phase | 状态 | 说明 |
@@ -130,7 +130,7 @@
 | Phase 3 Outbox 测试 | ✅ | ToolGatewayImpl 3 outbox 测试 + ToolAuditOutboxConsumer 4 测试 + DDL 更新 |
 | Phase 4 S-12 GrpcExceptionAdvice | ✅ | 12 个 GrpcExceptionAdvice 添加 log.warn (status+desc+full exception) |
 | Phase 5 S-12 catch 缩窄 + ADR-006 | ✅ | 13 个 gRPC 服务 catch(Throwable)→catch(Exception); 3 个业务逻辑吞异常修复; ADR-006 文档; RiskControlGrpcServiceTest 修复 |
-| Phase 6 监控 + 文档同步 | 🔄 | OutboxRelay Micrometer 指标 (published_total/failed_total/latency_seconds) ✅; Prometheus 告警规则 ✅; project_memory.md 更新 ✅; 扩展场景验证 ❌; 全量测试 ❌ |
+| Phase 6 监控 + 文档 + 扩展 | ✅ | OutboxRelay Micrometer 指标; Prometheus 告警; agent-memory outbox 扩展 (VectorInsertPayload + MemoryVectorInsertOutboxConsumer); project_memory.md 更新; 00-coding-plans-overview.md Plan 10 条目 |
 
 ---
 
