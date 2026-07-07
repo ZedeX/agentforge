@@ -33,8 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <ol>
  *   <li>{@link #audit(ToolCallAuditLog)} — legacy API used by {@code ToolGatewayImpl}
  *       (T8). Persists via the same JPA repository with {@code REQUIRES_NEW}
- *       transaction; audit failures are logged and swallowed so the main
- *       flow is never impacted.</li>
+ *       transaction; audit failures now propagate to caller (S-12 de-swallow).</li>
  *   <li>{@link #record(ToolCallRequest, RiskAssessment, SandboxInstance,
  *       ToolCallResult, ApprovalRecord)} — T9 full-context API. Builds the
  *       16-field audit POJO via {@link AuditLogMapper#buildLog} then persists.</li>
@@ -117,8 +116,8 @@ public class ToolCallAuditorImpl implements ToolCallAuditor {
             log.debug("JPA 审计日志写入: logId={}, callId={}, toolId={}, status={}",
                     logEntry.getLogId(), saved.getCallId(), saved.getToolId(), saved.getStatus());
         } catch (Exception e) {
-            log.error("审计 JPA 落库失败 (吞异常, 不影响主流程): toolId={}, err={}",
-                    logEntry.getToolId(), e.getMessage(), e);
+            log.error("审计 JPA 落库失败: toolId={}, err={}", logEntry.getToolId(), e.getMessage(), e);
+            throw e;
         }
     }
 
@@ -149,9 +148,8 @@ public class ToolCallAuditorImpl implements ToolCallAuditor {
                     logId, saved.getCallId(), saved.getToolId(), saved.getStatus());
             return logId;
         } catch (Exception e) {
-            log.error("record JPA 落库失败 (吞异常, 不影响主流程): toolId={}, err={}",
-                    request.getToolId(), e.getMessage(), e);
-            return null;
+            log.error("record JPA 落库失败: toolId={}, err={}", request.getToolId(), e.getMessage(), e);
+            throw e;
         }
     }
 
