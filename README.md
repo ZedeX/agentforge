@@ -1,7 +1,7 @@
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 <p align="center">
-  <img src="docs/images/hero-banner.png" alt="AgentForge - Multi-Agent Orchestration Platform" width="100%">
+  <img src="docs/images/hero-banner.svg" alt="AgentForge - Enterprise Multi-Agent Orchestration Platform" width="100%">
 </p>
 
 <h1 align="center">AgentForge</h1>
