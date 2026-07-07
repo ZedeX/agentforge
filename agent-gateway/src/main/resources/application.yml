@@ -25,30 +25,17 @@ spring:
 grpc:
   server:
     port: 9091
-    # R-05: mTLS enabled — certs injected via env vars
-    # Dev: GRPC_CLIENT_AUTH=WANT (allow unauthenticated clients)
-    # Prod: GRPC_CLIENT_AUTH=REQUIRE (enforce client certs)
-    # Test: GRPC_NEGOTIATION_TYPE=plaintext in @TestConfiguration
-    security:
-      certificateChain: ${GRPC_SERVER_CERT:classpath:certs/server.crt}
-      privateKey: ${GRPC_SERVER_KEY:classpath:certs/server.key}
-      trustCertCollection: ${GRPC_CLIENT_CA:classpath:certs/trusted-clients.crt}
-      clientAuth: ${GRPC_CLIENT_AUTH:REQUIRE}
+    # R-05: mTLS is activated via Spring profile "mtls".
+    # See application-mtls.yml for the security block.
+    # Dev/Test: no profile → no security → plaintext.
+    # Prod: set SPRING_PROFILES_ACTIVE=mtls + cert env vars.
   client:
     task-orchestrator:
       address: ${GRPC_ORCHESTRATOR_ADDR:static://localhost:9090}
-      negotiation-type: ${GRPC_NEGOTIATION_TYPE:tls}
-      security:
-        trustCertCollection: ${GRPC_SERVER_CA:classpath:certs/ca.crt}
-        clientKey: ${GRPC_CLIENT_KEY:classpath:certs/client.key}
-        clientCertChain: ${GRPC_CLIENT_CERT:classpath:certs/client.crt}
+      negotiation-type: ${GRPC_NEGOTIATION_TYPE:plaintext}
     risk-control:
       address: ${GRPC_RISK_CONTROL_ADDR:static://localhost:9092}
-      negotiation-type: ${GRPC_NEGOTIATION_TYPE:tls}
-      security:
-        trustCertCollection: ${GRPC_SERVER_CA:classpath:certs/ca.crt}
-        clientKey: ${GRPC_CLIENT_KEY:classpath:certs/client.key}
-        clientCertChain: ${GRPC_CLIENT_CERT:classpath:certs/client.crt}
+      negotiation-type: ${GRPC_NEGOTIATION_TYPE:plaintext}
 
 session-service:
   base-url: http://localhost:8082
@@ -60,7 +47,8 @@ gateway:
     ttl-minutes: 60
   api-keys:  # R-01: API Key auth via config, no hardcoded backdoor
     valid-keys: ${API_KEYS:}
-    key-to-tenant-id: ${API_KEY_TENANTS:}
+    # key-to-tenant-id is loaded programmatically from API_KEY_TENANTS env
+    # (format: ak1=tenant1,ak2=tenant2) — see ApiKeyProperties.postConstruct
   rate-limit:
     capacity: 20
     refill-tokens: 10

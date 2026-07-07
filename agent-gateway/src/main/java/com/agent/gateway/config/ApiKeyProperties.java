@@ -1,6 +1,8 @@
 package com.agent.gateway.config;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,7 +15,7 @@ import java.util.Map;
  * <p>API Key 必须绑定 tenantId，禁止客户端通过 X-Tenant-Id header
  * 自行声明租户（防止跨租户越权）。</p>
  *
- * <p>生产环境通过环境变量注入：
+ * <p>Production env vars:
  * <pre>
  * API_KEYS=ak_prod_key_001,ak_prod_key_002
  * API_KEY_TENANTS=ak_prod_key_001=tenant-A,ak_prod_key_002=tenant-B
@@ -43,5 +45,23 @@ public class ApiKeyProperties {
 
     public void setKeyToTenantId(Map<String, String> keyToTenantId) {
         this.keyToTenantId = keyToTenantId;
+    }
+
+    /**
+     * Parse API_KEY_TENANTS env var into keyToTenantId map.
+     * Format: "ak1=tenant1,ak2=tenant2"
+     * Called after Spring binds config properties.
+     */
+    @PostConstruct
+    public void initFromEnv() {
+        String envTenants = System.getenv("API_KEY_TENANTS");
+        if (StringUtils.hasText(envTenants)) {
+            for (String entry : envTenants.split(",")) {
+                String[] parts = entry.trim().split("=", 2);
+                if (parts.length == 2 && StringUtils.hasText(parts[0]) && StringUtils.hasText(parts[1])) {
+                    keyToTenantId.put(parts[0].trim(), parts[1].trim());
+                }
+            }
+        }
     }
 }

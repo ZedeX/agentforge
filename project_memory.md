@@ -133,3 +133,28 @@
 ---
 
 > **维护说明**：后续 Wave 新增内容将追加到对应的 Part 文件。当某个 Part 超过 500 行时，可继续拆分（如 Part 4 → Part 4a + Part 4b）。索引文件保持简要，仅列出 Part 分布和项目总览。
+
+---
+
+## 🔴 Wave 42 红蓝对抗安全审计（2026-07-07）
+
+**任务**：以红蓝对抗视角对全系统做安全性/稳定性/健壮性/功能完备性四维审计，输出检测报告。
+
+**交付**：[docs/audits/red-blue-team-report-2026-07-07.md](./docs/audits/red-blue-team-report-2026-07-07.md)
+
+**方法**：STRIDE 威胁建模 + 4 个并行 Explore agent（安全/稳定/健壮/完备）+ 人工读码核实。**剔除 4 处 agent 误判**（JWT 过期/SQL 注入/Plan 05 06 空实现/ReAct 无熔断均被证伪）。
+
+**核心发现（CRITICAL 4 条 + HIGH 5 条）**：
+1. **R-01** `AuthFilter.java:29` 硬编码后门 API Key `ak_test_valid_key_2026` → 鉴权绕过
+2. **R-02** `ToolGatewayImpl.java:184-191` 调用方可自填 `riskLevel=R1` 绕过 RiskClassifier + R3 审批
+3. **R-03** `application.yml:49` JWT secret 硬编码入库 → 任意伪造身份
+4. **R-04** `01-serviceaccounts.yaml:13-38` K8s RoleBinding 给所有 SA `get/list` 全部 secrets → 横向移动
+5. R-05 gRPC 全 plaintext / R-06 PermissionChecker 是 3 用户 mock / R-07 Docker 沙箱缺 cap-drop+non-root / R-08 K8s 无 securityContext + actuator 暴露 / R-09 CI 无 secret/CVE 扫描
+
+**攻击链**：链 A（API Key → system 用户 → tool-engine 自填 R1 → 沙箱 RCE → K8s secrets → 全集群沦陷）已端到端验证。
+
+**重要修正**：project_memory 此前标注 Plan 05 agent-tool-engine 0/12、Plan 06 agent-runtime 0/10 **过时**——实际两模块已完整实现（tool-engine ~85 文件含 DockerSandboxBorrower/ShellExecutor/PythonExecutor/4 执行器/9 PRD 组件；runtime ~70 文件含 ReActLoopImpl/ReflexionEngineImpl/TokenWatermarkMonitorImpl）。Plan 进度表需更新。
+
+**Skill 使用**：brainstorming（STRIDE+攻击链）、writing-plans+tdd（§8 回归测试计划红绿循环）、using-superpowers（agent 与人工读码冲突时以读码为准）；gsd 不适用一次性审计故未机械套用。
+
+**后续建议**：P0 五条（删后门 key / 删 riskLevel 绕过 / JWT 密钥出库 / K8s RBAC 收紧 / gRPC mTLS）优先修复，阻断攻击链 A/B/C。每条配 TDD 红绿回归测试见报告 §8。

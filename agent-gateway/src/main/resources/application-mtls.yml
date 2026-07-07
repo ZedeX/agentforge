@@ -1,0 +1,14 @@
+# R-05: gRPC mTLS security profile.
+# Activate: SPRING_PROFILES_ACTIVE=mtls
+# Required env vars:
+#   GRPC_SERVER_CERT  — path to server certificate chain (PEM)
+#   GRPC_SERVER_KEY   — path to server private key (PEM)
+#   GRPC_CLIENT_CA    — path to trusted client CA collection (PEM)
+#   GRPC_CLIENT_AUTH  — REQUIRE or OFF (default: OFF)
+grpc:
+  server:
+    security:
+      certificateChain: ${GRPC_SERVER_CERT}
+      privateKey: ${GRPC_SERVER_KEY}
+      trustCertCollection: ${GRPC_CLIENT_CA}
+      clientAuth: ${GRPC_CLIENT_AUTH:OFF}

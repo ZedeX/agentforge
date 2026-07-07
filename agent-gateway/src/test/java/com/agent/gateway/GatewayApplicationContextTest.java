@@ -16,7 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @TestPropertySource(properties = {
         "spring.data.redis.host=localhost",
-        "spring.data.redis.port=6379"
+        "spring.data.redis.port=6379",
+        "gateway.jwt.secret=test-jwt-secret-key-at-least-32-bytes-long-for-hmac-sha256!",
+        "grpc.server.port=9091",
+        "grpc.client.task-orchestrator.negotiation-type=plaintext",
+        "grpc.client.risk-control.negotiation-type=plaintext"
 })
 class GatewayApplicationContextTest {
 
