@@ -363,14 +363,9 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
 
     @Override
     public void listModels(ListModelsRequest request, StreamObserver<ListModelsResponse> responseObserver) {
-        if (request.getTier() == null || request.getTier().isEmpty()) {
-            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
-                    .withDescription("tier is required")
-                    .asRuntimeException());
-            return;
-        }
         try {
             String tier = request.getTier();
+            // null/empty tier → ModelCatalog returns all models
             List<ModelInfo> models = modelCatalog.list(tier);
             log.debug("listModels tier={} count={}", tier, models.size());
             ListModelsResponse response = ListModelsResponse.newBuilder()
