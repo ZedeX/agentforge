@@ -1,0 +1,37 @@
+server:
+  port: 8102
+
+grpc:
+  server:
+    port: 9102
+
+spring:
+  application:
+    name: agent-risk-control
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_risk_control?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# Risk Control module configuration
+risk-control:
+  content:
+    sensitive-words:
+      - "绝对"
+      - "100%"
+      - "保证"
+    enable-pii-detection: true
+    enable-injection-detection: true
+  permission:
+    default-action: deny
+  audit:
+    enabled: true

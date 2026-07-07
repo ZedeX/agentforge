@@ -1,0 +1,66 @@
+syntax = "proto3";
+package agentplatform.riskcontrol.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.riskcontrol.v1";
+
+// Risk control service (horizontal, port 8102)
+// Content safety, permission checking, compliance audit
+service RiskControlService {
+  // Check content for safety violations
+  rpc CheckContent(CheckContentRequest) returns (CheckContentResponse);
+  // Check permission for an operation
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
+  // Record an audit log entry
+  rpc AuditLog(AuditLogRequest) returns (AuditLogAck);
+}
+
+message CheckContentRequest {
+  string content = 1;
+  string content_type = 2;              // text | code | prompt | response
+  repeated string check_categories = 3; // [sensitive_word, injection, pii, harmful]
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message CheckContentResponse {
+  bool safe = 1;
+  repeated ContentViolation violations = 2;
+  string sanitized_content = 3;         // content with PII/sensitive parts redacted
+}
+
+message ContentViolation {
+  string category = 1;                  // sensitive_word | injection | pii | harmful
+  string severity = 2;                  // low | medium | high | critical
+  string detail = 3;
+  int32 position = 4;                   // character position in content
+}
+
+message CheckPermissionRequest {
+  string user_id = 1;
+  string resource = 2;                  // agent_id / tool_id / knowledge_base_id
+  string action = 3;                    // create | read | update | delete | execute
+  string resource_type = 4;             // agent | tool | knowledge | session
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message CheckPermissionResponse {
+  bool allowed = 1;
+  string reason = 2;                    // reason if denied
+  repeated string required_roles = 3;   // roles that would grant access
+}
+
+message AuditLogRequest {
+  string action = 1;                    // the action being audited
+  string actor_id = 2;                  // who performed the action
+  string resource_type = 3;
+  string resource_id = 4;
+  string result = 5;                    // success | denied | error
+  string detail = 6;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message AuditLogAck {
+  string audit_id = 1;
+}

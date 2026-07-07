@@ -1,0 +1,86 @@
+syntax = "proto3";
+package agentplatform.drift.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.drift.v1";
+
+// Drift monitor service (F11 behavior/effect/alignment/memory drift, port 8108)
+service DriftMonitorService {
+  // Detect drift in agent behavior
+  rpc DetectDrift(DetectDriftRequest) returns (DetectDriftResponse);
+  // Apply correction for detected drift
+  rpc CorrectDrift(CorrectDriftRequest) returns (CorrectDriftResponse);
+  // Get current behavior baseline
+  rpc GetBaseline(GetBaselineRequest) returns (GetBaselineResponse);
+  // Record a behavior observation for baseline tracking
+  rpc RecordBehavior(RecordBehaviorRequest) returns (RecordBehaviorAck);
+}
+
+message DetectDriftRequest {
+  int64 agent_id = 1;
+  string session_id = 2;
+  string drift_type = 3;                // behavior | effect | alignment | memory
+  repeated string indicators = 4;       // specific indicators to check
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message DetectDriftResponse {
+  bool drift_detected = 1;
+  string drift_type = 2;                // behavior | effect | alignment | memory
+  string drift_level = 3;               // none | slight | moderate | severe
+  string description = 4;
+  repeated DriftSignal signals = 5;
+}
+
+message DriftSignal {
+  string signal_id = 1;
+  string indicator = 2;
+  double observed_value = 3;
+  double expected_value = 4;
+  double deviation = 5;
+}
+
+message CorrectDriftRequest {
+  int64 agent_id = 1;
+  string drift_type = 2;
+  string correction_strategy = 3;       // reset | adjust | escalate
+  string context = 4;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message CorrectDriftResponse {
+  string correction_id = 1;
+  string action_taken = 2;              // baseline_reset | parameter_adjust | human_escalation
+  string detail = 3;
+}
+
+message GetBaselineRequest {
+  int64 agent_id = 1;
+  string baseline_type = 2;             // behavior | effect | alignment
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GetBaselineResponse {
+  int64 agent_id = 1;
+  string baseline_type = 2;
+  double baseline_value = 3;
+  int64 observation_count = 4;
+  int64 last_updated = 5;
+  repeated string parameters = 6;
+}
+
+message RecordBehaviorRequest {
+  int64 agent_id = 1;
+  string session_id = 2;
+  string behavior_type = 3;             // task_completion | tool_usage | response_quality
+  double metric_value = 4;
+  string context = 5;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message RecordBehaviorAck {
+  string record_id = 1;
+  bool baseline_updated = 2;
+}

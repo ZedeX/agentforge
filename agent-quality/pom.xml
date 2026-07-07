@@ -20,23 +20,85 @@
     <properties>
         <jacoco.line.coverage>0.80</jacoco.line.coverage>
         <jacoco.branch.coverage>0.70</jacoco.branch.coverage>
+        <grpc.spring.boot.starter.version>3.1.0.RELEASE</grpc.spring.boot.starter.version>
     </properties>
 
     <dependencies>
-        <!-- spring-boot-starter (compile scope): 提供 spring-context (@Component/@Service 注解)
-             + spring-boot-starter-logging (SLF4J). 与 agent-common 模式一致, 版本由根 BOM 管理. -->
+        <!-- Internal modules -->
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-proto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.agentforge</groupId>
+            <artifactId>agent-common</artifactId>
+        </dependency>
+
+        <!-- Spring annotations (@Component/@Service) + SLF4J logging for impl classes -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
+        <!-- JPA + persistence layer -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- gRPC server (net.devh) -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.starter.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.grpc</groupId>
+                    <artifactId>grpc-netty-shaded</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Testcontainers e2e (@Testcontainers(disabledWithoutDocker=true) auto-skips when Docker unavailable) -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -45,7 +107,7 @@
         <plugins>
             <!-- P7-4 骨架阶段扩展 JaCoCo excludes (ref tdd-audit-report-v7.md §14 P7-4 整改):
                  model POJO (getter/setter 无业务逻辑, 行业惯例不测试) +
-                 exception (构造方法无逻辑) 暂时排除覆盖率校验.
+                 exception (构造方法无逻辑) + entity (JPA getter/setter) 暂时排除覆盖率校验.
                  enums 保留 (含 L4ValidationResult.fromCode 分支逻辑, 应被测试覆盖).
                  combine.children="append" 追加到根 pom excludes 后面.
                  后续业务实现注入后, 视情况恢复 model/exception 校验. -->
@@ -56,6 +118,7 @@
                     <excludes combine.children="append">
                         <exclude>**/model/**</exclude>
                         <exclude>**/exception/**</exclude>
+                        <exclude>**/entity/**</exclude>
                     </excludes>
                 </configuration>
             </plugin>

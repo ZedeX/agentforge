@@ -93,7 +93,38 @@
 
 ---
 
-## 🚀 下一波（Wave 41+）计划
+## ✅ Wave 41 已完成（2026-07-07）—— 待办清零：5 个横向微服务补全
+
+**任务**：检查全部待办，补全 5 个横向微服务（quality/hallucination/drift/risk-control/observability）为独立可生产微服务，全项目编译+测试通过
+
+**交付**：
+- **agent-quality**（端口 8100/9100）：QualityApplication + QualityProperties + application.yml + BadcaseRecordEntity/ReviewItemEntity + Repository + QualityGrpcService(4 RPC) + QualityMapper(完整 proto↔POJO↔Entity 双向映射) + GrpcExceptionAdvice + 异常层级 + 55 测试全绿
+- **hallucination-governance**（端口 8106/9106）：补全为独立微服务，HallucinationApplication + config + entity(从 repository 包迁移) + exception(加 errorCode 字段) + 42 测试全绿
+- **drift-monitor**（端口 8108/9108）：DriftMonitorApplication + DriftMonitorProperties + BehaviorBaselineEntity/DriftSignalEntity + Repository + DriftGrpcService(4 RPC) + DriftMapper + 4 模块测试
+- **agent-risk-control**（端口 8102/9102）：RiskControlApplication + RiskControlProperties + ContentViolationEntity + 3 个 API Impl(ContentSafety/Permission/Compliance) + RiskControlGrpcService(3 RPC) + 7 测试全绿
+- **agent-observability**（端口 8104/9104）：ObservabilityApplication + TraceEntity/MetricDataPointEntity/ServiceHealthEntity + 3 Repository + ObservabilityGrpcService(3 RPC) + ObservabilityMapper + 5 测试全绿
+- **agent-planning**（端口 8086/9086）：PlanningApplication + config + exception + grpc + 测试
+- **根 pom.xml**：添加 agent-risk-control + agent-observability 模块声明
+- **全项目**：19 模块 `mvn compile` + `mvn test` 全绿
+
+**修复的编译/测试错误**：
+1. drift-monitor `DriftSignal` proto/POJO 同名 import 冲突 → POJO 用 FQN，proto 保留 import
+2. agent-planning `PlanServiceGrpc` → `PlanningServiceGrpc`（proto service 名对齐）
+3. hallucination `HallucinationException` 缺 errorCode 字段 → 加 `@Getter private final HallucinationErrorCode errorCode`
+4. agent-quality `QualityMapper` 方法缺失 → 补全 `toBadcaseRecord`/`toDomain`/`parseBadcaseCategory`/`parseBadcaseSeverity`/`toValidateTaskResponse`/`toQualityMetricsResponse` + `mapLayerName`(FORMAT_VIOLATION→hard)
+5. agent-risk-control `RiskControlMapper` proto/POJO 同名 import 冲突 → POJO 参数用 FQN
+6. agent-observability `TraceEntity` 缺 `serviceName` 字段 → repository 方法改为 `findByRootServiceAndStartTimeBetween`
+7. agent-observability `MetricDataPointEntity.value` 列名是 H2 SQL 保留字 → 改列名 `metric_value`
+
+**关键经验**：
+92. Proto 和 POJO 同名类（如 `DriftSignal`/`CheckPermissionResponse`）在 mapper 中必须用 FQN 区分，不能同时 import——Java single-type import 限制
+93. Lombok `@Slf4j`/`@Getter`/`@Setter` 生成的成员在依赖类编译失败时报"找不到符号"——是级联错误，修好根因后自动消失
+94. `value`/`timestamp`/`key` 等是 H2 SQL 保留字，JPA `@Column(name=...)` 需避开或用反引号
+95. 测试文件作为 API spec：当测试期望的方法名/签名与实现不同时，应以测试为 spec 扩展实现（如 `parseCategory`→`parseBadcaseCategory`），而非修改测试
+
+---
+
+## 🚀 下一波（Wave 42+）计划
 
 - **Plan 05 agent-tool-engine（0/12）**：解锁 Plan 06 agent-runtime 依赖；唯一未完成的 P1 计划。4 RPC + 9 项核心能力（ToolRegistry/ToolGateway/RiskClassifier/ApprovalStore/SandboxBorrower/ToolCache/ToolCallAuditor/ToolSemanticRecaller/ResultCleaner）
 - **Plan 06 agent-runtime（0/10）**：依赖 task/memory/tool/model 全部完成（tool 待做）

@@ -1,0 +1,105 @@
+syntax = "proto3";
+package agentplatform.quality.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.quality.v1";
+
+// Quality assessment service (doc 02-api, port 8100)
+// F9 L4 three-tier validation + Badcase collection + manual review queue
+service QualityService {
+  // L4 validate a task result (hard rules + consistency + audit)
+  rpc ValidateTask(ValidateTaskRequest) returns (ValidateTaskResponse);
+  // Record a badcase
+  rpc ReportBadcase(ReportBadcaseRequest) returns (ReportBadcaseAck);
+  // Get manual review queue items
+  rpc GetReviewQueue(GetReviewQueueRequest) returns (GetReviewQueueResponse);
+  // Get quality metrics summary
+  rpc GetQualityMetrics(GetQualityMetricsRequest) returns (GetQualityMetricsResponse);
+}
+
+message ValidateTaskRequest {
+  string task_id = 1;
+  string agent_id = 2;
+  string result_json = 3;
+  string scene = 4;                     // code_gen | data_analysis | research
+  repeated string validation_layers = 5; // [hard, consistency, audit]
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ValidateTaskResponse {
+  string task_id = 1;
+  string overall_result = 2;            // pass | warn | fail
+  repeated LayerValidationResult layers = 3;
+  repeated string issues = 4;
+}
+
+message LayerValidationResult {
+  string layer = 1;                     // hard | consistency | audit
+  string result = 2;                    // pass | warn | fail
+  string detail = 3;
+  double score = 4;
+}
+
+message ReportBadcaseRequest {
+  string task_id = 1;
+  string agent_id = 2;
+  string category = 3;                  // hallucination | drift | timeout | wrong_result | safety
+  string severity = 4;                  // critical | high | medium | low
+  string description = 5;
+  string context_json = 6;              // JSON context of the badcase
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message ReportBadcaseAck {
+  string badcase_id = 1;
+  bool needs_review = 2;
+}
+
+message GetReviewQueueRequest {
+  string status = 1;                    // pending | in_review | resolved
+  int32 page = 2;
+  int32 size = 3;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GetReviewQueueResponse {
+  repeated ReviewItem items = 1;
+  agentplatform.common.v1.Pagination pagination = 2;
+}
+
+message ReviewItem {
+  string review_id = 1;
+  string badcase_id = 2;
+  string task_id = 3;
+  string category = 4;
+  string severity = 5;
+  string description = 6;
+  string status = 7;                    // pending | in_review | resolved
+  string assigned_reviewer = 8;
+  int64 created_at = 9;
+}
+
+message GetQualityMetricsRequest {
+  string agent_id = 1;                  // optional filter
+  string time_range = 2;                // 1h | 24h | 7d | 30d
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GetQualityMetricsResponse {
+  int64 total_tasks = 1;
+  int64 pass_count = 2;
+  int64 warn_count = 3;
+  int64 fail_count = 4;
+  int64 badcase_count = 5;
+  double pass_rate = 6;
+  double avg_score = 7;
+  repeated CategoryBreakdown breakdown = 8;
+}
+
+message CategoryBreakdown {
+  string category = 1;
+  int64 count = 2;
+  double percentage = 3;
+}

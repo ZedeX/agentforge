@@ -1,0 +1,80 @@
+syntax = "proto3";
+package agentplatform.observability.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.observability.v1";
+
+// Observability service (horizontal, port 8104)
+// Trace propagation, metrics collection, health aggregation
+service ObservabilityService {
+  // Query distributed traces
+  rpc GetTraces(GetTracesRequest) returns (GetTracesResponse);
+  // Get service metrics
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  // Get aggregated health status
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+}
+
+message GetTracesRequest {
+  string trace_id = 1;                  // optional specific trace
+  string service_name = 2;              // filter by service
+  int64 start_time = 3;                 // epoch millis
+  int64 end_time = 4;
+  int32 limit = 5;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GetTracesResponse {
+  repeated TraceSummary traces = 1;
+}
+
+message TraceSummary {
+  string trace_id = 1;
+  string root_service = 2;
+  int64 start_time = 3;
+  int64 duration_ms = 4;
+  int32 span_count = 5;
+  string status = 6;                    // ok | error | timeout
+}
+
+message GetMetricsRequest {
+  string service_name = 1;              // optional filter
+  string metric_name = 2;               // optional: qps | latency_p95 | error_rate | active_sessions
+  int64 start_time = 3;
+  int64 end_time = 4;
+  string granularity = 5;               // 1m | 5m | 1h | 1d
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GetMetricsResponse {
+  repeated MetricDataPoint data_points = 1;
+}
+
+message MetricDataPoint {
+  string metric_name = 1;
+  string service_name = 2;
+  int64 timestamp = 3;
+  double value = 4;
+  map<string, string> labels = 5;
+}
+
+message GetHealthRequest {
+  repeated string service_names = 1;     // empty = all services
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GetHealthResponse {
+  string overall_status = 1;            // healthy | degraded | unhealthy
+  repeated ServiceHealth services = 2;
+}
+
+message ServiceHealth {
+  string service_name = 1;
+  string status = 2;                    // up | down | degraded
+  int64 uptime_seconds = 3;
+  double error_rate = 4;
+  double latency_p95_ms = 5;
+  string detail = 6;
+}

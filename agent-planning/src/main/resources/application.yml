@@ -1,0 +1,32 @@
+server:
+  port: 8086
+
+grpc:
+  server:
+    port: 9086
+
+spring:
+  application:
+    name: agent-planning
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_planning?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# Planning module configuration
+planning:
+  template:
+    enabled: true
+    min-success-rate: 0.6
+  replan:
+    max-count: 5
+    manual-threshold: 3

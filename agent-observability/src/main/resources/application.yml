@@ -1,0 +1,32 @@
+server:
+  port: 8104
+
+grpc:
+  server:
+    port: 9104
+
+spring:
+  application:
+    name: agent-observability
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_observability?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# Observability module configuration
+observability:
+  trace:
+    max-results: 100
+  metrics:
+    granularity: 1m
+  health:
+    check-timeout: 5000

@@ -1,0 +1,32 @@
+server:
+  port: 8108
+
+grpc:
+  server:
+    port: 9108
+
+spring:
+  application:
+    name: agent-drift
+  datasource:
+    url: jdbc:mysql://localhost:3306/agent_drift?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# Drift monitor module config (aligned doc 11 F11 drift detection)
+drift:
+  detection:
+    threshold-slight: 0.3
+    threshold-moderate: 0.6
+    threshold-severe: 0.8
+  correction:
+    auto-reset: true

@@ -1,0 +1,76 @@
+syntax = "proto3";
+package agentplatform.hallucination.v1;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "agentplatform.hallucination.v1";
+
+// Hallucination governance service (F10 six-layer, port 8106)
+service HallucinationGovernanceService {
+  // Self-check a claim before output
+  rpc SelfCheck(SelfCheckRequest) returns (SelfCheckResponse);
+  // Guard a tool call (pre-execution check)
+  rpc GuardToolCall(GuardToolCallRequest) returns (GuardToolCallResponse);
+  // Anchor RAG response against source documents
+  rpc AnchorRag(AnchorRagRequest) returns (AnchorRagResponse);
+  // Record a hallucination metric event
+  rpc RecordMetric(RecordMetricRequest) returns (RecordMetricAck);
+}
+
+message SelfCheckRequest {
+  string task_id = 1;
+  string agent_id = 2;
+  string claim = 3;                     // the claim to verify
+  string context = 4;                   // surrounding context
+  repeated string sources = 5;          // available reference sources
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message SelfCheckResponse {
+  string result = 1;                    // verified | uncertain | hallucinated
+  double confidence = 2;
+  string reason = 3;
+  repeated string conflicting_sources = 4;
+}
+
+message GuardToolCallRequest {
+  string task_id = 1;
+  string agent_id = 2;
+  string tool_id = 3;
+  string input_json = 4;
+  string expected_output_pattern = 5;   // regex or description
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message GuardToolCallResponse {
+  string guard_result = 1;              // allow | warn | block
+  string reason = 2;
+  repeated string risks = 3;
+}
+
+message AnchorRagRequest {
+  string task_id = 1;
+  string response = 2;                  // the generated response
+  repeated string source_docs = 3;      // source document chunks
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message AnchorRagResponse {
+  string anchor_result = 1;             // anchored | partially_anchored | unanchored
+  double anchor_score = 2;
+  repeated string unsupported_claims = 3;
+}
+
+message RecordMetricRequest {
+  string task_id = 1;
+  string agent_id = 2;
+  string layer = 3;                     // self_check | tool_guard | rag_anchor | hard_validator
+  string event_type = 4;                // detected | prevented | false_positive
+  string detail = 5;
+  agentplatform.common.v1.TraceContext trace = 99;
+}
+
+message RecordMetricAck {
+  string metric_id = 1;
+}

@@ -12,15 +12,18 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Badcase 写入器实现 (doc 11-detail-flow F9, PRD §四(二)4).
+ * Badcase 写入器内存实现 (doc 11-detail-flow F9, PRD §四(二)4).
  *
  * <p>骨架阶段策略：使用 {@link CopyOnWriteArrayList} 在内存中保存 Badcase 记录,
- * 供离线分析、人工审核队列消费及测试读取。生产实现应替换为 RDBMS / 数据湖落库。</p>
+ * 供离线分析、人工审核队列消费及测试读取。生产环境由 {@link JpaBadcaseWriterImpl} 替代。</p>
  *
  * <p>write() 仅做最小合法性校验（null 跳过、badcaseId 缺失时自动补建），
  * 不在此处直接决定是否推送人工审核队列 —— 该决策属于编排层职责。</p>
+ *
+ * <p>本实现用于测试场景（不依赖 Spring 容器 / JPA），
+ * 生产 Spring 容器中由 {@link JpaBadcaseWriterImpl}（@Primary）注入。</p>
  */
-@Component
+@Component("inMemoryBadcaseWriter")
 public class BadcaseWriterImpl implements BadcaseWriter {
 
     private static final Logger log = LoggerFactory.getLogger(BadcaseWriterImpl.class);

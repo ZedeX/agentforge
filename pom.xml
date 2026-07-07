@@ -129,6 +129,9 @@
         <module>agent-model-gateway</module>
         <module>agent-repo</module>
         <module>agent-knowledge</module>
+        <!-- Horizontal services: risk-control + observability -->
+        <module>agent-risk-control</module>
+        <module>agent-observability</module>
         <!-- E2E + perf test infrastructure: Gatling simulations + cross-service e2e
              (docs/tests/test-strategy.md §4.2). Built with -Pe2e-perf. -->
         <module>agent-test-infra</module>
