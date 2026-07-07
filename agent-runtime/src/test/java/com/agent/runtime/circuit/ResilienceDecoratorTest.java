@@ -4,13 +4,16 @@ import com.agent.runtime.config.Resilience4jConfig;
 import com.agent.runtime.config.RuntimeProperties;
 import com.agent.runtime.exception.CircuitOpenException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -145,9 +148,27 @@ class ResilienceDecoratorTest {
             props.getRetry().setInitialBackoffMs(10);
             props.getRetry().setMultiplier(2.0);
 
+            // Use Resilience4jConfig for circuit breakers, but override retry
+            // to include RuntimeException (Supplier.get() can only throw unchecked).
+            // Production config restricts retryExceptions to TimeoutException/IOException/
+            // ExecutionException; tests need RuntimeException to verify retry logic.
             Resilience4jConfig config = new Resilience4jConfig(props);
-            decorator = new ResilienceDecorator(
-                    config.circuitBreakerRegistry(), config.retryRegistry());
+            CircuitBreakerRegistry cbRegistry = config.circuitBreakerRegistry();
+
+            RetryConfig retryConfig = RetryConfig.custom()
+                    .maxAttempts(3)
+                    .intervalFunction(
+                            io.github.resilience4j.core.IntervalFunction.ofExponentialBackoff(
+                                    10, 2.0))
+                    .retryExceptions(RuntimeException.class)
+                    .ignoreExceptions(IllegalArgumentException.class,
+                            IllegalStateException.class)
+                    .build();
+            RetryRegistry retryRegistry = RetryRegistry.ofDefaults();
+            retryRegistry.addConfiguration("test-retry", retryConfig);
+            retryRegistry.retry(Resilience4jConfig.RETRY_DEFAULT, "test-retry");
+
+            decorator = new ResilienceDecorator(cbRegistry, retryRegistry);
         }
 
         @Test

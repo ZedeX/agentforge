@@ -9,6 +9,7 @@ import com.agent.orchestrator.mq.event.StateChangeEvent;
 import com.agent.orchestrator.mq.event.SubtaskCancelEvent;
 import com.agent.orchestrator.mq.event.SubtaskDoneEvent;
 import com.agent.orchestrator.mq.event.SubtaskExecuteEvent;
+import com.agent.orchestrator.repository.EventConsumeLogRepository;
 import com.agent.orchestrator.repository.TaskInstanceRepository;
 import com.agent.orchestrator.replanner.ReplanModeSelector;
 import com.agent.orchestrator.statemachine.TaskStateMachine;
@@ -90,6 +91,7 @@ class FixturesShowcaseTest {
     @Mock private TaskInstanceRepository repository;
     @Mock private TaskStateMachine stateMachine;
     @Mock private ReplanModeSelector replanModeSelector;
+    @Mock private EventConsumeLogRepository eventConsumeLogRepository;
 
     @InjectMocks private SubtaskExecuteProducer executeProducer;
     @InjectMocks private StateChangeProducer stateChangeProducer;
@@ -104,6 +106,8 @@ class FixturesShowcaseTest {
         when(sendResult.getMsgId()).thenReturn("mock_msg");
         when(rocketMQTemplate.syncSend(anyString(), any(), anyLong(), anyInt()))
                 .thenReturn(sendResult);
+        // 幂等校验：默认不存在重复事件，允许 SubtaskDoneHandler 继续处理
+        when(eventConsumeLogRepository.existsByEventId(anyString())).thenReturn(false);
     }
 
     // ============ FIX-05：times(1) 精确次数验证 ============
