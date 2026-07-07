@@ -1,6 +1,6 @@
 # Agent 平台编码计划总览
 
-> 文档版本：v2.3 | 更新日期：2026-07-04 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
+> 文档版本：v2.4 | 更新日期：2026-07-07 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
 > 方法论：[writing-plans](../../project_memory.md) | TDD 红绿循环 | 无占位符 | bite-sized tasks
 > 维护原则：每完成一个 Wave 后更新本表（Plan 状态 / Task 进度 / CI streak）
 
@@ -325,3 +325,4 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 | v2.2 | 2026-07-04 | 同步 Wave 37 进度：①Plan 03 进度 8/10 → 9/10（T10 MemoryService gRPC 4 RPC 完成）；②CI streak 36 → 39；③依赖图 Plan 03 标注 9/10；④T10 标记完成并更新说明；⑤优先级排序表移除已完成的 T10 |
 | v2.3 | 2026-07-04 | 同步 Wave 40 进度：①Plan 07 进度 13/14 → 14/14（T14 集成测试 6 E2E 场景完成）；②Plan 08 进度 7/12 → 12/12（T10 Milvus 双轨 + T12 集成测试 6 E2E 场景完成）；③CI streak 39 → 42；④依赖图全量更新（Plan 03/04/07/08 标记 ✅）；⑤阶段 B → ✅ 基本完成，阶段 C → 🔄 进行中；⑥优先级排序更新（Plan 05/06 高优先级） |
 | v2.4 | 2026-07-06 | 同步进度：①Plan 05 进度 0/12 → 12/12（224 tests, 49 classes, T1-T12 全部完成）；②Plan 06 进度 0/10 → 10/10（163 tests, 72+ classes, T1-T10 全部完成）；③阶段 B → ✅ 已完成，阶段 C → ✅ 已完成；④优先级排序更新（仅剩 Plan 09 infra-deployment） |
+| v2.5 | 2026-07-07 | 同步安全加固进度：①Wave 42 红蓝对抗审计完成（docs/audits/red-blue-team-report-2026-07-07.md）；②Wave 43 安全加固 Wave 1~3 完成（4 CRITICAL + 5 HIGH + 5 MED）；③Wave 44 安全加固剩余修复完成（5 MED + 2 CVE）；④总计 21 条审计发现全部修复，攻击链 A/B/C 端到端阻断；⑤project_memory.md 已更新 Wave 42~44 章节；⑥README.md 已添加安全加固章节 |

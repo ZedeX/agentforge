@@ -243,3 +243,60 @@
 97. `@DataJpaTest` + H2 需 `@TestPropertySource` 覆盖 `ddl-auto=validate→create-drop` 和 `dialect=MySQL8Dialect→H2Dialect`（主 application.yml 为 MySQL 配置）
 98. 同一事务内 `save` 后 `existsByEventId` 可见：Hibernate AUTO flush 模式在查询前自动刷新持久化上下文
 99. PowerShell 传递 `-Dproperty=value` 给 mvn.cmd 时会在 `=` 处拆分，应先 `mvn install -DskipTests` 安装依赖再单独 `mvn test -pl module` 避免 `-am` 传播 `-Dtest` 到上游模块
+
+---
+
+## 🔧 Wave 44 安全加固剩余修复（MED ~ LOW）（2026-07-07）
+
+**任务**：修复 Wave 42 审计报告中剩余的 MED 级别发现（S-02/S-06/S-10/S-11）+ 2 CVE 升级
+
+**方法**：TDD 红绿循环 + 并行修复
+
+### Wave 4-1 CVE 升级（commit 前）
+
+| CVE | 修复 | 变更文件 |
+|---|---|---|
+| CVE-2024-38816 | Spring Boot 3.2.5 → 3.2.12（path traversal 修复） | `pom.xml` `<spring-boot.version>` |
+| CVE-2024-7254 | protobuf 3.25.1 → 3.25.5（解析 DoS 修复） | `pom.xml` `<protobuf.version>`；grpc 1.62.3不存在，回退到1.62.2 |
+
+### Wave 4-2 S-06 gRPC Deadline（commit 前）
+
+| ID | 修复 | 变更文件 |
+|---|---|---|
+| S-06 | ModelGatewayClientImpl 加 `stub.withDeadlineAfter(timeoutMs, TimeUnit.MILLISECONDS)` | `ModelGatewayClientImpl.java`；MemoryProperties 新增 `modelGateway.timeoutMs` 字段（默认10000） |
+
+### Wave 4-3 S-02 Resilience4j 补全（commit 前）
+
+| ID | 修复 | 变更文件 |
+|---|---|---|
+| S-02 | agent-runtime 补 BulkheadRegistry + TimeLimiterRegistry + Retry 异常过滤 | `Resilience4jConfig.java`；`RuntimeProperties` 新增 `bulkhead.maxConcurrent` + `timeLimiter.timeoutMs` 字段；pom.xml 新增 resilience4j-bulkhead + resilience4j-timelimiter 依赖 |
+
+**关键修复**：
+- Resilience4j 2.x `BulkheadRegistry.of(Map)` 的 key 是配置名不是实例名 → 改用 `addConfiguration(configName, config)` + `bulkhead(instanceName, configName)`
+- BulkheadConfig `maxWaitDuration(Duration.ofMillis(100))` 防止慢消费者阻塞
+- TimeLimiterConfig `cancelRunningFuture(true)` 确保超时取消
+- RetryConfig `retryExceptions(TimeoutException, IOException, ExecutionException)` + `ignoreExceptions(IllegalArgumentException, IllegalStateException)` 精细化过滤
+
+### Wave 4-4 S-10 gRPC 入参校验（commit 前）
+
+| ID | 修复 | 变更文件 |
+|---|---|---|
+| S-10 | 3 个 GrpcService 加 INVALID_ARGUMENT 入参校验（10 RPC 方法） | `RiskControlGrpcService.java`（CheckPermission/CheckCompliance/CheckContentSafety 3 RPC）<br/>`QualityGrpcService.java`（ValidateTask/RecordBadcase/GetMetrics 3 RPC）<br/>`DriftGrpcService.java`（DetectDrift/CorrectDrift/GetBaseline 3 RPC）<br/>各方法加 `Assert.hasText(request.getXXX(), "xxx must not be blank")` + `throw Status.INVALID_ARGUMENT.withDescription(...)` |
+
+### Wave 4-5 S-03 RocketMQ 幂等（已完成，见上节）
+
+---
+
+**Wave 1~4 安全加固完成总结**：4 CRITICAL + 5 HIGH + 6 MED + 5 MED剩余 + 2 CVE = **21 条全部修复**。8 个 commits 推送至 main（b1312a7 ~ 584c315）。攻击链 A（API Key → tool-engine R1 绕过 → 沙箱 RCE → K8s secrets）/ B（JWT 伪造 → 越权）/ C（K8s RBAC → 横向移动）端到端阻断。每条修复配 TDD 红绿测试验证。
+
+**关键经验**：
+100. Resilience4j 2.x Registry API 变化：`of(Map)` 是配置名→配置映射，实例名需单独 `addConfiguration` + `circuitBreaker(instanceName, configName)` 两步调用
+101. Bulkhead `maxWaitDuration` 必须设置较短值（如100ms），否则慢消费者会耗尽线程池
+102. Retry 异常过滤：`retryExceptions` 仅重试瞬时异常，`ignoreExceptions` 跳过确定性失败，避免无效重试放大问题
+103. gRPC 入参校验用 `Assert.hasText` + `Status.INVALID_ARGUMENT`，对齐 GrpcExceptionAdvice 错误码映射（400→INVALID_ARGUMENT）
+104. CVE 升级需验证版本是否存在：Spring Boot 3.2.12 OK，protobuf 3.25.5 OK，但 grpc 1.62.3 不存在（Central 最新1.62.2），需回退
+105. Spring Boot 3.2.x 升级跨小版本（.5→.12）通常兼容，但需全量 `mvn test` 验证（agent-gateway/agent-session/agent-memory/agent-runtime等全部通过）
+
+**后续待办（LOW 级）**：
+- S-04 跨服务写补偿事务（saga/本地消息表）— 大型架构改动，暂不做
+- S-12 其他异常被吞的地方排查修复 — R-11 已修复最关键的 ToolGatewayImpl.auditResult，剩余需逐模块排查

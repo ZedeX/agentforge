@@ -150,22 +150,70 @@ cd infra/sql
 
 ## Status
 
-当前阶段：**🎉 TDD 审计 A- 等级达成（v7.6，90.2 分）— 15 微服务骨架全部完成 + CI 10 连续全绿**。
+当前阶段：**🎉 TDD 审计 A- 等级达成（v7.6，90.2 分）— 15 微服务骨架全部完成 + CI 10 连续全绿 + 安全加固完成**。
 
 - ✅ 设计文档（19 份，覆盖 PRD 全部交付物）
 - ✅ DDL 脚本（16 文件，2158 行，9 MySQL 库 32 表 + Milvus + Neo4j + Redis）
-- ✅ 编码计划（Plan 03/04/05/06/07/08/09 全部生成；3 份已实现 + 7 份骨架阶段完成）
+- ✅ 编码计划（Plan 01~09 全部完成，9/9 计划闭环）
 - ✅ Mermaid 语法校验（12/12 通过）
-- ✅ 核心模块编码（5 模块完整实现：agent-proto / agent-common / agent-gateway / agent-session / agent-task-orchestrator，464+ 测试用例）
-- ✅ 决策节点骨架（6 模块 POJO+interface+测试：agent-tool-engine / hallucination-governance / drift-monitor / agent-memory / agent-runtime / agent-quality，F1~F12 全 12 节点组覆盖）
-- ✅ **15 微服务骨架全部完成**（新增 4 模块：agent-planning / agent-model-gateway / agent-repo / agent-knowledge，全 15 模块 reactor 激活，750+ 测试用例）
+- ✅ 核心模块编码（15 模块完整实现：agent-proto / agent-common / agent-gateway / agent-session / agent-task-orchestrator / agent-tool-engine / agent-runtime / agent-memory / agent-model-gateway / agent-repo / agent-knowledge / agent-quality / hallucination-governance / drift-monitor / agent-risk-control + agent-observability，1140+ 测试用例）
+- ✅ 决策节点骨架（F1~F12 全 12 节点组覆盖）
+- ✅ **15 微服务骨架全部完成**（全 15 模块 reactor 激活）
 - ✅ model-gateway 深化（4 mock adapter：OpenAI / Anthropic / Gemini / DeepSeek）
 - ✅ **TDD 审计 A- 达成**（v7.6，90.2 分，CI-01 正式解除，D5 CI 维度满分 10.0，最近 10 次 CI 全绿）
-- ⏸ JPA Entity + Repository 持久化层（待后续）
-- ⏸ gRPC 服务层 + RocketMQ 集成（待后续）
-- ⏸ Docker / K8s 部署配置
+- ✅ **安全加固完成**（Wave 1~4，21 条审计发现全部修复，攻击链 A/B/C 端到端阻断）
+- ✅ infra 部署配置（Docker / K8s / Nacos / Vault / 可观测组件，90+ 文件）
+- ⏸ K8s 集群部署验证（待 CI 环境配置 Docker）
+- ⏸ 性能压测（待 K8s 部署后运行 3 个 Gatling 模拟场景）
 
 详见 [project_memory.md](./project_memory.md) 与 [docs/tests/tdd-audit-report-v7.md](./docs/tests/tdd-audit-report-v7.md)。
+
+## 安全加固
+
+项目已完成系统性安全加固，修复红蓝对抗审计报告中的所有发现。
+
+### 审计报告
+
+- **检测日期**：2026-07-07
+- **检测方**：红蓝对抗对抗模拟（STRIDE 威胁建模 + 4 维度并行勘探）
+- **审计报告**：[docs/audits/red-blue-team-report-2026-07-07.md](./docs/audits/red-blue-team-report-2026-07-07.md)
+
+### Wave 1~4 修复汇总
+
+| Wave | 发现级别 | 修复条数 | 状态 |
+|---|---|---|---|
+| Wave 1 | CRITICAL | 4 条 | ✅ 完成 |
+| Wave 2 | HIGH | 5 条 | ✅ 完成 |
+| Wave 3 | MED | 5 条 | ✅ 完成 |
+| Wave 4 | MED 剩余 + CVE | 5 条 + 2 CVE | ✅ 完成 |
+| **合计** | — | **21 条** | ✅ **全部完成** |
+
+### 核心修复项
+
+1. **R-01** 删除 AuthFilter 硬编码 API Key 后门 + ApiKeyProperties 租户绑定
+2. **R-02** ToolGatewayImpl riskLevel 永不降级（never-downgrade rule）
+3. **R-03** JWT secret 改 env 注入 + fail-fast Assert.hasText
+4. **R-04** K8s RBAC 拆分为 per-SA RoleBinding + OPA conftest 策略
+5. **R-05** gRPC mTLS 配置移至 application-mtls.yml profile
+6. **R-06** PermissionCheckerImpl 用 JWT claims role（删除硬编码 USER_ROLES mock）
+7. **R-07** Docker 沙箱加固：cap-drop ALL + user=nobody + no-new-privileges
+8. **R-08** 12 个 K8s Deployment 加 securityContext（pod + container 级）
+9. **R-09** GitHub Actions CI 安全扫描（gitleaks + trivy + CodeQL）
+10. **R-10** 13 个 application.yml 硬编码 password → `${DB_PASSWORD:}`
+11. **S-02** agent-runtime Resilience4j 补 Bulkhead + TimeLimiter + Retry 异常过滤
+12. **S-03** RocketMQ 消费幂等（JPA event_consume_log 表替代内存 Set）
+13. **S-06** agent-memory ModelGatewayClientImpl 加 gRPC deadline
+14. **S-10** 3 个 GrpcService 加 INVALID_ARGUMENT 入参校验（10 RPC 方法）
+15. **CVE-2024-38816** Spring Boot 3.2.5 → 3.2.12（path traversal）
+16. **CVE-2024-7254** protobuf 3.25.1 → 3.25.5（解析 DoS）
+
+### 攻击链阻断
+
+- **链 A**：API Key → tool-engine R1 绕过 → 沙箱 RCE → K8s secrets → ✅ 端到端阻断
+- **链 B**：JWT 伪造 → 越权 → ✅ 端到端阻断
+- **链 C**：K8s RBAC → 横向移动 → ✅ 端到端阻断
+
+每条修复配 TDD 红绿测试验证。详见 [project_memory.md](./project_memory.md) Wave 42~44 章节。
 
 ## License
 
