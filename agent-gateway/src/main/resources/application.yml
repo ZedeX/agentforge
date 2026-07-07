@@ -25,21 +25,30 @@ spring:
 grpc:
   server:
     port: 9091
-    # UT-F1-001: mTLS 双向证书认证配置（生产环境启用）
-    # 当前测试阶段仅做协议适配，mTLS 握手不在单测覆盖范围；
-    # 部署时取消注释并填写证书路径以强制客户端证书校验。
-    # security:
-    #   certificateChain: classpath:certs/server.crt
-    #   privateKey: classpath:certs/server.key
-    #   trustCertCollection: classpath:certs/trusted-clients.crt
-    #   clientAuth: REQUIRE
+    # R-05: mTLS enabled — certs injected via env vars
+    # Dev: GRPC_CLIENT_AUTH=WANT (allow unauthenticated clients)
+    # Prod: GRPC_CLIENT_AUTH=REQUIRE (enforce client certs)
+    # Test: GRPC_NEGOTIATION_TYPE=plaintext in @TestConfiguration
+    security:
+      certificateChain: ${GRPC_SERVER_CERT:classpath:certs/server.crt}
+      privateKey: ${GRPC_SERVER_KEY:classpath:certs/server.key}
+      trustCertCollection: ${GRPC_CLIENT_CA:classpath:certs/trusted-clients.crt}
+      clientAuth: ${GRPC_CLIENT_AUTH:REQUIRE}
   client:
     task-orchestrator:
-      address: static://localhost:9090
-      negotiation-type: plaintext
+      address: ${GRPC_ORCHESTRATOR_ADDR:static://localhost:9090}
+      negotiation-type: ${GRPC_NEGOTIATION_TYPE:tls}
+      security:
+        trustCertCollection: ${GRPC_SERVER_CA:classpath:certs/ca.crt}
+        clientKey: ${GRPC_CLIENT_KEY:classpath:certs/client.key}
+        clientCertChain: ${GRPC_CLIENT_CERT:classpath:certs/client.crt}
     risk-control:
-      address: static://localhost:9092
-      negotiation-type: plaintext
+      address: ${GRPC_RISK_CONTROL_ADDR:static://localhost:9092}
+      negotiation-type: ${GRPC_NEGOTIATION_TYPE:tls}
+      security:
+        trustCertCollection: ${GRPC_SERVER_CA:classpath:certs/ca.crt}
+        clientKey: ${GRPC_CLIENT_KEY:classpath:certs/client.key}
+        clientCertChain: ${GRPC_CLIENT_CERT:classpath:certs/client.crt}
 
 session-service:
   base-url: http://localhost:8082
