@@ -1,9 +1,13 @@
 package com.agent.memory.api.impl;
 
+import com.agent.common.outbox.OutboxMessage;
+import com.agent.common.outbox.OutboxRepository;
+import com.agent.common.utils.JsonUtils;
 import com.agent.memory.api.ImportanceScorer;
 import com.agent.memory.enums.MemoryType;
 import com.agent.memory.model.EmbeddingVector;
 import com.agent.memory.model.MemoryRecord;
+import com.agent.memory.model.VectorInsertPayload;
 import com.agent.memory.repository.MemoryRecordRepository;
 import com.agent.memory.scorer.ImportanceDimensions;
 import com.agent.memory.scorer.ImportanceResult;
@@ -16,6 +20,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -297,5 +302,102 @@ class LongTermMemoryWriterImplTest {
 
     private static org.assertj.core.data.Offset<Double> within(double tolerance) {
         return org.assertj.core.data.Offset.offset(tolerance);
+    }
+
+    // ===== S-04 Outbox 扩展测试（5 参构造器，outboxRepository 可用）=====
+
+    @Test
+    @DisplayName("S-04 Outbox：write 应写入 outbox 消息而非直接 insert vector")
+    void should_WriteToOutbox_When_OutboxRepositoryAvailable() {
+        MemoryVectorStoreImpl store = new MemoryVectorStoreImpl();
+        MockEmbeddingClientImpl embedding = new MockEmbeddingClientImpl();
+        ImportanceScorer scorer = mock(ImportanceScorer.class);
+        MemoryRecordRepository repository = mock(MemoryRecordRepository.class);
+        OutboxRepository outboxRepository = mock(OutboxRepository.class);
+        when(scorer.score(any(), any())).thenReturn(new ImportanceResult(0.7, "HIGH", new ImportanceDimensions()));
+        when(repository.findByTenantIdAndContentHash(any(), any())).thenReturn(Collections.emptyList());
+
+        LongTermMemoryWriterImpl writer = new LongTermMemoryWriterImpl(
+                store, embedding, scorer, repository, outboxRepository);
+        MemoryRecord record = new MemoryRecord("mem_outbox", MemoryType.SEMANTIC, "outbox test");
+        record.setTenantId("t1");
+
+        String id = writer.write(record);
+
+        assertThat(id).isEqualTo("mem_outbox");
+        // Outbox message should be saved
+        verify(outboxRepository).save(any(OutboxMessage.class));
+        // Vector store should NOT be called directly (outbox will handle it later)
+        assertThat(store.size()).isZero();
+    }
+
+    @Test
+    @DisplayName("S-04 Outbox：write 写入的 outbox 消息应包含正确的 topic 和 payload")
+    void should_WriteCorrectOutboxMessage_When_OutboxRepositoryAvailable() {
+        MemoryVectorStoreImpl store = new MemoryVectorStoreImpl();
+        MockEmbeddingClientImpl embedding = new MockEmbeddingClientImpl();
+        MemoryRecordRepository repository = mock(MemoryRecordRepository.class);
+        OutboxRepository outboxRepository = mock(OutboxRepository.class);
+        when(repository.findByTenantIdAndContentHash(any(), any())).thenReturn(Collections.emptyList());
+
+        LongTermMemoryWriterImpl writer = new LongTermMemoryWriterImpl(
+                store, embedding, null, repository, outboxRepository);
+        MemoryRecord record = new MemoryRecord("mem_payload", MemoryType.SEMANTIC, "payload test");
+        record.setTenantId("t1");
+
+        writer.write(record);
+
+        // Capture the OutboxMessage to verify its content
+        verify(outboxRepository).save(argThat(msg -> {
+            if (msg == null) return false;
+            if (!LongTermMemoryWriterImpl.OUTBOX_TOPIC_VECTOR_INSERT.equals(msg.getTopic())) return false;
+            if (!"mem_payload".equals(msg.getAggregateId())) return false;
+            // Verify payload is valid JSON with memoryId
+            try {
+                VectorInsertPayload payload = JsonUtils.fromJson(msg.getPayload(), VectorInsertPayload.class);
+                return "mem_payload".equals(payload.getMemoryId())
+                        && "t1".equals(payload.getTenantId())
+                        && payload.getEmbeddingDim() == 1024;
+            } catch (Exception e) {
+                return false;
+            }
+        }));
+    }
+
+    @Test
+    @DisplayName("S-04 Outbox：write 当 outbox 写入失败时应降级为直接 insert")
+    void should_FallBackToDirectInsert_When_OutboxWriteFails() {
+        MemoryVectorStoreImpl store = new MemoryVectorStoreImpl();
+        MockEmbeddingClientImpl embedding = new MockEmbeddingClientImpl();
+        MemoryRecordRepository repository = mock(MemoryRecordRepository.class);
+        OutboxRepository outboxRepository = mock(OutboxRepository.class);
+        when(repository.findByTenantIdAndContentHash(any(), any())).thenReturn(Collections.emptyList());
+        when(outboxRepository.save(any())).thenThrow(new RuntimeException("DB connection lost"));
+
+        LongTermMemoryWriterImpl writer = new LongTermMemoryWriterImpl(
+                store, embedding, null, repository, outboxRepository);
+        MemoryRecord record = new MemoryRecord("mem_fallback", MemoryType.SEMANTIC, "fallback test");
+        record.setTenantId("t1");
+
+        String id = writer.write(record);
+
+        assertThat(id).isEqualTo("mem_fallback");
+        // Should fall back to direct vector insert
+        assertThat(store.size()).isEqualTo(1);
+        assertThat(store.find("mem_fallback")).isSameAs(record);
+    }
+
+    @Test
+    @DisplayName("S-04 Outbox：F12 骨架（2 参构造器）仍走直接 insert 路径")
+    void should_UseDirectInsert_When_NoOutboxRepository() {
+        MemoryVectorStoreImpl store = new MemoryVectorStoreImpl();
+        MockEmbeddingClientImpl embedding = new MockEmbeddingClientImpl();
+        LongTermMemoryWriterImpl writer = new LongTermMemoryWriterImpl(store, embedding);
+
+        MemoryRecord record = new MemoryRecord("mem_direct", MemoryType.SEMANTIC, "direct insert");
+        writer.write(record);
+
+        // Should directly insert into vector store
+        assertThat(store.size()).isEqualTo(1);
     }
 }
