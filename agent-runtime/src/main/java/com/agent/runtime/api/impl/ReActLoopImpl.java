@@ -1,5 +1,8 @@
 package com.agent.runtime.api.impl;
 
+import com.agent.common.outbox.OutboxMessage;
+import com.agent.common.outbox.OutboxRepository;
+import com.agent.common.outbox.OutboxStatus;
 import com.agent.runtime.api.MemoryClient;
 import com.agent.runtime.api.ModelGatewayClient;
 import com.agent.runtime.api.ReActLoop;
@@ -60,6 +63,8 @@ public class ReActLoopImpl implements ReActLoop {
     private final StepStateSyncer stepStateSyncer;
     private final TokenWatermarkMonitor tokenWatermarkMonitor;
     private final RuntimeProperties properties;
+    /** S-04: Outbox repository for checkpoint compensation (optional, null in unit tests). */
+    private final OutboxRepository outboxRepository;
 
     /** T3 loop components (composition over inheritance) */
     private final ThinkPhase thinkPhase;
@@ -74,7 +79,8 @@ public class ReActLoopImpl implements ReActLoop {
                          ReflexionEngine reflexionEngine,
                          StepStateSyncer stepStateSyncer,
                          TokenWatermarkMonitor tokenWatermarkMonitor,
-                         RuntimeProperties properties) {
+                         RuntimeProperties properties,
+                         @Autowired(required = false) OutboxRepository outboxRepository) {
         this.modelGateway = modelGateway;
         this.toolEngine = toolEngine;
         this.memoryClient = memoryClient;
@@ -82,6 +88,7 @@ public class ReActLoopImpl implements ReActLoop {
         this.stepStateSyncer = stepStateSyncer;
         this.tokenWatermarkMonitor = tokenWatermarkMonitor;
         this.properties = properties;
+        this.outboxRepository = outboxRepository;
         this.promptBuilder = new ReActPromptBuilder(properties);
         this.thinkPhase = new ThinkPhase(modelGateway, promptBuilder, tokenWatermarkMonitor);
         this.actPhase = new ActPhase(toolEngine);
@@ -109,6 +116,7 @@ public class ReActLoopImpl implements ReActLoop {
         this.stepStateSyncer = stepStateSyncer;
         this.tokenWatermarkMonitor = tokenWatermarkMonitor;
         this.properties = properties;
+        this.outboxRepository = null; // not available in unit tests
         this.thinkPhase = thinkPhase;
         this.actPhase = actPhase;
         this.observePhase = observePhase;
@@ -314,9 +322,18 @@ public class ReActLoopImpl implements ReActLoop {
 
     /** Sync step state to StepStateSyncer and persist checkpoint.
      *  S-09: Uses Jackson for JSON serialization instead of String.format
-     *  to properly escape special characters in detail field. */
+     *  to properly escape special characters in detail field.
+     *  S-04: syncStepState bare RPC now wrapped in try/catch to prevent
+     *  StepState service failure from aborting the ReAct loop.
+     *  S-12: checkpoint failure now writes to outbox instead of swallowing. */
     private void syncStepState(ReActContext ctx, int stepNumber, ReActPhaseType phase, String detail) {
-        stepStateSyncer.syncStepState(ctx.getAgentInstanceId(), stepNumber, phase);
+        // S-04: Wrap bare RPC in try/catch — StepState service failure should not abort ReAct
+        try {
+            stepStateSyncer.syncStepState(ctx.getAgentInstanceId(), stepNumber, phase);
+        } catch (Exception e) {
+            log.warn("syncStepState 失败 (不中断主循环): agentInstanceId={}, step={}, err={}",
+                    ctx.getAgentInstanceId(), stepNumber, e.getMessage());
+        }
         try {
             var checkpoint = CHECKPOINT_MAPPER.createObjectNode();
             checkpoint.put("stepNumber", stepNumber);
@@ -326,8 +343,42 @@ public class ReActLoopImpl implements ReActLoop {
             String checkpointData = CHECKPOINT_MAPPER.writeValueAsString(checkpoint);
             stepStateSyncer.checkpoint(ctx.getAgentInstanceId(), stepNumber, checkpointData);
         } catch (Exception e) {
-            log.error("checkpoint 序列化失败: agentInstanceId={}, step={}, err={}",
-                    ctx.getAgentInstanceId(), stepNumber, e.getMessage(), e);
+            // S-12: checkpoint failure now writes to outbox instead of swallowing
+            log.warn("checkpoint 失败 (写入 outbox 补偿): agentInstanceId={}, step={}, err={}",
+                    ctx.getAgentInstanceId(), stepNumber, e.getMessage());
+            writeCheckpointToOutbox(ctx.getAgentInstanceId(), stepNumber, phase, detail, ctx.getTokenUsed());
+        }
+    }
+
+    /** S-04/S-12: Write checkpoint to outbox for eventual delivery when StepState is available. */
+    private void writeCheckpointToOutbox(String agentInstanceId, int stepNumber,
+                                          ReActPhaseType phase, String detail, long tokenUsed) {
+        if (outboxRepository == null) {
+            log.warn("OutboxRepository 不可用, checkpoint 数据丢失: agentInstanceId={}, step={}",
+                    agentInstanceId, stepNumber);
+            return;
+        }
+        try {
+            var payload = CHECKPOINT_MAPPER.createObjectNode();
+            payload.put("agentInstanceId", agentInstanceId);
+            payload.put("stepNumber", stepNumber);
+            payload.put("phase", phase != null ? phase.name() : null);
+            payload.put("detail", detail != null ? detail : "");
+            payload.put("tokenUsed", tokenUsed);
+            OutboxMessage msg = new OutboxMessage();
+            msg.setAggregateId(agentInstanceId + "-" + stepNumber);
+            msg.setTopic("runtime.stepstate");
+            msg.setPayload(CHECKPOINT_MAPPER.writeValueAsString(payload));
+            msg.setStatus(OutboxStatus.PENDING);
+            msg.setRetryCount(0);
+            msg.setNextRetryAt(Instant.now());
+            msg.setCreatedAt(Instant.now());
+            outboxRepository.save(msg);
+            log.info("checkpoint outbox 写入成功: agentInstanceId={}, step={}", agentInstanceId, stepNumber);
+        } catch (Exception outboxEx) {
+            // Outbox write failure — this is the last resort, log at error level
+            log.error("checkpoint outbox 写入也失败: agentInstanceId={}, step={}, err={}",
+                    agentInstanceId, stepNumber, outboxEx.getMessage(), outboxEx);
         }
     }
 
