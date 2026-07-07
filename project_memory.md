@@ -298,5 +298,48 @@
 105. Spring Boot 3.2.x 升级跨小版本（.5→.12）通常兼容，但需全量 `mvn test` 验证（agent-gateway/agent-session/agent-memory/agent-runtime等全部通过）
 
 **后续待办（LOW 级）**：
-- S-04 跨服务写补偿事务（saga/本地消息表）— 大型架构改动，暂不做
-- S-12 其他异常被吞的地方排查修复 — R-11 已修复最关键的 ToolGatewayImpl.auditResult，剩余需逐模块排查
+- ~~S-04 跨服务写补偿事务（saga/本地消息表）— 大型架构改动，暂不做~~ → 已立项规划，见 Wave 45 章节
+- ~~S-12 其他异常被吞的地方排查修复 — R-11 已修复最关键的 ToolGatewayImpl.auditResult，剩余需逐模块排查~~ → 已立项规划，见 Wave 45 章节
+
+---
+
+### Wave 45 S-04/S-12 规划文档立项（2026-07-07）
+
+**背景**：红蓝对抗审计 S-04（跨服务写无补偿事务，MED）与 S-12（异常被 catch+log 吞掉，LOW-MED）此前列为 LOW 级待办。本次为两项立项编写规划文档，进入实现前评审阶段。
+
+**产出**：
+- `docs/plans/10-cross-service-compensation-and-exception-plan.md`（PRD + 6 Phase 实施计划，UTF-8 无 BOM，15811 字符）
+- 合并一份 PRD（用户决策：两者在 ReActLoopImpl 重叠，合并避免重复上下文）
+- S-04 采用本地消息表（Outbox）模式（用户决策：复用现有 RocketMQ，改动可控）
+- S-04 范围 = 平台级补偿框架（用户决策：不只修点名两处，建可复用基础设施）
+- S-12 范围 = 全量排查 + 统一规范（用户决策：逐模块排查所有吞没点 + 建 ADR-006）
+
+**PRD 关键决策**：
+- Outbox 表 `outbox_message` 放各服务自有 DB，基础设施代码放 `agent-common`
+- 状态机 PENDING→SENT / PENDING→FAILED→...→DEAD（超 5 次）
+- 复用 S-03 的 `event_consume_log` 幂等模式（消费侧 event_id = outbox_message.id）
+- RocketMQ topic 命名 `{service}.{event}`（如 tool.audit / runtime.stepstate）
+- 新增 ADR-006：禁止 catch+log 静默吞异常，必须 rethrow / outbox / 显式注释
+
+**6 Phase 垂直切片**：
+1. Outbox 基础设施（实体+仓库+DDL，H2 单元测试）
+2. Outbox Relay + RocketMQ 投递 + 端到端故障验证（Testcontainers 停 DB 30s）
+3. ToolGatewayImpl 审计接入 Outbox + ToolCallAuditorImpl 去吞（S-04 第一接入场景）
+4. ReActLoopImpl syncStepState 接入 Outbox + checkpoint 补偿（S-04 第二接入，与 S-12 重叠）
+5. S-12 全量吞没点治理 + GrpcExceptionAdvice 统一 + ADR-006
+6. 监控告警 + 扩展场景验证 + 文档同步
+
+**代码研究已发现的吞没点（初稿，Phase 5 全量核实）**：
+1. `ToolCallAuditorImpl.audit()` lines 113-122 — catch Exception 吞掉，使 R-11 修复部分失效
+2. `ReActLoopImpl.syncStepState` checkpoint lines 328-331 — catch Exception 吞掉
+3. `agent-runtime/GrpcExceptionAdvice` lines 43-60 — catch Throwable 无日志
+4. `agent-task-orchestrator/GrpcExceptionAdvice` lines 136/159/194/257 — catch Throwable（含 Error）无日志
+5. `agent-tool-engine/GrpcExceptionAdvice` lines 59-62 — 已有 log.warn，已合规
+
+**关键研究发现**：
+- 全平台无 saga/TCC/outbox/local-message-table 实现（仅设计文档有 RocketMQ 事务消息示例）
+- `ToolCallAuditorImpl.audit()` 内部 catch 吞 JPA 异常 → `ToolGatewayImpl` 的 R-11 try/catch 分支成死代码
+- `StepStateSyncerImpl` 当前是内存 ConcurrentHashMap（骨架），裸 RPC 调用点未来接 Redis 才是真跨服务 RPC
+- 现有最接近的补偿模式：`SubtaskDoneHandler` 的 `event_consume_log` 幂等（S-03 修复成果，可复用）
+
+**下一步**：等待用户评审 PRD，评审通过后按 Phase 1~6 顺序 TDD 实现。文档状态：待评审。
