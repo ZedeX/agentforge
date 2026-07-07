@@ -1,5 +1,9 @@
 package com.agent.tool.engine.api.impl;
 
+import com.agent.common.outbox.OutboxMessage;
+import com.agent.common.outbox.OutboxRepository;
+import com.agent.common.outbox.OutboxStatus;
+import com.agent.common.utils.JsonUtils;
 import com.agent.tool.engine.api.ApprovalStore;
 import com.agent.tool.engine.api.RiskClassifier;
 import com.agent.tool.engine.api.ToolCache;
@@ -74,6 +78,9 @@ public class ToolGatewayImpl implements ToolGateway {
     /** Cache TTL for successful R1 + READ_ONLY results. */
     private static final Duration DEFAULT_CACHE_TTL = Duration.ofSeconds(300);
 
+    /** Outbox topic for tool audit events (consumed by ToolAuditOutboxConsumer). */
+    static final String OUTBOX_TOPIC_TOOL_AUDIT = "tool.audit";
+
     private final ToolRegistry registry;
     private final RiskClassifier riskClassifier;
     private final ApprovalStore approvalStore;
@@ -84,6 +91,8 @@ public class ToolGatewayImpl implements ToolGateway {
     private final RateLimiter rateLimiter;
     private final ToolEngineProperties properties;
     private final Map<ExecutorType, ToolExecutor> executorMap;
+    /** S-04: Outbox repository for cross-service write compensation. */
+    private final OutboxRepository outboxRepository;
 
     /**
      * Primary constructor.
@@ -100,7 +109,8 @@ public class ToolGatewayImpl implements ToolGateway {
                            @Autowired(required = false) ToolSemanticRecaller recaller,
                            RateLimiter rateLimiter,
                            ToolEngineProperties properties,
-                           List<ToolExecutor> executors) {
+                           List<ToolExecutor> executors,
+                           OutboxRepository outboxRepository) {
         this.registry = registry;
         this.riskClassifier = riskClassifier;
         this.approvalStore = approvalStore;
@@ -110,6 +120,7 @@ public class ToolGatewayImpl implements ToolGateway {
         this.recaller = recaller;
         this.rateLimiter = rateLimiter;
         this.properties = properties;
+        this.outboxRepository = outboxRepository;
         this.executorMap = new EnumMap<>(ExecutorType.class);
         for (ToolExecutor exec : executors) {
             ToolExecutor prev = executorMap.put(exec.type(), exec);
@@ -124,6 +135,7 @@ public class ToolGatewayImpl implements ToolGateway {
 
     /**
      * Test constructor: inject executors directly as varargs (skips Spring wiring).
+     * Uses in-memory OutboxRepository fallback (null → outbox writes skipped in tests).
      */
     public ToolGatewayImpl(ToolRegistry registry,
                            RiskClassifier riskClassifier,
@@ -137,7 +149,26 @@ public class ToolGatewayImpl implements ToolGateway {
                            ToolExecutor... executors) {
         this(registry, riskClassifier, approvalStore, cache, auditor, resultCleaner,
                 recaller, rateLimiter, properties,
-                java.util.Arrays.asList(executors));
+                java.util.Arrays.asList(executors), null);
+    }
+
+    /**
+     * Test constructor with explicit OutboxRepository.
+     */
+    public ToolGatewayImpl(ToolRegistry registry,
+                           RiskClassifier riskClassifier,
+                           ApprovalStore approvalStore,
+                           ToolCache cache,
+                           ToolCallAuditor auditor,
+                           ResultCleanerImpl resultCleaner,
+                           ToolSemanticRecaller recaller,
+                           RateLimiter rateLimiter,
+                           ToolEngineProperties properties,
+                           OutboxRepository outboxRepository,
+                           ToolExecutor... executors) {
+        this(registry, riskClassifier, approvalStore, cache, auditor, resultCleaner,
+                recaller, rateLimiter, properties,
+                java.util.Arrays.asList(executors), outboxRepository);
     }
 
     @Override
@@ -342,23 +373,23 @@ public class ToolGatewayImpl implements ToolGateway {
         }
     }
 
-    /** R-11: Audit failure on error path — attach as suppressed exception, don't swallow. */
+    /**
+     * S-04: Write audit log to outbox for eventual-consistent delivery.
+     * On error path: attach outbox failure as suppressed exception.
+     */
     private void auditFailure(String traceId, String toolId, String tenantId,
                               String inputJson, Exception ex) {
         ToolCallAuditLog entry = new ToolCallAuditLog(traceId, toolId, ToolCallStatus.FAILED);
         entry.setTenantId(tenantId);
         entry.setInputJson(inputJson);
         entry.setErrorStack(ex.getClass().getSimpleName() + ": " + ex.getMessage());
-        try {
-            auditor.audit(entry);
-        } catch (Exception auditEx) {
-            log.error("审计落库失败 (error path, 附加为 suppressed): traceId={}, err={}",
-                    traceId, auditEx.getMessage(), auditEx);
-            ex.addSuppressed(auditEx);
-        }
+        writeToOutbox(entry, ex);
     }
 
-    /** R-11: Audit failure on success path — throw ToolEngineException, don't swallow. */
+    /**
+     * S-04: Write audit log to outbox for eventual-consistent delivery.
+     * On success path: throw ToolEngineException if outbox write fails.
+     */
     private void auditResult(String traceId, String toolId, String tenantId, String inputJson,
                              String output, ToolCallStatus status, long durationMs, String errorStack) {
         ToolCallAuditLog entry = new ToolCallAuditLog(traceId, toolId, status);
@@ -366,30 +397,73 @@ public class ToolGatewayImpl implements ToolGateway {
         entry.setInputJson(inputJson);
         entry.setOutput(output);
         entry.setErrorStack(errorStack);
-        try {
-            auditor.audit(entry);
-        } catch (Exception auditEx) {
-            log.error("审计落库失败 (success path, 抛出): traceId={}, err={}",
-                    traceId, auditEx.getMessage(), auditEx);
-            throw new ToolEngineException("AUDIT_FAILURE", 500,
-                    "审计落库失败: " + auditEx.getMessage(), auditEx);
-        }
+        writeToOutbox(entry, null);
     }
 
-    /** R-11: Audit failure on cache-hit path — throw ToolEngineException, don't swallow. */
+    /**
+     * S-04: Write cache-hit audit log to outbox for eventual-consistent delivery.
+     * On cache-hit path: throw ToolEngineException if outbox write fails.
+     */
     private void auditCacheHit(String traceId, String toolId, String tenantId,
                                String inputJson, ToolCallResult cached) {
         ToolCallAuditLog entry = new ToolCallAuditLog(traceId, toolId, ToolCallStatus.CACHED);
         entry.setTenantId(tenantId);
         entry.setInputJson(inputJson);
         entry.setOutput(cached.getOutput());
+        writeToOutbox(entry, null);
+    }
+
+    /**
+     * S-04: Write audit log entry to outbox_message table for reliable delivery.
+     *
+     * <p>If outboxRepository is null (non-Spring test), falls back to direct
+     * {@link ToolCallAuditor#audit} for backward compatibility.</p>
+     *
+     * @param entry the audit log to persist
+     * @param originalEx the original business exception (error path), or null (success/cache path)
+     */
+    private void writeToOutbox(ToolCallAuditLog entry, Exception originalEx) {
+        // Fallback: no outbox repository (unit test) → direct audit
+        if (outboxRepository == null) {
+            try {
+                auditor.audit(entry);
+            } catch (Exception auditEx) {
+                if (originalEx != null) {
+                    log.error("审计落库失败 (error path, 附加为 suppressed): traceId={}, err={}",
+                            entry.getTraceId(), auditEx.getMessage(), auditEx);
+                    originalEx.addSuppressed(auditEx);
+                } else {
+                    log.error("审计落库失败 (success path, 抛出): traceId={}, err={}",
+                            entry.getTraceId(), auditEx.getMessage(), auditEx);
+                    throw new ToolEngineException("AUDIT_FAILURE", 500,
+                            "审计落库失败: " + auditEx.getMessage(), auditEx);
+                }
+            }
+            return;
+        }
+
+        // S-04: Write to outbox for reliable cross-service delivery
         try {
-            auditor.audit(entry);
-        } catch (Exception auditEx) {
-            log.error("审计落库失败 (cache hit, 抛出): traceId={}, err={}",
-                    traceId, auditEx.getMessage(), auditEx);
-            throw new ToolEngineException("AUDIT_FAILURE", 500,
-                    "审计落库失败: " + auditEx.getMessage(), auditEx);
+            String payload = JsonUtils.toJson(entry);
+            OutboxMessage msg = new OutboxMessage();
+            msg.setAggregateId(entry.getTraceId() != null ? entry.getTraceId() : "unknown");
+            msg.setTopic(OUTBOX_TOPIC_TOOL_AUDIT);
+            msg.setPayload(payload);
+            outboxRepository.save(msg);
+            log.debug("Outbox audit written: traceId={}, toolId={}, status={}",
+                    entry.getTraceId(), entry.getToolId(), entry.getStatus());
+        } catch (Exception outboxEx) {
+            // Outbox write failure: on error path, attach as suppressed; on success path, throw
+            if (originalEx != null) {
+                log.error("Outbox 写入失败 (error path, 附加为 suppressed): traceId={}, err={}",
+                        entry.getTraceId(), outboxEx.getMessage(), outboxEx);
+                originalEx.addSuppressed(outboxEx);
+            } else {
+                log.error("Outbox 写入失败 (success path, 抛出): traceId={}, err={}",
+                        entry.getTraceId(), outboxEx.getMessage(), outboxEx);
+                throw new ToolEngineException("AUDIT_FAILURE", 500,
+                        "Outbox 写入失败: " + outboxEx.getMessage(), outboxEx);
+            }
         }
     }
 }

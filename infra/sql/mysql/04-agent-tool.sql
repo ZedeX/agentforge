@@ -137,3 +137,32 @@ CREATE TABLE IF NOT EXISTS `tool_approval` (
     KEY `idx_task` (`task_id`),
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='高危工具审批表';
+
+-- ---------------------------------------------------------------------
+-- Table: outbox_message  (S-04 Outbox 补偿框架, 跨服务写最终一致)
+-- Source: agent-common OutboxMessage JPA entity
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `outbox_message` (
+    `id`              BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '主键',
+    `aggregate_id`    VARCHAR(64)     NOT NULL                 COMMENT '业务聚合 ID (e.g. traceId)',
+    `topic`           VARCHAR(128)    NOT NULL                 COMMENT 'RocketMQ topic (e.g. tool.audit)',
+    `payload`         TEXT            NOT NULL                 COMMENT '消息体 JSON',
+    `status`          VARCHAR(16)     NOT NULL                 COMMENT 'PENDING/SENT/FAILED/DEAD',
+    `retry_count`     INT             NOT NULL DEFAULT 0       COMMENT '已重试次数',
+    `next_retry_at`   DATETIME(3)     NOT NULL                 COMMENT '下次重试时间',
+    `created_at`      DATETIME(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    `sent_at`         DATETIME(3)     NULL                     COMMENT '投递成功时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_outbox_status_next_retry` (`status`, `next_retry_at`),
+    KEY `idx_outbox_aggregate` (`aggregate_id`),
+    KEY `idx_outbox_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Outbox 补偿消息表 (S-04)';
+
+-- ---------------------------------------------------------------------
+-- Table: consume_log  (S-04 消费幂等表, 复用 S-03 event_consume_log 模式)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `consume_log` (
+    `event_id`        VARCHAR(64)     NOT NULL                 COMMENT '事件 ID (= outbox_message.id)',
+    `consumed_at`     DATETIME(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '消费时间',
+    PRIMARY KEY (`event_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Outbox 消费幂等日志 (S-04)';

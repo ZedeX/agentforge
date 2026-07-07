@@ -1,5 +1,8 @@
 package com.agent.tool.engine.api.impl;
 
+import com.agent.common.outbox.OutboxMessage;
+import com.agent.common.outbox.OutboxRepository;
+import com.agent.common.outbox.OutboxStatus;
 import com.agent.tool.engine.api.ApprovalStore;
 import com.agent.tool.engine.api.RiskClassifier;
 import com.agent.tool.engine.api.ToolCallAuditor;
@@ -615,5 +618,110 @@ class ToolGatewayImplTest {
         assertThatThrownBy(() -> gateway.invoke(req))
                 .isInstanceOf(ToolValidationException.class)
                 .hasMessageContaining("参数 schema 校验失败");
+    }
+
+    // ============ S-04: Outbox integration tests ============
+
+    /**
+     * S-04: When OutboxRepository is provided, audit writes go to outbox
+     * instead of directly to auditor.audit().
+     */
+    @Test
+    @DisplayName("S-04: call_writesAuditToOutbox_whenOutboxRepositoryProvided")
+    void call_WritesAuditToOutbox_When_OutboxRepositoryProvided() {
+        OutboxRepository outboxRepository = mock(OutboxRepository.class);
+        when(outboxRepository.save(any(OutboxMessage.class))).thenAnswer(invocation -> {
+            OutboxMessage msg = invocation.getArgument(0);
+            msg.setId(42L);
+            return msg;
+        });
+
+        ToolGatewayImpl gw = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
+                cache, auditor, resultCleaner, recaller, rateLimiter, properties,
+                outboxRepository, httpExecutor, shellExecutor);
+
+        ToolMeta meta = r1HttpTool("tool_outbox");
+        when(registry.findMeta("tool_outbox")).thenReturn(meta);
+        when(registry.findInputSchema("tool_outbox")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_outbox"));
+
+        gw.invoke(requestWithParams("tool_outbox", Map.of()));
+
+        // Verify outbox was written (not direct auditor.audit)
+        ArgumentCaptor<OutboxMessage> outboxCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
+        verify(outboxRepository).save(outboxCaptor.capture());
+        OutboxMessage saved = outboxCaptor.getValue();
+        assertThat(saved.getTopic()).isEqualTo("tool.audit");
+        assertThat(saved.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(saved.getAggregateId()).isEqualTo("trace_test");
+        assertThat(saved.getPayload()).contains("tool_outbox");
+    }
+
+    /**
+     * S-04: When OutboxRepository is provided and outbox write fails on success path,
+     * ToolEngineException is thrown.
+     */
+    @Test
+    @DisplayName("S-04: call_throwsWhenOutboxWriteFailsOnSuccessPath")
+    void call_ThrowsWhenOutboxWriteFailsOnSuccessPath() {
+        OutboxRepository outboxRepository = mock(OutboxRepository.class);
+        doThrow(new RuntimeException("outbox DB down")).when(outboxRepository).save(any(OutboxMessage.class));
+
+        ToolCallAuditor mockAuditor = mock(ToolCallAuditor.class);
+        ToolGatewayImpl gw = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
+                cache, mockAuditor, resultCleaner, recaller, rateLimiter, properties,
+                outboxRepository, httpExecutor, shellExecutor);
+
+        ToolMeta meta = r1HttpTool("tool_outbox_fail");
+        when(registry.findMeta("tool_outbox_fail")).thenReturn(meta);
+        when(registry.findInputSchema("tool_outbox_fail")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_outbox_fail"));
+
+        assertThatThrownBy(() -> gw.invoke(requestWithParams("tool_outbox_fail", Map.of())))
+                .isInstanceOf(ToolEngineException.class)
+                .hasMessageContaining("Outbox 写入失败");
+
+        // auditor.audit should NOT have been called (outbox replaces it)
+        verify(mockAuditor, never()).audit(any());
+    }
+
+    /**
+     * S-04: When OutboxRepository is provided and outbox write fails on error path,
+     * the outbox failure is attached as suppressed exception.
+     */
+    @Test
+    @DisplayName("S-04: call_addsSuppressedWhenOutboxWriteFailsOnErrorPath")
+    void call_AddsSuppressedWhenOutboxWriteFailsOnErrorPath() {
+        OutboxRepository outboxRepository = mock(OutboxRepository.class);
+        doThrow(new RuntimeException("outbox DB down")).when(outboxRepository).save(any(OutboxMessage.class));
+
+        ToolCallAuditor mockAuditor = mock(ToolCallAuditor.class);
+        ToolGatewayImpl gw = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
+                cache, mockAuditor, resultCleaner, recaller, rateLimiter, properties,
+                outboxRepository, httpExecutor, shellExecutor);
+
+        ToolMeta meta = r1HttpTool("tool_outbox_err");
+        when(registry.findMeta("tool_outbox_err")).thenReturn(meta);
+        when(registry.findInputSchema("tool_outbox_err")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenThrow(new ToolEngineException("TOOL_EXECUTION_FAILED", 500, "executor boom"));
+
+        assertThatThrownBy(() -> gw.invoke(requestWithParams("tool_outbox_err", Map.of())))
+                .isInstanceOf(ToolEngineException.class)
+                .hasMessageContaining("executor boom")
+                .satisfies(ex -> {
+                    assertThat(ex.getSuppressed()).hasSize(1);
+                    assertThat(ex.getSuppressed()[0].getMessage()).contains("Outbox 写入失败");
+                });
+
+        verify(mockAuditor, never()).audit(any());
     }
 }
