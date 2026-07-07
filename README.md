@@ -1,3 +1,9 @@
+[English](./README.md) | [中文](./README.zh-CN.md)
+
+<p align="center">
+  <img src="docs/images/hero-banner.png" alt="AgentForge - Multi-Agent Orchestration Platform" width="100%">
+</p>
+
 <h1 align="center">AgentForge</h1>
 
 <p align="center">
@@ -14,61 +20,61 @@
 </p>
 
 <p align="center">
-  基于 DAG 任务编排 · 三级记忆 · 工具调用治理 · 幻觉六层防护 · 全链路可观测
+  DAG Task Orchestration · Three-Tier Memory · Tool Invocation Governance · Six-Layer Hallucination Defense · Full-Chain Observability
 </p>
 
 ---
 
-## ✨ 核心能力
+## ✨ Core Capabilities
 
 <table>
 <tr>
 <td width="50%">
 
-### 🔄 DAG 任务编排
-自动复杂度识别 → 模板/智能规划 → 5 维度 DAG 自检 → 并行批次调度 → 动态重规划（增量/全量）
+### 🔄 DAG Task Orchestration
+Auto complexity detection → Template/Intelligent planning → 5-dimension DAG self-check → Parallel batch scheduling → Dynamic replanning (incremental/full)
 
 </td>
 <td width="50%">
 
-### 🧠 三级记忆系统
-短期（Redis）/ 长期（Milvus + MySQL）/ 蒸馏记忆；多路召回（向量/关键词/时间/标签）+ 融合重排
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🔧 工具调用治理
-R1/R2/R3 三级风险分级 + RBAC/ABAC 权限 + 配额熔断 + Docker 沙箱执行 + 结果清洗脱敏
-
-</td>
-<td width="50%">
-
-### 🤖 ReAct + Reflexion 运行时
-Think → Act → Observe → Reflect；自检三问；Token 四级水位压缩；断点续跑
+### 🧠 Three-Tier Memory System
+Short-term (Redis) / Long-term (Milvus + MySQL) / Distilled memory; Multi-path recall (vector/keyword/time/tag) + fused reranking
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-### 🛡️ 幻觉六层治理
-L1 模型选型 → L2 推理自校验 → L3 知识工具锚定 → L4 三级输出校验 → L5 Agent 专项治理 → L6 长效闭环
+### 🔧 Tool Invocation Governance
+R1/R2/R3 three-tier risk classification + RBAC/ABAC permissions + quota circuit-breaking + Docker sandbox execution + result sanitization & desensitization
 
 </td>
 <td width="50%">
 
-### 📊 漂移四层管控
-指标采集 → 基准比对 → 4 类漂移分类 → 自动止损 / 根因定位 / 灰度回滚
+### 🤖 ReAct + Reflexion Runtime
+Think → Act → Observe → Reflect; Self-check triple questions; Token four-level water-mark compression; Checkpoint resume
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🛡️ Six-Layer Hallucination Governance
+L1 Model selection → L2 Reasoning self-verification → L3 Knowledge-tool anchoring → L4 Three-tier output validation → L5 Agent-specific governance → L6 Long-term closed loop
+
+</td>
+<td width="50%">
+
+### 📊 Four-Layer Drift Control
+Metric collection → Baseline comparison → 4-type drift classification → Auto stop-loss / Root-cause identification / Canary rollback
 
 </td>
 </tr>
 <tr>
 <td width="50%" colspan="2">
 
-### 🔍 全链路可观测
-SkyWalking 链路追踪 + Prometheus 指标 + Loki 日志聚合 + ClickHouse 指标沉淀 + Grafana 可视化
+### 🔍 Full-Chain Observability
+SkyWalking trace + Prometheus metrics + Loki log aggregation + ClickHouse metric persistence + Grafana visualization
 
 </td>
 </tr>
@@ -76,33 +82,33 @@ SkyWalking 链路追踪 + Prometheus 指标 + Loki 日志聚合 + ClickHouse 指
 
 ---
 
-## 🏗️ 系统架构
+## 🏗️ System Architecture
 
 ```mermaid
 graph TB
-    subgraph "接入交互层"
+    subgraph "Access & Interaction Layer"
         GW[agent-gateway<br/>REST/SSE/IM]
-        SS[agent-session<br/>会话管理]
+        SS[agent-session<br/>Session Management]
     end
 
-    subgraph "核心引擎层"
-        TO[agent-task-orchestrator<br/>DAG编排+调度]
-        PL[agent-planning<br/>复杂度识别+规划]
+    subgraph "Core Engine Layer"
+        TO[agent-task-orchestrator<br/>DAG Orchestration+Scheduling]
+        PL[agent-planning<br/>Complexity Detection+Planning]
         RT[agent-runtime<br/>ReAct+Reflexion]
-        MM[agent-memory<br/>三级记忆]
-        TE[agent-tool-engine<br/>工具治理]
-        MG[agent-model-gateway<br/>多模型路由]
+        MM[agent-memory<br/>Three-Tier Memory]
+        TE[agent-tool-engine<br/>Tool Governance]
+        MG[agent-model-gateway<br/>Multi-Model Routing]
     end
 
-    subgraph "能力服务层"
-        AR[agent-repo<br/>Agent仓库]
-        KN[agent-knowledge<br/>知识库]
-        QA[agent-quality<br/>质量评估]
+    subgraph "Capability Service Layer"
+        AR[agent-repo<br/>Agent Repository]
+        KN[agent-knowledge<br/>Knowledge Base]
+        QA[agent-quality<br/>Quality Assessment]
     end
 
-    subgraph "横向体系"
-        RC[risk-control<br/>安全风控]
-        OB[observability<br/>可观测]
+    subgraph "Cross-Cutting Concerns"
+        RC[risk-control<br/>Security & Risk Control]
+        OB[observability<br/>Observability]
     end
 
     GW --> SS
@@ -124,70 +130,70 @@ graph TB
     style TE fill:#F5A623,color:#fff
 ```
 
-### 微服务清单
+### Microservice Inventory
 
-| 端口 | 服务 | 职责 | 关键 API |
+| Port | Service | Responsibility | Key APIs |
 |---|---|---|---|
-| 8080 | agent-gateway | 多端接入 + 鉴权 + 限流 | `POST /api/v1/tasks`, `GET /api/v1/sessions/{id}/stream` |
-| 8082 | agent-session | 会话管理 + 多轮消息 | gRPC: CreateSession, SendMessage |
-| 8084 | agent-task-orchestrator | DAG 引擎 + 并行调度 | gRPC: SubmitTask, GetTaskStatus, CancelTask |
-| 8086 | agent-planning | 复杂度识别 + DAG 规划 | gRPC: AssessComplexity, Plan, Replan |
-| 8088 | agent-memory | 三级记忆 + 多路召回 | gRPC: WriteLongTerm, Recall, TriggerDistill |
-| 8090 | agent-tool-engine | 工具注册 + 风险分级执行 | gRPC: Invoke, RegisterTool, ListTools |
-| 8092 | agent-runtime | ReAct 循环 + Token 压缩 | gRPC: StartAgent, Step, Pause, Resume |
-| 8094 | agent-model-gateway | 多模型适配 + 路由 + 计量 | gRPC: Chat, StreamChat, ListModels |
-| 8096 | agent-repo | Agent 仓库 + 版本管理 | gRPC: CreateAgent, GetAgent, ListAgents |
-| 8098 | agent-knowledge | 知识库 + 文档切片 | gRPC: Ingest, Retrieve, SearchChunks |
-| 8100 | agent-quality | 三级校验 + Badcase | gRPC: ValidateTask, ReportBadcase |
-| — | risk-control | 风控拦截 + RBAC/ABAC | gRPC: CheckContent, CheckPermission, AuditLog |
-| — | observability | 指标 + 链路 + 日志 | gRPC: GetTraces, GetMetrics, GetHealth |
+| 8080 | agent-gateway | Multi-channel access + Auth + Rate limiting | `POST /api/v1/tasks`, `GET /api/v1/sessions/{id}/stream` |
+| 8082 | agent-session | Session management + Multi-turn messages | gRPC: CreateSession, SendMessage |
+| 8084 | agent-task-orchestrator | DAG engine + Parallel scheduling | gRPC: SubmitTask, GetTaskStatus, CancelTask |
+| 8086 | agent-planning | Complexity detection + DAG planning | gRPC: AssessComplexity, Plan, Replan |
+| 8088 | agent-memory | Three-tier memory + Multi-path recall | gRPC: WriteLongTerm, Recall, TriggerDistill |
+| 8090 | agent-tool-engine | Tool registration + Risk-tiered execution | gRPC: Invoke, RegisterTool, ListTools |
+| 8092 | agent-runtime | ReAct loop + Token compression | gRPC: StartAgent, Step, Pause, Resume |
+| 8094 | agent-model-gateway | Multi-model adaptation + Routing + Metering | gRPC: Chat, StreamChat, ListModels |
+| 8096 | agent-repo | Agent repository + Version management | gRPC: CreateAgent, GetAgent, ListAgents |
+| 8098 | agent-knowledge | Knowledge base + Document chunking | gRPC: Ingest, Retrieve, SearchChunks |
+| 8100 | agent-quality | Three-tier validation + Badcase tracking | gRPC: ValidateTask, ReportBadcase |
+| — | risk-control | Risk interception + RBAC/ABAC | gRPC: CheckContent, CheckPermission, AuditLog |
+| — | observability | Metrics + Tracing + Logging | gRPC: GetTraces, GetMetrics, GetHealth |
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 环境要求
+### Prerequisites
 
-| 依赖 | 版本 | 说明 |
+| Dependency | Version | Notes |
 |---|---|---|
-| JDK | 17+ | 推荐 Eclipse Temurin 17 |
-| Maven | 3.9+ | protoc 由 plugin 自动下载 |
-| Docker | 20+ | 运行 MySQL/Redis/Milvus 等依赖 |
-| K8s | 1.28+ | 生产部署（可选） |
+| JDK | 17+ | Eclipse Temurin 17 recommended |
+| Maven | 3.9+ | protoc auto-downloaded by plugin |
+| Docker | 20+ | Run MySQL/Redis/Milvus and other dependencies |
+| K8s | 1.28+ | Production deployment (optional) |
 
-### 1. 构建
+### 1. Build
 
 ```bash
-# 编译基础层
+# Compile base layers
 mvn clean install -pl agent-proto,agent-common -am -DskipTests
 
-# 编译并运行所有单元测试
+# Compile and run all unit tests
 mvn clean test
 
-# 打包
+# Package
 mvn clean package -DskipTests
 ```
 
-### 2. 初始化数据库
+### 2. Initialize Database
 
 ```powershell
 cd infra/sql
-# 初始化全部 MySQL 库（9 库 32 表 + 种子数据）
+# Initialize all MySQL databases (9 databases, 32 tables + seed data)
 ./init-all.ps1 -DbType mysql -TenantId default
 ```
 
-### 3. 启动本地依赖（Docker Compose）
+### 3. Start Local Dependencies (Docker Compose)
 
 ```bash
 cd infra/docker-compose
-cp .env.example .env   # 编辑数据库密码等配置
+cp .env.example .env   # Edit database passwords and other config
 docker compose up -d    # MySQL + Redis + Milvus + Neo4j + RocketMQ + Nacos
 ```
 
-### 4. 创建 Agent
+### 4. Create an Agent
 
 ```bash
-# 通过 Agent 仓库服务创建一个新 Agent
+# Create a new Agent via the Agent repository service
 curl -X POST http://localhost:8096/grpc \
   -H "Content-Type: application/json" \
   -d '{
@@ -202,10 +208,10 @@ curl -X POST http://localhost:8096/grpc \
   }'
 ```
 
-### 5. 提交任务
+### 5. Submit a Task
 
 ```bash
-# 通过网关提交任务
+# Submit a task via the gateway
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
   -H "X-Tenant-Id: default" \
@@ -223,10 +229,10 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 # }
 ```
 
-### 6. 流式对话（SSE）
+### 6. Streaming Conversation (SSE)
 
 ```bash
-# 创建会话并获取流式响应
+# Create a session and get streaming responses
 curl -N http://localhost:8080/api/v1/sessions/sess_x1y2z3/stream \
   -H "X-Tenant-Id: default" \
   -H "X-User-Id: user-001"
@@ -238,10 +244,10 @@ curl -N http://localhost:8080/api/v1/sessions/sess_x1y2z3/stream \
 # data: {"type":"result","content":"Review complete: 2 medium, 1 low severity issues found"}
 ```
 
-### 7. 注册工具
+### 7. Register a Tool
 
 ```bash
-# 向工具引擎注册自定义工具
+# Register a custom tool with the tool engine
 curl -X POST http://localhost:8090/grpc \
   -H "Content-Type: application/json" \
   -d '{
@@ -257,10 +263,10 @@ curl -X POST http://localhost:8090/grpc \
   }'
 ```
 
-### 8. 写入与召回记忆
+### 8. Write & Recall Memory
 
 ```bash
-# 写入长期记忆
+# Write long-term memory
 curl -X POST http://localhost:8088/grpc \
   -H "Content-Type: application/json" \
   -d '{
@@ -271,7 +277,7 @@ curl -X POST http://localhost:8088/grpc \
     "memory_type": "REFLECTIVE"
   }'
 
-# 召回相关记忆
+# Recall relevant memories
 curl -X POST http://localhost:8088/grpc \
   -H "Content-Type: application/json" \
   -d '{
@@ -284,155 +290,155 @@ curl -X POST http://localhost:8088/grpc \
 
 ---
 
-## 📋 完整使用流程
+## 📋 End-to-End Workflow
 
 ```mermaid
 flowchart LR
-    A[定义 Agent] --> B[提交任务]
-    B --> C[复杂度识别]
-    C --> D{简单/复杂?}
-    D -->|简单| E[直接 ReAct]
-    D -->|复杂| F[DAG 规划]
-    F --> G[并行调度]
-    G --> H[ReAct 执行]
+    A[Define Agent] --> B[Submit Task]
+    B --> C[Complexity Detection]
+    C --> D{Simple/Complex?}
+    D -->|Simple| E[Direct ReAct]
+    D -->|Complex| F[DAG Planning]
+    F --> G[Parallel Scheduling]
+    G --> H[ReAct Execution]
     E --> H
-    H --> I[工具调用]
-    I --> J[质量校验]
-    J --> K{通过?}
-    K -->|是| L[输出结果]
-    K -->|否| M[Reflexion 反思]
+    H --> I[Tool Invocation]
+    I --> J[Quality Validation]
+    J --> K{Passed?}
+    K -->|Yes| L[Output Result]
+    K -->|No| M[Reflexion]
     M --> H
-    L --> N[记忆沉淀]
+    L --> N[Memory Persistence]
 ```
 
-### 端到端流程说明
+### Workflow Description
 
-1. **定义 Agent**：通过 Agent 仓库创建 Agent 定义，配置 system prompt、可用工具、模型层级
-2. **提交任务**：通过网关 REST API 提交任务，自动路由到编排器
-3. **复杂度识别**：规划引擎评估任务复杂度，决定单步执行或 DAG 拆分
-4. **DAG 编排**：复杂任务自动拆分为子任务 DAG，5 维度自检后并行调度
-5. **ReAct 执行**：运行时引擎执行 Think→Act→Observe 循环
-6. **工具调用**：通过工具网关调用 R1/R2/R3 分级工具，Docker 沙箱隔离执行
-7. **质量校验**：三级输出校验 + 幻觉检测 + 漂移比对
-8. **Reflexion**：未通过校验时触发反思，自动修正后重新执行
-9. **结果输出**：通过 SSE 流式返回，记忆沉淀入库
+1. **Define Agent**: Create an Agent definition via the Agent repository, configuring system prompt, available tools, and model tier
+2. **Submit Task**: Submit a task via the gateway REST API, auto-routed to the orchestrator
+3. **Complexity Detection**: The planning engine evaluates task complexity and decides between single-step execution or DAG decomposition
+4. **DAG Orchestration**: Complex tasks are automatically decomposed into sub-task DAGs, with 5-dimension self-check followed by parallel scheduling
+5. **ReAct Execution**: The runtime engine executes the Think→Act→Observe loop
+6. **Tool Invocation**: Invokes R1/R2/R3 risk-tiered tools via the tool gateway, with Docker sandbox isolation
+7. **Quality Validation**: Three-tier output validation + hallucination detection + drift comparison
+8. **Reflexion**: Failed validations trigger reflection, with automatic correction and re-execution
+9. **Result Output**: Streamed back via SSE, with memory persistence to storage
 
 ---
 
-## 🖥️ 前端控制台（设计）
+## 🖥️ Frontend Console (Design)
 
-平台规划了 5 大前端模块，技术栈 React 18 + TypeScript + Ant Design + ReactFlow + ECharts：
+The platform plans 5 major frontend modules, built with React 18 + TypeScript + Ant Design + ReactFlow + ECharts:
 
-| 模块 | 面向角色 | 核心页面 | 关键能力 |
+| Module | Target Role | Core Pages | Key Capabilities |
 |---|---|---|---|
-| **运营后台** | 平台运营 | 租户/审批/配额/审计/报表 | Agent 生命周期管理、配额管控 |
-| **Agent 配置工作台** | Agent 开发 | 低代码编辑器/预览/版本 | 9 大配置组件 + Prompt 编辑 + 版本管理 |
-| **调试沙箱** | Agent 开发 | DAG 可视化/回放/日志 | 断点调试 + 步骤回放 + Token 水位 |
-| **终端对话** | 终端用户 | 会话列表/消息流/任务详情 | 流式对话 + 文件上传 + 反馈 |
-| **监控大屏** | 运营/开发 | KPI/链路追踪/告警/成本 | ECharts 仪表盘 + 实时告警 |
+| **Operations Backend** | Platform ops | Tenant/Approval/Quota/Audit/Reports | Agent lifecycle management, quota control |
+| **Agent Configuration Workbench** | Agent developers | Low-code editor/Preview/Versioning | 9 config components + Prompt editor + Version management |
+| **Debug Sandbox** | Agent developers | DAG visualization/Replay/Logs | Breakpoint debugging + Step replay + Token water-mark |
+| **End-User Chat** | End users | Session list/Message flow/Task details | Streaming chat + File upload + Feedback |
+| **Monitoring Dashboard** | Ops/Dev | KPIs/Trace/Alerts/Cost | ECharts dashboards + Real-time alerts |
 
-> 详见 [docs/12-frontend/frontend-console-design.md](./docs/12-frontend/frontend-console-design.md)
+> See [docs/12-frontend/frontend-console-design.md](./docs/12-frontend/frontend-console-design.md)
 
 ---
 
-## 📁 仓库结构
+## 📁 Repository Structure
 
 ```
 agentforge/
-├── pom.xml                          # Parent POM（15 模块）
-├── agent-proto/                     # Protobuf 契约层（14 .proto）
-├── agent-common/                    # 公共工具层（DTO/异常/工具类）
-├── agent-gateway/                   # 接入网关（8080）
-├── agent-session/                   # 会话服务（8082）
-├── agent-task-orchestrator/         # 任务编排（8084）
-├── agent-planning/                  # 规划服务（8086）
-├── agent-memory/                    # 记忆服务（8088）
-├── agent-tool-engine/               # 工具引擎（8090）
-├── agent-runtime/                   # Agent 运行时（8092）
-├── agent-model-gateway/             # 模型网关（8094）
-├── agent-repo/                      # Agent 仓库（8096）
-├── agent-knowledge/                  # 知识服务（8098）
-├── agent-quality/                   # 质量服务（8100）
-├── agent-risk-control/              # 风控服务
-├── agent-observability/             # 可观测服务
-├── agent-test-infra/                # 测试基础设施
+├── pom.xml                          # Parent POM (15 modules)
+├── agent-proto/                     # Protobuf contract layer (14 .proto)
+├── agent-common/                    # Common utilities (DTO/exceptions/util classes)
+├── agent-gateway/                   # API Gateway (8080)
+├── agent-session/                   # Session service (8082)
+├── agent-task-orchestrator/         # Task orchestration (8084)
+├── agent-planning/                  # Planning service (8086)
+├── agent-memory/                    # Memory service (8088)
+├── agent-tool-engine/               # Tool engine (8090)
+├── agent-runtime/                   # Agent runtime (8092)
+├── agent-model-gateway/             # Model gateway (8094)
+├── agent-repo/                      # Agent repository (8096)
+├── agent-knowledge/                  # Knowledge service (8098)
+├── agent-quality/                   # Quality service (8100)
+├── agent-risk-control/              # Risk control service
+├── agent-observability/             # Observability service
+├── agent-test-infra/                # Test infrastructure
 ├── infra/
-│   ├── sql/                         # DDL（9 MySQL 库 32 表 + Milvus + Neo4j + Redis）
-│   ├── k8s/                         # K8s 部署配置（12 Deployment + 12 Service + 6 HPA）
+│   ├── sql/                         # DDL (9 MySQL databases 32 tables + Milvus + Neo4j + Redis)
+│   ├── k8s/                         # K8s deployment configs (12 Deployment + 12 Service + 6 HPA)
 │   ├── docker/                      # Dockerfile + docker-compose
-│   ├── nacos/                       # Nacos 配置（5 shared + 2 service-level）
-│   ├── vault/                       # Vault 策略（12 HCL）
+│   ├── nacos/                       # Nacos configs (5 shared + 2 service-level)
+│   ├── vault/                       # Vault policies (12 HCL)
 │   ├── observability/               # Prometheus + Grafana + Loki + SkyWalking
-│   └── scripts/                     # 部署/构建/压测脚本
-├── docs/                            # 设计文档（19 份 + 使用手册 + 运维手册）
-├── PRD.md                           # 产品需求文档
+│   └── scripts/                     # Deploy/build/stress-test scripts
+├── docs/                            # Design docs (19 docs + User guide + Ops guide)
+├── PRD.md                           # Product Requirements Document
 └── LICENSE                          # Apache 2.0
 ```
 
 ---
 
-## 🛡️ 安全加固
+## 🛡️ Security Hardening
 
-项目已完成系统性安全加固（红蓝对抗审计 21 条全部修复）：
+The project has completed systematic security hardening (all 21 red-blue team audit findings resolved):
 
-| 攻击链 | 路径 | 状态 |
+| Attack Chain | Path | Status |
 |---|---|---|
-| **链 A** | API Key → tool-engine R1 绕过 → 沙箱 RCE → K8s secrets | ✅ 端到端阻断 |
-| **链 B** | JWT 伪造 → 越权操作 | ✅ 端到端阻断 |
-| **链 C** | K8s RBAC → 横向移动 | ✅ 端到端阻断 |
+| **Chain A** | API Key → tool-engine R1 bypass → Sandbox RCE → K8s secrets | ✅ End-to-end blocked |
+| **Chain B** | JWT forgery → Privilege escalation | ✅ End-to-end blocked |
+| **Chain C** | K8s RBAC → Lateral movement | ✅ End-to-end blocked |
 
-核心修复：gRPC mTLS、JWT env 注入、R2/R3 审批流、Docker cap-drop ALL + nobody、K8s securityContext、CI gitleaks+trivy+CodeQL、密码全部 env 化。
+Key fixes: gRPC mTLS, JWT env injection, R2/R3 approval workflow, Docker cap-drop ALL + nobody, K8s securityContext, CI gitleaks+trivy+CodeQL, all passwords migrated to env vars.
 
-详见 [docs/audits/red-blue-team-report-2026-07-07.md](./docs/audits/red-blue-team-report-2026-07-07.md)
-
----
-
-## 📚 文档导航
-
-| 文档 | 说明 |
-|---|---|
-| [使用手册](./docs/user-guide.md) | REST/gRPC API 使用指南、端到端示例 |
-| [运维手册](./docs/ops-guide.md) | 部署、配置、监控、故障排查 |
-| [设计文档索引](./docs/README.md) | 19 份设计文档 + 测试文档 |
-| [产品需求](./PRD.md) | PRD 产品需求文档 |
-| [开发记录](./project_memory.md) | 项目开发历史与经验 |
+See [docs/audits/red-blue-team-report-2026-07-07.md](./docs/audits/red-blue-team-report-2026-07-07.md)
 
 ---
 
-## 📊 项目状态
+## 📚 Documentation
 
-| 维度 | 状态 |
+| Document | Description |
 |---|---|
-| 设计文档 | ✅ 19 份（覆盖 PRD 全部交付物） |
-| DDL 脚本 | ✅ 16 文件 / 9 MySQL 库 32 表 + Milvus + Neo4j + Redis |
-| 编码计划 | ✅ Plan 01~10 全部完成（10/10 闭环） |
-| 核心编码 | ✅ 15 模块完整实现（1580+ 测试用例，0 Failures） |
-| 安全加固 | ✅ 红蓝对抗 21 条全部修复 |
-| 部署配置 | ✅ 90+ 文件（Docker / K8s / Nacos / Vault / 可观测） |
-| K8s 集群部署 | ⏸ 待 CI 环境配置 Docker |
-| 性能压测 | ⏸ 待 K8s 部署后运行 Gatling 模拟 |
+| [User Guide](./docs/user-guide.md) | REST/gRPC API usage guide, end-to-end examples |
+| [Ops Guide](./docs/ops-guide.md) | Deployment, configuration, monitoring, troubleshooting |
+| [Design Docs Index](./docs/README.md) | 19 design documents + test documentation |
+| [Product Requirements](./PRD.md) | PRD product requirements document |
+| [Development Log](./project_memory.md) | Project development history and experience |
 
 ---
 
-## 🤝 技术栈
+## 📊 Project Status
 
-| 维度 | 选型 |
+| Dimension | Status |
 |---|---|
-| 语言 / JVM | Java 17（LTS） |
-| 框架 | Spring Boot 3.2.12 / Spring Cloud 2023.0.1 / Spring Cloud Alibaba 2023.0.1.0 |
+| Design documents | ✅ 19 docs (covering all PRD deliverables) |
+| DDL scripts | ✅ 16 files / 9 MySQL databases 32 tables + Milvus + Neo4j + Redis |
+| Coding plans | ✅ Plan 01~10 all complete (10/10 closed-loop) |
+| Core implementation | ✅ 15 modules fully implemented (1580+ test cases, 0 failures) |
+| Security hardening | ✅ All 21 red-blue team findings resolved |
+| Deployment configs | ✅ 90+ files (Docker / K8s / Nacos / Vault / Observability) |
+| K8s cluster deployment | ⏸ Pending CI environment Docker configuration |
+| Performance testing | ⏸ Pending K8s deployment for Gatling simulation |
+
+---
+
+## 🤝 Tech Stack
+
+| Dimension | Selection |
+|---|---|
+| Language / JVM | Java 17 (LTS) |
+| Framework | Spring Boot 3.2.12 / Spring Cloud 2023.0.1 / Spring Cloud Alibaba 2023.0.1.0 |
 | RPC | gRPC 1.62.2 + Protobuf 3.25.5 |
-| AI | Spring AI 0.8.1（适配 OpenAI / Anthropic / Gemini / 通义 / 文心 / DeepSeek） |
-| 关系库 | MySQL 8.0.36 + MyBatis-Plus 3.5.5 |
-| 向量库 | Milvus 2.4（HNSW COSINE） |
-| 图库 | Neo4j 5.18（代码知识图谱） |
-| 缓存 | Redis 7.2 + Redisson 3.27.2 |
-| 指标 | ClickHouse（MergeTree） |
-| 搜索 | Elasticsearch 8.13.4 |
-| 消息 | RocketMQ 5.x + rocketmq-spring 2.3.0 |
-| 注册配置 | Nacos 2.3 |
-| 部署 | Docker / K8s + HPA |
-| 可观测 | SkyWalking 9.7 + Prometheus + Loki + Grafana |
-| 安全 | Vault + gRPC mTLS + OPA |
+| AI | Spring AI 0.8.1 (adapts OpenAI / Anthropic / Gemini / Tongyi / Wenxin / DeepSeek) |
+| Relational DB | MySQL 8.0.36 + MyBatis-Plus 3.5.5 |
+| Vector DB | Milvus 2.4 (HNSW COSINE) |
+| Graph DB | Neo4j 5.18 (Code knowledge graph) |
+| Cache | Redis 7.2 + Redisson 3.27.2 |
+| Metrics | ClickHouse (MergeTree) |
+| Search | Elasticsearch 8.13.4 |
+| Messaging | RocketMQ 5.x + rocketmq-spring 2.3.0 |
+| Registry & Config | Nacos 2.3 |
+| Deployment | Docker / K8s + HPA |
+| Observability | SkyWalking 9.7 + Prometheus + Loki + Grafana |
+| Security | Vault + gRPC mTLS + OPA |
 
 ---
 

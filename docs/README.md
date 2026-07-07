@@ -9,8 +9,8 @@
 | # | 文档 | 内容 | 面向角色 |
 |---|---|---|---|
 | — | [audits/red-blue-team-report-2026-07-07.md](./audits/red-blue-team-report-2026-07-07.md) | 红蓝对抗安全审计报告（STRIDE 威胁建模 + 4 维审计，21 条修复） | 安全 / SRE / 开发 |
-| — | [user-guide.md](./user-guide.md) | REST/gRPC API 使用指南、端到端示例、13 服务 API 速查表、FAQ | 运营 / 开发者 / 用户 |
-| — | [ops-guide.md](./ops-guide.md) | 部署架构、K8s/Docker 部署、配置管理、可观测、安全检查、故障排查、性能调优 | SRE / 运维 |
+| — | [user-guide.md](./user-guide.md) ([中文版](./user-guide.zh-CN.md)) | REST/gRPC API User Guide, E2E examples, 13-service API reference, FAQ | 运营 / 开发者 / 用户 |
+| — | [ops-guide.md](./ops-guide.md) ([中文版](./ops-guide.zh-CN.md)) | Deployment architecture, K8s/Docker, config management, observability, security checklist, troubleshooting, performance tuning | SRE / 运维 |
 
 ## 文档导航
 
