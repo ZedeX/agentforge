@@ -28,6 +28,8 @@ import com.agent.tool.engine.model.ToolCallResult;
 import com.agent.tool.engine.model.ToolMeta;
 import com.agent.tool.engine.model.ToolRecallResult;
 import com.agent.tool.engine.model.ToolSchema;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +67,9 @@ import java.util.Optional;
 public class ToolGatewayImpl implements ToolGateway {
 
     private static final Logger log = LoggerFactory.getLogger(ToolGatewayImpl.class);
+
+    /** S-08: JSON parser for schema validation (thread-safe). */
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     /** Cache TTL for successful R1 + READ_ONLY results. */
     private static final Duration DEFAULT_CACHE_TTL = Duration.ofSeconds(300);
@@ -244,14 +249,22 @@ public class ToolGatewayImpl implements ToolGateway {
             Objects.requireNonNull(result, "executor returned null result");
         } catch (ToolEngineException e) {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-            auditResult(traceId, toolId, tenantId, request.getInputJson(),
-                    null, ToolCallStatus.FAILED, durationMs, e.getMessage());
+            try {
+                auditResult(traceId, toolId, tenantId, request.getInputJson(),
+                        null, ToolCallStatus.FAILED, durationMs, e.getMessage());
+            } catch (Exception auditEx) {
+                e.addSuppressed(auditEx);
+            }
             throw e;
         } catch (Exception e) {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
             String errMsg = e.getClass().getSimpleName() + ": " + e.getMessage();
-            auditResult(traceId, toolId, tenantId, request.getInputJson(),
-                    null, ToolCallStatus.FAILED, durationMs, errMsg);
+            try {
+                auditResult(traceId, toolId, tenantId, request.getInputJson(),
+                        null, ToolCallStatus.FAILED, durationMs, errMsg);
+            } catch (Exception auditEx) {
+                e.addSuppressed(auditEx);
+            }
             throw new ToolEngineException("TOOL_EXECUTION_FAILED", 500,
                     "工具 [" + toolId + "] 执行异常: " + errMsg, e);
         }
@@ -297,25 +310,39 @@ public class ToolGatewayImpl implements ToolGateway {
         }
     }
 
-    /** Validate params against schema (required fields present in inputJson). */
+    /**
+     * Validate params against schema (required fields present as JSON keys in inputJson).
+     * S-08: Uses Jackson JSON parsing instead of string contains() to correctly
+     * distinguish JSON keys from values.
+     */
     private boolean validateParams(ToolSchema schema, String inputJson) {
         if (schema == null || schema.getRequiredFields() == null || schema.getRequiredFields().isEmpty()) {
             return true;
         }
-        if (inputJson == null) {
+        if (inputJson == null || inputJson.isBlank()) {
             return false;
         }
-        for (String field : schema.getRequiredFields()) {
-            if (field == null) {
-                continue;
-            }
-            if (!inputJson.contains("\"" + field + "\"")) {
+        try {
+            JsonNode root = JSON_MAPPER.readTree(inputJson);
+            if (root == null || !root.isObject()) {
                 return false;
             }
+            for (String field : schema.getRequiredFields()) {
+                if (field == null) {
+                    continue;
+                }
+                if (!root.has(field)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            log.warn("参数 JSON 解析失败: {}", e.getMessage());
+            return false;
         }
-        return true;
     }
 
+    /** R-11: Audit failure on error path — attach as suppressed exception, don't swallow. */
     private void auditFailure(String traceId, String toolId, String tenantId,
                               String inputJson, Exception ex) {
         ToolCallAuditLog entry = new ToolCallAuditLog(traceId, toolId, ToolCallStatus.FAILED);
@@ -325,10 +352,13 @@ public class ToolGatewayImpl implements ToolGateway {
         try {
             auditor.audit(entry);
         } catch (Exception auditEx) {
-            log.error("审计落库失败 (吞异常): traceId={}, err={}", traceId, auditEx.getMessage());
+            log.error("审计落库失败 (error path, 附加为 suppressed): traceId={}, err={}",
+                    traceId, auditEx.getMessage(), auditEx);
+            ex.addSuppressed(auditEx);
         }
     }
 
+    /** R-11: Audit failure on success path — throw ToolEngineException, don't swallow. */
     private void auditResult(String traceId, String toolId, String tenantId, String inputJson,
                              String output, ToolCallStatus status, long durationMs, String errorStack) {
         ToolCallAuditLog entry = new ToolCallAuditLog(traceId, toolId, status);
@@ -339,10 +369,14 @@ public class ToolGatewayImpl implements ToolGateway {
         try {
             auditor.audit(entry);
         } catch (Exception auditEx) {
-            log.error("审计落库失败 (吞异常): traceId={}, err={}", traceId, auditEx.getMessage());
+            log.error("审计落库失败 (success path, 抛出): traceId={}, err={}",
+                    traceId, auditEx.getMessage(), auditEx);
+            throw new ToolEngineException("AUDIT_FAILURE", 500,
+                    "审计落库失败: " + auditEx.getMessage(), auditEx);
         }
     }
 
+    /** R-11: Audit failure on cache-hit path — throw ToolEngineException, don't swallow. */
     private void auditCacheHit(String traceId, String toolId, String tenantId,
                                String inputJson, ToolCallResult cached) {
         ToolCallAuditLog entry = new ToolCallAuditLog(traceId, toolId, ToolCallStatus.CACHED);
@@ -352,8 +386,10 @@ public class ToolGatewayImpl implements ToolGateway {
         try {
             auditor.audit(entry);
         } catch (Exception auditEx) {
-            log.error("审计落库失败 (cache hit, 吞异常): traceId={}, err={}",
-                    traceId, auditEx.getMessage());
+            log.error("审计落库失败 (cache hit, 抛出): traceId={}, err={}",
+                    traceId, auditEx.getMessage(), auditEx);
+            throw new ToolEngineException("AUDIT_FAILURE", 500,
+                    "审计落库失败: " + auditEx.getMessage(), auditEx);
         }
     }
 }

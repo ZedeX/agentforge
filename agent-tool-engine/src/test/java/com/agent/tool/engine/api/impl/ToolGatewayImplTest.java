@@ -2,6 +2,7 @@ package com.agent.tool.engine.api.impl;
 
 import com.agent.tool.engine.api.ApprovalStore;
 import com.agent.tool.engine.api.RiskClassifier;
+import com.agent.tool.engine.api.ToolCallAuditor;
 import com.agent.tool.engine.api.ToolCache;
 import com.agent.tool.engine.api.ToolRegistry;
 import com.agent.tool.engine.api.ToolSemanticRecaller;
@@ -42,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -484,5 +486,134 @@ class ToolGatewayImplTest {
         assertThatThrownBy(() -> gateway.invoke(requestWithParams("tool_mcp", Map.of())))
                 .isInstanceOf(ToolValidationException.class)
                 .hasMessageContaining("不支持的执行器类型");
+    }
+
+    // ============ R-11: Audit failure must not be silently swallowed ============
+
+    /**
+     * R-11: When auditor throws on the success path, the exception must propagate
+     * (not be silently swallowed with only a log.error).
+     */
+    @Test
+    @DisplayName("R-11: call_auditFailureOnSuccessPath_throwsAndDoesNotSwallow")
+    void call_AuditFailureOnSuccessPath_ThrowsAndDoesNotSwallow() {
+        ToolCallAuditor failingAuditor = mock(ToolCallAuditor.class);
+        doThrow(new RuntimeException("audit DB down"))
+                .when(failingAuditor).audit(any());
+        ToolGatewayImpl gw = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
+                cache, failingAuditor, resultCleaner, recaller, rateLimiter, properties,
+                httpExecutor, shellExecutor);
+
+        ToolMeta meta = r1HttpTool("tool_audit_fail");
+        when(registry.findMeta("tool_audit_fail")).thenReturn(meta);
+        when(registry.findInputSchema("tool_audit_fail")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_audit_fail"));
+
+        assertThatThrownBy(() -> gw.invoke(requestWithParams("tool_audit_fail", Map.of())))
+                .isInstanceOf(ToolEngineException.class)
+                .hasMessageContaining("审计落库失败");
+    }
+
+    /**
+     * R-11: When auditor throws on the failure path (auditFailure), the audit
+     * exception must be attached as a suppressed exception on the original
+     * business exception (not silently swallowed).
+     */
+    @Test
+    @DisplayName("R-11: call_auditFailureOnErrorPath_addsSuppressedNotSwallowed")
+    void call_AuditFailureOnErrorPath_AddsSuppressedNotSwallowed() {
+        ToolCallAuditor failingAuditor = mock(ToolCallAuditor.class);
+        doThrow(new RuntimeException("audit DB down"))
+                .when(failingAuditor).audit(any());
+        ToolGatewayImpl gw = new ToolGatewayImpl(registry, riskClassifier, approvalStore,
+                cache, failingAuditor, resultCleaner, recaller, rateLimiter, properties,
+                httpExecutor, shellExecutor);
+
+        ToolMeta meta = r1HttpTool("tool_audit_suppress");
+        when(registry.findMeta("tool_audit_suppress")).thenReturn(meta);
+        when(registry.findInputSchema("tool_audit_suppress")).thenReturn(new ToolSchema(List.of()));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenThrow(new ToolEngineException("TOOL_EXECUTION_FAILED", 500, "executor boom"));
+
+        assertThatThrownBy(() -> gw.invoke(requestWithParams("tool_audit_suppress", Map.of())))
+                .isInstanceOf(ToolEngineException.class)
+                .hasMessageContaining("executor boom")
+                .satisfies(ex -> {
+                    assertThat(ex.getSuppressed()).hasSize(1);
+                    assertThat(ex.getSuppressed()[0]).isInstanceOf(ToolEngineException.class);
+                    assertThat(ex.getSuppressed()[0].getMessage()).contains("审计落库失败");
+                });
+    }
+
+    // ============ S-08: validateParams must parse JSON, not string-match ============
+
+    /**
+     * S-08: validateParams must parse JSON structure, not use contains().
+     * The old contains() approach would match field values, not just keys.
+     * E.g. {"value":"orderId"} would falsely pass validation for required field "orderId".
+     */
+    @Test
+    @DisplayName("S-08: validateParams_rejectsFieldInValuePosition_notInKeyPosition")
+    void validateParams_RejectsFieldInValuePosition() {
+        ToolMeta meta = r1HttpTool("tool_s08_value");
+        when(registry.findMeta("tool_s08_value")).thenReturn(meta);
+        when(registry.findInputSchema("tool_s08_value"))
+                .thenReturn(new ToolSchema(List.of("orderId")));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+
+        // "orderId" appears as a VALUE, not a KEY → should fail validation
+        ToolCallRequest req = requestWithParams("tool_s08_value", Map.of());
+        req.setInputJson("{\"someField\":\"orderId\"}");
+
+        assertThatThrownBy(() -> gateway.invoke(req))
+                .isInstanceOf(ToolValidationException.class)
+                .hasMessageContaining("参数 schema 校验失败");
+    }
+
+    /**
+     * S-08: validateParams must correctly parse nested JSON and find required fields.
+     */
+    @Test
+    @DisplayName("S-08: validateParams_acceptsValidJsonWithRequiredFields")
+    void validateParams_AcceptsValidJsonWithRequiredFields() {
+        ToolMeta meta = r1HttpTool("tool_s08_valid");
+        when(registry.findMeta("tool_s08_valid")).thenReturn(meta);
+        when(registry.findInputSchema("tool_s08_valid"))
+                .thenReturn(new ToolSchema(List.of("query", "limit")));
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        when(httpExecutor.execute(eq(meta), any(), anyLong()))
+                .thenReturn(successResult("tool_s08_valid"));
+
+        ToolCallRequest req = requestWithParams("tool_s08_valid", Map.of());
+        req.setInputJson("{\"query\":\"test\",\"limit\":10}");
+
+        ToolCallResult result = gateway.invoke(req);
+        assertThat(result.getStatus()).isEqualTo(ToolCallStatus.SUCCESS);
+    }
+
+    /**
+     * S-08: validateParams must reject malformed JSON.
+     */
+    @Test
+    @DisplayName("S-08: validateParams_rejectsMalformedJson")
+    void validateParams_RejectsMalformedJson() {
+        ToolMeta meta = r1HttpTool("tool_s08_malformed");
+        when(registry.findMeta("tool_s08_malformed")).thenReturn(meta);
+        when(registry.findInputSchema("tool_s08_malformed"))
+                .thenReturn(new ToolSchema(List.of("query")));
+
+        ToolCallRequest req = requestWithParams("tool_s08_malformed", Map.of());
+        req.setInputJson("{not valid json");
+
+        assertThatThrownBy(() -> gateway.invoke(req))
+                .isInstanceOf(ToolValidationException.class)
+                .hasMessageContaining("参数 schema 校验失败");
     }
 }

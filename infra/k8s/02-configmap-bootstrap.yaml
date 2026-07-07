@@ -53,6 +53,12 @@ data:
           kv:
             backend: agent-platform
             application-name: ${spring.application.name}
+    # S-07: Graceful shutdown — allows in-flight requests to complete during K8s termination
+    server:
+      shutdown: graceful
+    spring:
+      lifecycle:
+        timeout-per-shutdown-phase: 30s
     # R-08: actuator endpoint lockdown
     management:
       endpoints:

@@ -21,6 +21,7 @@ import com.agent.runtime.loop.ThinkResult;
 import com.agent.runtime.model.ReActContext;
 import com.agent.runtime.model.ReActResult;
 import com.agent.runtime.model.StepState;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,9 @@ import java.util.UUID;
 public class ReActLoopImpl implements ReActLoop {
 
     private static final Logger log = LoggerFactory.getLogger(ReActLoopImpl.class);
+
+    /** S-09: JSON serializer for checkpoint data (thread-safe). */
+    private static final ObjectMapper CHECKPOINT_MAPPER = new ObjectMapper();
 
     /** 骨架阶段最大循环次数, 超过触发熔断 (legacy, doc F6 CIRCUIT_OPEN) */
     private static final int MAX_LOOP_COUNT = 10;
@@ -308,14 +312,23 @@ public class ReActLoopImpl implements ReActLoop {
         }
     }
 
-    /** Sync step state to StepStateSyncer and persist checkpoint. */
+    /** Sync step state to StepStateSyncer and persist checkpoint.
+     *  S-09: Uses Jackson for JSON serialization instead of String.format
+     *  to properly escape special characters in detail field. */
     private void syncStepState(ReActContext ctx, int stepNumber, ReActPhaseType phase, String detail) {
         stepStateSyncer.syncStepState(ctx.getAgentInstanceId(), stepNumber, phase);
-        // checkpoint with serialized context for crash recovery
-        String checkpointData = String.format(
-                "{\"stepNumber\":%d,\"phase\":\"%s\",\"detail\":\"%s\",\"tokenUsed\":%d}",
-                stepNumber, phase, detail == null ? "" : detail, ctx.getTokenUsed());
-        stepStateSyncer.checkpoint(ctx.getAgentInstanceId(), stepNumber, checkpointData);
+        try {
+            var checkpoint = CHECKPOINT_MAPPER.createObjectNode();
+            checkpoint.put("stepNumber", stepNumber);
+            checkpoint.put("phase", phase != null ? phase.name() : null);
+            checkpoint.put("detail", detail != null ? detail : "");
+            checkpoint.put("tokenUsed", ctx.getTokenUsed());
+            String checkpointData = CHECKPOINT_MAPPER.writeValueAsString(checkpoint);
+            stepStateSyncer.checkpoint(ctx.getAgentInstanceId(), stepNumber, checkpointData);
+        } catch (Exception e) {
+            log.error("checkpoint 序列化失败: agentInstanceId={}, step={}, err={}",
+                    ctx.getAgentInstanceId(), stepNumber, e.getMessage(), e);
+        }
     }
 
     // ============ Legacy start() / transit() (backward compat) ============

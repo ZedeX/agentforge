@@ -5,6 +5,8 @@ import com.agent.modelgateway.model.ModelProvider;
 import com.agent.modelgateway.model.ModelUsageLog;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -13,12 +15,20 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>Skeleton stage: maintains provider单价表 + tenant累计 cost in ConcurrentHashMap.
  * JPA + Redis deferred to Plan 07 T12.</p>
+ *
+ * <p>S-11: Internal calculations use BigDecimal to avoid floating-point precision
+ * drift in cost accumulation. The external interface still returns double for
+ * backward compatibility.</p>
  */
 @Component
 public class CostMeterImpl implements CostMeter {
 
+    private static final BigDecimal THOUSAND = new BigDecimal("1000");
+    private static final int COST_SCALE = 10;
+
     private final Map<String, ModelProvider> providerTable = new ConcurrentHashMap<>();
-    private final Map<String, Double> tenantQuotaUsed = new ConcurrentHashMap<>();
+    /** S-11: BigDecimal for precise cost accumulation. */
+    private final Map<String, BigDecimal> tenantQuotaUsed = new ConcurrentHashMap<>();
 
     public CostMeterImpl() {
         // Seed default provider pricing (USD per 1k tokens)
@@ -50,20 +60,25 @@ public class CostMeterImpl implements CostMeter {
             return 0.0;
         }
         ModelProvider provider = providerTable.get(log.getProviderCode());
-        double inputCost = 0.0;
-        double outputCost = 0.0;
+        BigDecimal inputCost = BigDecimal.ZERO;
+        BigDecimal outputCost = BigDecimal.ZERO;
         if (provider != null) {
-            inputCost = (log.getInputTokens() / 1000.0) * provider.getCostPerInput1k();
-            outputCost = (log.getOutputTokens() / 1000.0) * provider.getCostPerOutput1k();
+            BigDecimal inputTokens = BigDecimal.valueOf(log.getInputTokens());
+            BigDecimal outputTokens = BigDecimal.valueOf(log.getOutputTokens());
+            BigDecimal inputRate = BigDecimal.valueOf(provider.getCostPerInput1k());
+            BigDecimal outputRate = BigDecimal.valueOf(provider.getCostPerOutput1k());
+            inputCost = inputTokens.multiply(inputRate).divide(THOUSAND, COST_SCALE, RoundingMode.HALF_UP);
+            outputCost = outputTokens.multiply(outputRate).divide(THOUSAND, COST_SCALE, RoundingMode.HALF_UP);
         }
-        double totalCost = inputCost + outputCost;
-        log.setInputCostUsd(inputCost);
-        log.setOutputCostUsd(outputCost);
-        log.setTotalCostUsd(totalCost);
-        // Accumulate per tenant
+        BigDecimal totalCost = inputCost.add(outputCost);
+        double totalCostDouble = totalCost.doubleValue();
+        log.setInputCostUsd(inputCost.doubleValue());
+        log.setOutputCostUsd(outputCost.doubleValue());
+        log.setTotalCostUsd(totalCostDouble);
+        // Accumulate per tenant (BigDecimal addition, no drift)
         String tenantId = log.getTenantId() != null ? log.getTenantId() : "default";
-        tenantQuotaUsed.merge(tenantId, totalCost, Double::sum);
-        return totalCost;
+        tenantQuotaUsed.merge(tenantId, totalCost, BigDecimal::add);
+        return totalCostDouble;
     }
 
     @Override
@@ -71,6 +86,6 @@ public class CostMeterImpl implements CostMeter {
         if (tenantId == null) {
             return 0.0;
         }
-        return tenantQuotaUsed.getOrDefault(tenantId, 0.0);
+        return tenantQuotaUsed.getOrDefault(tenantId, BigDecimal.ZERO).doubleValue();
     }
 }
