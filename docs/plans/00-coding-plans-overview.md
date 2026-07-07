@@ -1,14 +1,14 @@
 # Agent 平台编码计划总览
 
-> 文档版本：v2.4 | 更新日期：2026-07-07 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
+> 文档版本：v2.6 | 更新日期：2026-07-08 | 基于 15 份设计文档（11 主设计 + 1 补遗 + 3 详细流程图）
 > 方法论：[writing-plans](../../project_memory.md) | TDD 红绿循环 | 无占位符 | bite-sized tasks
 > 维护原则：每完成一个 Wave 后更新本表（Plan 状态 / Task 进度 / CI streak）
 
 ## 0. 总览
 
-本平台共 11 个核心微服务 + 2 个横向服务，按依赖关系拆分为 **9 个独立编码计划**（Plan 01~Plan 09）。每个计划可独立交付可测试的软件单元，遵循 TDD 红绿循环。
+本平台共 11 个核心微服务 + 2 个横向服务，按依赖关系拆分为 **10 个独立编码计划**（Plan 01~Plan 10）。每个计划可独立交付可测试的软件单元，遵循 TDD 红绿循环。
 
-### 当前总体进度（截至 Wave 40，CI streak=42）
+### 当前总体进度（截至 Wave 47，CI streak=42）
 
 | # | 计划名称 | 模块 | Task 进度 | 状态 | 最新 Wave |
 |---|---|---|---|---|---|
@@ -21,6 +21,7 @@
 | 07 | [agent-model-gateway](./07-agent-model-gateway-plan.md) | agent-model-gateway(8094/9094) | 14/14 | ✅ 已完成 | Wave 18~29, 40 |
 | 08 | [agent-repo-knowledge](./08-agent-repo-knowledge-plan.md) | agent-repo(8096) + agent-knowledge(8098) | 12/12 | ✅ 已完成 | Wave 19~26, 40 |
 | 09 | [infra-deployment](./09-infra-deployment-plan.md) | infra/k8s + docker + nacos | 13/13 | ✅ 已完成 | — |
+| 10 | [cross-service-compensation-and-exception](./10-cross-service-compensation-and-exception-plan.md) | agent-common + 全服务 | 6/6 Phase | 🔄 进行中 | Wave 45~47 |
 
 ### 各 Plan 详细进度
 
@@ -118,6 +119,18 @@
 - PowerShell 部署脚本 (build-all + deploy + deploy-middleware + health-check)
 - 验证: PS 8/8 OK, YAML 56/56 OK, JSON 1/1 OK
 - 依赖：全部业务服务可启动后执行
+
+#### Plan 10 — 跨服务补偿事务 + 异常处理标准化（🔄 进行中，6 Phase）
+[PRD + 实施计划](./10-cross-service-compensation-and-exception-plan.md) | [ADR-006](../adr/ADR-006-exception-handling-standard.md)
+
+| Phase | 状态 | 说明 |
+|---|---|---|
+| Phase 1 Outbox 框架 | ✅ | OutboxMessage 实体 + OutboxRepository + OutboxRelay (@Scheduled) + OutboxPublisher (interface) + OutboxConsumer (幂等, event_consume_log) |
+| Phase 2 Outbox 接入 | ✅ | ToolGatewayImpl 审计写 outbox (ToolAuditOutboxConsumer); ReActLoopImpl syncStepState + checkpoint 写 outbox; OutboxJpaConfig 独立 @Configuration |
+| Phase 3 Outbox 测试 | ✅ | ToolGatewayImpl 3 outbox 测试 + ToolAuditOutboxConsumer 4 测试 + DDL 更新 |
+| Phase 4 S-12 GrpcExceptionAdvice | ✅ | 12 个 GrpcExceptionAdvice 添加 log.warn (status+desc+full exception) |
+| Phase 5 S-12 catch 缩窄 + ADR-006 | ✅ | 13 个 gRPC 服务 catch(Throwable)→catch(Exception); 3 个业务逻辑吞异常修复; ADR-006 文档; RiskControlGrpcServiceTest 修复 |
+| Phase 6 监控 + 文档同步 | 🔄 | OutboxRelay Micrometer 指标 (published_total/failed_total/latency_seconds) ✅; Prometheus 告警规则 ✅; project_memory.md 更新 ✅; 扩展场景验证 ❌; 全量测试 ❌ |
 
 ---
 
@@ -224,12 +237,13 @@ e:\git\Agent-Platform-Prototype\
     └── adr/              # 架构决策记录
 ```
 
-### 3.3 5 条 ADR（编码时不得违反）
+### 3.3 6 条 ADR（编码时不得违反）
 - ADR-001：自研 DAG 引擎（不依赖 Airflow）
 - ADR-002：Agent 运行时无状态，状态外置 Redis `runtime:{agentInstanceId}:state`
 - ADR-003：OpenAI 协议适配器
 - ADR-004：Milvus 作为统一向量库
 - ADR-005：工具调用统一走 tool-engine.ToolGateway gRPC 网关
+- ADR-006：异常处理标准 — 禁止 catch+log 吞异常（必须 rethrow/outbox/显式注释）; GrpcExceptionAdvice.translate() 必须 log.warn; gRPC 服务用 catch(Exception) 不用 catch(Throwable)
 
 ### 3.4 TDD 红绿循环（每个 Task 必须遵循）
 1. 写失败测试
@@ -326,3 +340,4 @@ commit 3: refactor(orchestrator): extract transition matrix to enum
 | v2.3 | 2026-07-04 | 同步 Wave 40 进度：①Plan 07 进度 13/14 → 14/14（T14 集成测试 6 E2E 场景完成）；②Plan 08 进度 7/12 → 12/12（T10 Milvus 双轨 + T12 集成测试 6 E2E 场景完成）；③CI streak 39 → 42；④依赖图全量更新（Plan 03/04/07/08 标记 ✅）；⑤阶段 B → ✅ 基本完成，阶段 C → 🔄 进行中；⑥优先级排序更新（Plan 05/06 高优先级） |
 | v2.4 | 2026-07-06 | 同步进度：①Plan 05 进度 0/12 → 12/12（224 tests, 49 classes, T1-T12 全部完成）；②Plan 06 进度 0/10 → 10/10（163 tests, 72+ classes, T1-T10 全部完成）；③阶段 B → ✅ 已完成，阶段 C → ✅ 已完成；④优先级排序更新（仅剩 Plan 09 infra-deployment） |
 | v2.5 | 2026-07-07 | 同步安全加固进度：①Wave 42 红蓝对抗审计完成（docs/audits/red-blue-team-report-2026-07-07.md）；②Wave 43 安全加固 Wave 1~3 完成（4 CRITICAL + 5 HIGH + 5 MED）；③Wave 44 安全加固剩余修复完成（5 MED + 2 CVE）；④总计 21 条审计发现全部修复，攻击链 A/B/C 端到端阻断；⑤project_memory.md 已更新 Wave 42~44 章节；⑥README.md 已添加安全加固章节 |
+| v2.6 | 2026-07-08 | 新增 Plan 10：①S-04 跨服务补偿事务（Outbox 框架: OutboxMessage/OutboxRelay/OutboxConsumer + ToolGatewayImpl 审计接入 + ReActLoopImpl 状态同步接入 + Micrometer 指标 + Prometheus 告警）；②S-12 异常处理标准化（12 个 GrpcExceptionAdvice 添加 log.warn + 13 个 gRPC 服务 catch(Throwable)→catch(Exception) + ADR-006 异常处理标准文档）；③ADR 列表从 5 条增至 6 条 |

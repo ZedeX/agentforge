@@ -1,0 +1,41 @@
+groups:
+  - name: outbox_alerts
+    rules:
+      - alert: OutboxDeadMessages
+        expr: outbox_message_dead_count > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Outbox has DEAD messages"
+          description: >-
+            Outbox table has {{ $value }} DEAD messages that exceeded max retries.
+            Manual intervention required to replay or investigate.
+          runbook_url: "https://wiki.internal/runbooks/outbox-dead-messages"
+
+      - alert: OutboxPendingBacklog
+        expr: outbox_message_pending_count > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Outbox PENDING backlog exceeds threshold"
+          description: >-
+            Outbox table has {{ $value }} PENDING messages, exceeding the 1000 threshold.
+            This may indicate downstream service (RocketMQ) unavailability or
+            relay processing lag.
+          runbook_url: "https://wiki.internal/runbooks/outbox-pending-backlog"
+
+      - alert: OutboxRelayLatencyHigh
+        expr: histogram_quantile(0.95, rate(outbox_relay_latency_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Outbox relay P95 latency exceeds 10s"
+          description: >-
+            Outbox relay cycle P95 latency is {{ $value }}s, exceeding the 10s threshold.
+            This may indicate database query slowness or MQ publish latency.

@@ -58,6 +58,12 @@
             <version>${spring-boot.version}</version>
             <optional>true</optional>
         </dependency>
+        <!-- Micrometer for OutboxRelay metrics (optional, provided by spring-boot-starter-actuator) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>
