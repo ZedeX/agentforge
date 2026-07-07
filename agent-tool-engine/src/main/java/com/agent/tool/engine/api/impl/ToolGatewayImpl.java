@@ -181,15 +181,24 @@ public class ToolGatewayImpl implements ToolGateway {
         }
 
         // ---------- Step 4: assessRisk ----------
-        ToolRiskLevel riskLevel = request.getRiskLevel();
-        RiskAssessment assessment;
-        if (riskLevel == null) {
-            assessment = riskClassifier.classify(meta, request);
-        } else {
-            assessment = new RiskAssessment(riskLevel, riskLevel.requiresApproval(),
-                    "caller-declared " + riskLevel);
+        // R-02: ALWAYS classify — never trust caller-declared riskLevel to downgrade.
+        // Caller may only declare HIGHER risk (safer); final = max(classified, caller).
+        RiskAssessment assessment = riskClassifier.classify(meta, request);
+        ToolRiskLevel classified = assessment.getRiskLevel();
+        ToolRiskLevel callerDeclared = request.getRiskLevel();
+        if (callerDeclared != null && callerDeclared.getLevel() > classified.getLevel()) {
+            // Caller declares higher risk than classified → trust caller (safer direction)
+            String reason = "classified=" + classified + " callerDeclared=" + callerDeclared
+                    + " final=" + callerDeclared;
+            assessment = new RiskAssessment(callerDeclared,
+                    callerDeclared.requiresApproval() || assessment.isRequiresApproval(),
+                    reason);
+        } else if (callerDeclared != null) {
+            // Caller tried to downgrade (or same level) → ignore, keep classified
+            log.info("Caller declared {} but classifier says {}; keeping {} (never-downgrade)",
+                    callerDeclared, classified, classified);
         }
-        riskLevel = assessment.getRiskLevel();
+        ToolRiskLevel riskLevel = assessment.getRiskLevel();
 
         // ---------- Step 5: recall (best-effort) ----------
         List<ToolRecallResult> hints = recallHints(meta, request);

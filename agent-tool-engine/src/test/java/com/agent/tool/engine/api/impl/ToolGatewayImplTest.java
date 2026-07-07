@@ -405,6 +405,52 @@ class ToolGatewayImplTest {
 
     // ============ Additional edge-case tests ============
 
+    // R-02: Caller must not be able to downgrade risk level
+    @Test
+    @DisplayName("R-02: caller declaring R1 on R3 tool must still require approval")
+    void call_CallerDeclaresR1OnR3Tool_StillRequiresApproval() {
+        ToolMeta meta = r3ShellTool("tool_r3_downgrade");
+        when(registry.findMeta("tool_r3_downgrade")).thenReturn(meta);
+        when(registry.findInputSchema("tool_r3_downgrade")).thenReturn(new ToolSchema(List.of()));
+        // RiskClassifier always says R3 for DESTRUCTIVE
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R3, true, "R3"));
+        // No approval → should block
+        when(approvalStore.findValid("tool_r3_downgrade")).thenReturn(Optional.empty());
+
+        // Caller tries to declare R1 to bypass approval
+        ToolCallRequest req = requestWithParams("tool_r3_downgrade", Map.of());
+        req.setRiskLevel(ToolRiskLevel.R1);
+
+        assertThatThrownBy(() -> gateway.invoke(req))
+                .isInstanceOf(ToolApprovalException.class);
+
+        verify(shellExecutor, never()).execute(any(), any(), anyLong());
+        verify(riskClassifier, times(1)).classify(eq(meta), any()); // classify WAS called
+    }
+
+    @Test
+    @DisplayName("R-02: caller declaring R3 on R1 tool should upgrade to R3 (safer)")
+    void call_CallerDeclaresR3OnR1Tool_UpgradesToR3() {
+        ToolMeta meta = r1HttpTool("tool_r1_upgrade");
+        when(registry.findMeta("tool_r1_upgrade")).thenReturn(meta);
+        when(registry.findInputSchema("tool_r1_upgrade")).thenReturn(new ToolSchema(List.of()));
+        // RiskClassifier says R1
+        when(riskClassifier.classify(eq(meta), any()))
+                .thenReturn(new RiskAssessment(ToolRiskLevel.R1, false, "R1"));
+        // R3 requires approval → no approval → should block
+        when(approvalStore.findValid("tool_r1_upgrade")).thenReturn(Optional.empty());
+
+        // Caller declares R3 (safer direction)
+        ToolCallRequest req = requestWithParams("tool_r1_upgrade", Map.of());
+        req.setRiskLevel(ToolRiskLevel.R3);
+
+        assertThatThrownBy(() -> gateway.invoke(req))
+                .isInstanceOf(ToolApprovalException.class);
+
+        verify(httpExecutor, never()).execute(any(), any(), anyLong());
+    }
+
     @Test
     @DisplayName("14. call_unregisteredTool_throwsValidation")
     void call_UnregisteredTool_ThrowsValidation() {
