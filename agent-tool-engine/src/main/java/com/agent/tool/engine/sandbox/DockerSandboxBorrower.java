@@ -8,6 +8,7 @@ import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
 import com.github.dockerjava.api.command.InspectExecResponse;
 import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Capability;
 import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.StreamType;
@@ -314,7 +315,8 @@ public class DockerSandboxBorrower implements SandboxBorrower {
                 .build();
     }
 
-    /** Create + start a Docker container per {@code spec}. */
+    /** Create + start a Docker container per {@code spec}.
+     *  R-07: container runs as non-root user "nobody". */
     private SandboxInstance createContainer(SandboxSpec spec) {
         HostConfig hostConfig = buildHostConfig(spec);
         CreateContainerResponse resp;
@@ -323,6 +325,7 @@ public class DockerSandboxBorrower implements SandboxBorrower {
                     .withHostConfig(hostConfig)
                     .withCmd("sleep", "infinity")
                     .withEnv(toEnvList(spec.getEnv()))
+                    .withUser("nobody")          // R-07: run as non-root
                     .exec();
         } catch (RuntimeException e) {
             throw new ToolSandboxFailureException("createContainerCmd failed for image=" + spec.getImage(), e);
@@ -343,14 +346,19 @@ public class DockerSandboxBorrower implements SandboxBorrower {
         return new SandboxInstance(containerId, spec);
     }
 
-    /** Build HostConfig with cpu / memory / network / tmpfs / binds per spec. */
+    /** Build HostConfig with cpu / memory / network / tmpfs / binds per spec.
+     *  R-07: hardened with cap-drop ALL, no-new-privileges. */
     private HostConfig buildHostConfig(SandboxSpec spec) {
         // Docker expects nanocpus (1 CPU = 1e9 nanoCPUs).
         long nanoCpus = (long) (spec.getCpuCores() * 1_000_000_000L);
         HostConfig hostConfig = new HostConfig()
                 .withNanoCPUs(nanoCpus)
                 .withMemory(spec.getMemoryBytes())
-                .withNetworkMode(spec.getNetworkMode());
+                .withNetworkMode(spec.getNetworkMode())
+                // R-07: Security hardening
+                .withCapDrop(Capability.ALL)                            // drop all Linux capabilities
+                .withPrivileged(false)                                 // never privileged
+                .withSecurityOpts(List.of("no-new-privileges:true"));  // prevent priv escalation
         if (spec.getTmpfsBytes() > 0) {
             Map<String, String> tmpfs = new LinkedHashMap<>();
             tmpfs.put("/tmp", "size=" + spec.getTmpfsBytes());

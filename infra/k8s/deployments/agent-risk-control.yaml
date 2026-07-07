@@ -29,12 +29,25 @@ spec:
         prometheus.io/port: "8102"
         prometheus.io/path: /actuator/prometheus
     spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: agent-risk-control-sa
       terminationGracePeriodSeconds: 60
       containers:
         - name: agent-risk-control
           image: agentplatform/agent-risk-control:1.0.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # Spring Boot needs /tmp; set true + emptyDir tmpfs for hardening
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8102

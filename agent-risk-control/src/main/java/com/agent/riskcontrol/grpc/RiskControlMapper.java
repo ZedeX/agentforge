@@ -35,14 +35,18 @@ public class RiskControlMapper {
 
     /**
      * Proto CheckPermissionRequest -> POJO CheckPermissionRequest.
+     * R-06: includes role field from JWT claims.
      */
     public com.agent.riskcontrol.model.CheckPermissionRequest toPojo(CheckPermissionRequest proto) {
-        return new com.agent.riskcontrol.model.CheckPermissionRequest(
-                proto.getUserId(),
-                proto.getResource(),
-                proto.getAction(),
-                proto.getResourceType()
-        );
+        com.agent.riskcontrol.model.CheckPermissionRequest pojo =
+                new com.agent.riskcontrol.model.CheckPermissionRequest(
+                        proto.getUserId(),
+                        proto.getResource(),
+                        proto.getAction(),
+                        proto.getResourceType()
+                );
+        pojo.setRole(proto.getRole());
+        return pojo;
     }
 
     /**

@@ -12,7 +12,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Simple role-based permission checker implementation.
+ * Role-based permission checker implementation.
+ *
+ * <p>R-06: Role is extracted from JWT claims by the gateway and passed via
+ * {@link CheckPermissionRequest#getRole()}. No hardcoded user-role mappings.
  *
  * <p>Role hierarchy:
  * <ul>
@@ -21,7 +24,7 @@ import java.util.Set;
  *   <li>viewer: read only</li>
  * </ul>
  *
- * <p>When no role is found for the user, the default action from configuration applies.
+ * <p>When no role is provided in the request, the default action from configuration applies.
  */
 @Slf4j
 @Component
@@ -31,13 +34,6 @@ public class PermissionCheckerImpl implements PermissionChecker {
             "admin", Set.of("create", "read", "update", "delete", "execute"),
             "user", Set.of("read", "create"),
             "viewer", Set.of("read")
-    );
-
-    /** Simulated user-role mapping. In production this would query an IAM service. */
-    private static final Map<String, String> USER_ROLES = Map.of(
-            "admin-001", "admin",
-            "user-001", "user",
-            "viewer-001", "viewer"
     );
 
     private final RiskControlProperties properties;
@@ -59,10 +55,11 @@ public class PermissionCheckerImpl implements PermissionChecker {
             return new CheckPermissionResponse(false, "Action is required", List.of());
         }
 
-        String role = USER_ROLES.get(userId);
+        // R-06: Role from JWT claims (passed by gateway via gRPC), not hardcoded lookup
+        String role = request.getRole();
 
-        if (role == null) {
-            // No role found, apply default action
+        if (role == null || role.isEmpty()) {
+            // No role provided, apply default action
             boolean allowed = "allow".equalsIgnoreCase(properties.getPermission().getDefaultAction());
             String reason = allowed ? "Default action: allow" : "Default action: deny - no role found for user";
             log.info("Permission check: userId={} action={} noRole defaultAction={}",
@@ -75,7 +72,9 @@ public class PermissionCheckerImpl implements PermissionChecker {
 
         String reason = allowed
                 ? "Role " + role + " permits action " + action
-                : "Role " + role + " does not permit action " + action;
+                : (permissions == null)
+                    ? "Unknown role " + role + " has no permissions"
+                    : "Role " + role + " does not permit action " + action;
 
         // Find roles that would grant access
         List<String> requiredRoles = ROLE_PERMISSIONS.entrySet().stream()

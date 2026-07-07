@@ -13,11 +13,14 @@ import com.github.dockerjava.api.command.InspectExecResponse;
 import com.github.dockerjava.api.command.KillContainerCmd;
 import com.github.dockerjava.api.command.RemoveContainerCmd;
 import com.github.dockerjava.api.command.StartContainerCmd;
+import com.github.dockerjava.api.model.Capability;
 import com.github.dockerjava.api.model.Frame;
+import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.StreamType;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -324,6 +327,53 @@ class DockerSandboxBorrowerTest {
         assertThat(borrower.idlePoolSize()).isEqualTo(1); // returned to pool
     }
 
+    // ============ R-07: Docker sandbox security hardening ============
+
+    @Nested
+    @DisplayName("R-07: Docker sandbox container security hardening")
+    class SecurityHardening {
+
+        @Test
+        @DisplayName("should_DropAllCapabilities_When_ContainerCreated")
+        void should_DropAllCapabilities_When_ContainerCreated() {
+            stubCreateContainerCapturing("agent-sandbox:latest", "c-sec-1");
+            borrower.borrow(SandboxSpec.builder().build());
+
+            HostConfig hc = captureHostConfig("agent-sandbox:latest");
+            assertThat(hc.getCapDrop()).isNotNull();
+            assertThat(hc.getCapDrop()).contains(Capability.ALL);
+        }
+
+        @Test
+        @DisplayName("should_RunAsNobody_When_ContainerCreated")
+        void should_RunAsNobody_When_ContainerCreated() {
+            CreateContainerCmd createCmd = stubCreateContainerWithUserCapture("agent-sandbox:latest", "c-sec-2");
+            borrower.borrow(SandboxSpec.builder().build());
+
+            verify(createCmd).withUser("nobody");
+        }
+
+        @Test
+        @DisplayName("should_NotBePrivileged_When_ContainerCreated")
+        void should_NotBePrivileged_When_ContainerCreated() {
+            stubCreateContainerCapturing("agent-sandbox:latest", "c-sec-3");
+            borrower.borrow(SandboxSpec.builder().build());
+
+            HostConfig hc = captureHostConfig("agent-sandbox:latest");
+            assertThat(hc.getPrivileged()).isFalse();
+        }
+
+        @Test
+        @DisplayName("should_SetNoNewPrivileges_When_ContainerCreated")
+        void should_SetNoNewPrivileges_When_ContainerCreated() {
+            stubCreateContainerCapturing("agent-sandbox:latest", "c-sec-4");
+            borrower.borrow(SandboxSpec.builder().build());
+
+            HostConfig hc = captureHostConfig("agent-sandbox:latest");
+            assertThat(hc.getSecurityOpts()).contains("no-new-privileges:true");
+        }
+    }
+
     // ============ Helpers ============
 
     /** Stub the createContainerCmd → startContainerCmd chain to return a fake containerId. */
@@ -334,11 +384,55 @@ class DockerSandboxBorrowerTest {
         when(createCmd.withHostConfig(any())).thenReturn(createCmd);
         when(createCmd.withCmd(any(String[].class))).thenReturn(createCmd);
         when(createCmd.withEnv(any(List.class))).thenReturn(createCmd);
+        when(createCmd.withUser(any())).thenReturn(createCmd);
         when(createCmd.exec()).thenReturn(createResp);
         when(dockerClient.createContainerCmd(image)).thenReturn(createCmd);
 
         StartContainerCmd startCmd = mock(StartContainerCmd.class);
         when(dockerClient.startContainerCmd(containerId)).thenReturn(startCmd);
+    }
+
+    /** Stub that also captures the HostConfig passed to createContainerCmd for security assertions. */
+    private final ArgumentCaptor<HostConfig> hostConfigCaptor = ArgumentCaptor.forClass(HostConfig.class);
+
+    private void stubCreateContainerCapturing(String image, String containerId) {
+        CreateContainerCmd createCmd = mock(CreateContainerCmd.class);
+        CreateContainerResponse createResp = mock(CreateContainerResponse.class);
+        when(createResp.getId()).thenReturn(containerId);
+        when(createCmd.withHostConfig(hostConfigCaptor.capture())).thenReturn(createCmd);
+        when(createCmd.withCmd(any(String[].class))).thenReturn(createCmd);
+        when(createCmd.withEnv(any(List.class))).thenReturn(createCmd);
+        when(createCmd.withUser(any())).thenReturn(createCmd);
+        when(createCmd.exec()).thenReturn(createResp);
+        when(dockerClient.createContainerCmd(image)).thenReturn(createCmd);
+
+        StartContainerCmd startCmd = mock(StartContainerCmd.class);
+        when(dockerClient.startContainerCmd(containerId)).thenReturn(startCmd);
+    }
+
+    /** Stub that returns the CreateContainerCmd mock so caller can verify withUser(). */
+    private CreateContainerCmd stubCreateContainerWithUserCapture(String image, String containerId) {
+        CreateContainerCmd createCmd = mock(CreateContainerCmd.class);
+        CreateContainerResponse createResp = mock(CreateContainerResponse.class);
+        when(createResp.getId()).thenReturn(containerId);
+        when(createCmd.withHostConfig(any())).thenReturn(createCmd);
+        when(createCmd.withCmd(any(String[].class))).thenReturn(createCmd);
+        when(createCmd.withEnv(any(List.class))).thenReturn(createCmd);
+        when(createCmd.withUser(any())).thenReturn(createCmd);
+        when(createCmd.exec()).thenReturn(createResp);
+        when(dockerClient.createContainerCmd(image)).thenReturn(createCmd);
+
+        StartContainerCmd startCmd = mock(StartContainerCmd.class);
+        when(dockerClient.startContainerCmd(containerId)).thenReturn(startCmd);
+
+        return createCmd;
+    }
+
+    /** Get the captured HostConfig from the last stubCreateContainerCapturing call. */
+    private HostConfig captureHostConfig(String image) {
+        // Trigger verification that createContainerCmd was called with the image
+        verify(dockerClient).createContainerCmd(image);
+        return hostConfigCaptor.getValue();
     }
 
     /** Stub the full exec chain: execCreateCmd → execStartCmd (writes frame) → inspectExecCmd. */

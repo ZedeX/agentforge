@@ -9,6 +9,8 @@ public class CheckPermissionRequest {
     private String resource;
     private String action;
     private String resourceType;
+    /** R-06: JWT-extracted role from gateway (admin|user|viewer). Null = no role provided. */
+    private String role;
 
     public CheckPermissionRequest() {
     }
@@ -50,5 +52,13 @@ public class CheckPermissionRequest {
 
     public void setResourceType(String resourceType) {
         this.resourceType = resourceType;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

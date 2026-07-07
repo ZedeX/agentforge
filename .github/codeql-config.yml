@@ -1,0 +1,13 @@
+# CodeQL configuration for Agent Platform
+# R-09: Exclude generated protobuf code from analysis
+name: Custom CodeQL Configuration
+
+paths-ignore:
+  - '**/generated-sources/**'
+  - '**/*Grpc.java'
+  - '**/*OuterClass*.java'
+  - '**/proto/**'
+
+query-filters:
+  - security-extended
+  - security-and-quality

@@ -10,8 +10,8 @@ spring:
     name: agent-risk-control
   datasource:
     url: jdbc:mysql://localhost:3306/agent_risk_control?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
-    username: root
-    password: root
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:

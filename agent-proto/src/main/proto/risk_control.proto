@@ -42,6 +42,7 @@ message CheckPermissionRequest {
   string resource = 2;                  // agent_id / tool_id / knowledge_base_id
   string action = 3;                    // create | read | update | delete | execute
   string resource_type = 4;             // agent | tool | knowledge | session
+  string role = 5;                      // R-06: JWT-extracted role from gateway (admin|user|viewer)
   agentplatform.common.v1.TraceContext trace = 99;
 }
 
