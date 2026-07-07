@@ -66,8 +66,8 @@ public class KnowledgeBaseGrpcService extends KnowledgeServiceGrpc.KnowledgeServ
                     request.getOverlap());
             responseObserver.onNext(mapper.toIngestResponse(result));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -84,8 +84,8 @@ public class KnowledgeBaseGrpcService extends KnowledgeServiceGrpc.KnowledgeServ
                     request.getEnableMmr());
             responseObserver.onNext(mapper.toSearchResponse(results));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -98,8 +98,8 @@ public class KnowledgeBaseGrpcService extends KnowledgeServiceGrpc.KnowledgeServ
             List<KnowledgeBase> bases = kbService.listBases(request.getStatus().isEmpty() ? null : request.getStatus());
             responseObserver.onNext(mapper.toListResponse(bases));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -113,8 +113,8 @@ public class KnowledgeBaseGrpcService extends KnowledgeServiceGrpc.KnowledgeServ
             kbService.deleteBase(kbId, request.getForce());
             responseObserver.onNext(mapper.toDeleteResponse(kbId, true, "deleted"));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }

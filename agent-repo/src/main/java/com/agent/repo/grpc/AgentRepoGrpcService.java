@@ -85,8 +85,8 @@ public class AgentRepoGrpcService extends AgentRepoGrpc.AgentRepoImplBase {
                     saved.getAgentId(), saved.getName(), saved.getAgentTier());
             responseObserver.onNext(mapper.toResponse(saved));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -107,8 +107,8 @@ public class AgentRepoGrpcService extends AgentRepoGrpc.AgentRepoImplBase {
             log.debug("getAgent success agentId={} name={}", agentId, entity.getName());
             responseObserver.onNext(mapper.toResponse(entity));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -141,8 +141,8 @@ public class AgentRepoGrpcService extends AgentRepoGrpc.AgentRepoImplBase {
                     saved.getAgentId(), saved.getName(), saved.getVersion());
             responseObserver.onNext(mapper.toResponse(saved));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -158,8 +158,8 @@ public class AgentRepoGrpcService extends AgentRepoGrpc.AgentRepoImplBase {
                     request.getStatus(), query.getPage(), query.getSize(), page.getTotal());
             responseObserver.onNext(mapper.toListResponse(page));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }

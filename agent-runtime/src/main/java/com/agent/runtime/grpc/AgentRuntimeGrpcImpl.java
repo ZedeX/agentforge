@@ -78,8 +78,8 @@ public class AgentRuntimeGrpcImpl extends AgentRuntimeGrpc.AgentRuntimeImplBase 
             StartAgentResponse response = StepStateMapper.toStartAgentResponse(session);
             observer.onNext(response);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -136,8 +136,8 @@ public class AgentRuntimeGrpcImpl extends AgentRuntimeGrpc.AgentRuntimeImplBase 
 
             observer.onNext(response);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -154,8 +154,8 @@ public class AgentRuntimeGrpcImpl extends AgentRuntimeGrpc.AgentRuntimeImplBase 
             AgentState state = StepStateMapper.toAgentState(session);
             observer.onNext(state);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -174,8 +174,8 @@ public class AgentRuntimeGrpcImpl extends AgentRuntimeGrpc.AgentRuntimeImplBase 
             PauseResponse response = StepStateMapper.toPauseResponse(session);
             observer.onNext(response);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -194,8 +194,8 @@ public class AgentRuntimeGrpcImpl extends AgentRuntimeGrpc.AgentRuntimeImplBase 
             ResumeResponse response = StepStateMapper.toResumeResponse(session);
             observer.onNext(response);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 

@@ -134,8 +134,8 @@ public class QualityGrpcService extends QualityServiceGrpc.QualityServiceImplBas
                     request.getTaskId(), overallResult, outputs.size());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -174,8 +174,8 @@ public class QualityGrpcService extends QualityServiceGrpc.QualityServiceImplBas
                     request.getTaskId(), record.getBadcaseId(), needsReview);
             responseObserver.onNext(ack);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -214,8 +214,8 @@ public class QualityGrpcService extends QualityServiceGrpc.QualityServiceImplBas
                     status, page, size, total);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -253,8 +253,8 @@ public class QualityGrpcService extends QualityServiceGrpc.QualityServiceImplBas
             log.info("getQualityMetrics success totalTasks={} badcaseCount={}", totalTasks, badcaseCount);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 

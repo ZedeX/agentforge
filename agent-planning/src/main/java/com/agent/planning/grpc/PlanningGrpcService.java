@@ -61,8 +61,8 @@ public class PlanningGrpcService extends PlanningServiceGrpc.PlanningServiceImpl
                     request.getTaskId(), plan != null ? plan.getComplexity() : "null");
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -82,8 +82,8 @@ public class PlanningGrpcService extends PlanningServiceGrpc.PlanningServiceImpl
                     request.getTaskId(), plan != null ? plan.getSource() : "null");
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -111,8 +111,8 @@ public class PlanningGrpcService extends PlanningServiceGrpc.PlanningServiceImpl
                     request.getTaskId(), result.isPassed());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -144,8 +144,8 @@ public class PlanningGrpcService extends PlanningServiceGrpc.PlanningServiceImpl
                     request.getTaskId(), plan.getVersion());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 

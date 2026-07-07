@@ -107,8 +107,8 @@ public class DriftGrpcService extends DriftMonitorServiceGrpc.DriftMonitorServic
                     request.getAgentId(), driftDetected, driftLevel);
             responseObserver.onNext(resp);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -131,8 +131,8 @@ public class DriftGrpcService extends DriftMonitorServiceGrpc.DriftMonitorServic
                     request.getAgentId(), request.getCorrectionStrategy(), success);
             responseObserver.onNext(resp);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -157,8 +157,8 @@ public class DriftGrpcService extends DriftMonitorServiceGrpc.DriftMonitorServic
             log.info("getBaseline agent_id={} type={}", request.getAgentId(), baselineType);
             responseObserver.onNext(resp);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -205,8 +205,8 @@ public class DriftGrpcService extends DriftMonitorServiceGrpc.DriftMonitorServic
                     request.getAgentId(), behaviorType, baselineUpdated);
             responseObserver.onNext(ack);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 

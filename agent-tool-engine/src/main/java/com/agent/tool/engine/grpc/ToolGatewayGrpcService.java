@@ -89,8 +89,8 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             ToolInvokeResponse response = mapper.toInvokeResponse(callId, result);
             observer.onNext(response);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -118,8 +118,8 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
                     .build();
             observer.onNext(ack);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -142,8 +142,8 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             }
             observer.onNext(b.build());
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 
@@ -180,8 +180,8 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             ToolRegistry proto = mapper.toToolRegistryProto(meta);
             observer.onNext(proto);
             observer.onCompleted();
-        } catch (Throwable t) {
-            advice.translate(t, observer);
+        } catch (Exception e) {
+            advice.translate(e, observer);
         }
     }
 }

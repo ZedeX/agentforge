@@ -133,8 +133,8 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
             transitIfPossible(entity, TaskStatus.RUNNING);
             repository.save(entity);
             emitSuccess(responseObserver, entity, complexity);
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -156,8 +156,8 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
                             "任务不存在: " + request.getTaskId()));
             responseObserver.onNext(mapper.toProto(entity));
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -191,8 +191,8 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
                     .setCancelledAt(System.currentTimeMillis())
                     .build());
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -254,8 +254,8 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
                     .setMessage("ok")
                     .build());
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 

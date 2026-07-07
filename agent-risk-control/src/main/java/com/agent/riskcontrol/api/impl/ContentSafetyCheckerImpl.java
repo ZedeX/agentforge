@@ -180,7 +180,10 @@ public class ContentSafetyCheckerImpl implements ContentSafetyChecker {
             entity.setDetectedAt(Instant.now());
             violationRepository.save(entity);
         } catch (Exception e) {
-            log.warn("Failed to log content violation: {}", e.getMessage());
+            // Intentionally swallowed: violation logging is best-effort and must not
+            // block the main content-safety check flow. Outbox compensation is not
+            // needed because a missed violation log is acceptable (non-critical side-effect).
+            log.warn("Failed to log content violation: {}", e.getMessage(), e);
         }
     }
 }

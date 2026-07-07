@@ -4,6 +4,8 @@ import com.agent.common.exception.BusinessException;
 import com.agent.common.exception.ErrorCode;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,8 +30,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class GrpcExceptionAdvice {
 
+    private static final Logger log = LoggerFactory.getLogger(GrpcExceptionAdvice.class);
+
     /**
      * Translate throwable to gRPC Status and send via observer.onError.
+     * S-12: All gRPC exceptions are logged with status code + description + full stack trace.
      *
      * @param t        business exception or other throwable
      * @param observer gRPC response observer
@@ -37,6 +42,10 @@ public class GrpcExceptionAdvice {
      */
     public <T> void translate(Throwable t, StreamObserver<T> observer) {
         Status status = toStatus(t);
+        if (log.isWarnEnabled()) {
+            log.warn("gRPC exception -> status={} desc={}", status.getCode(),
+                    status.getDescription(), t);
+        }
         observer.onError(status.asRuntimeException());
     }
 

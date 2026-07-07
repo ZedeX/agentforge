@@ -80,8 +80,8 @@ public class HallucinationGrpcService extends HallucinationGovernanceServiceGrpc
             log.info("selfCheck success task_id={} result={}", request.getTaskId(), result);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -101,8 +101,8 @@ public class HallucinationGrpcService extends HallucinationGovernanceServiceGrpc
                     request.getTaskId(), request.getToolId(), guardResult);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -122,8 +122,8 @@ public class HallucinationGrpcService extends HallucinationGovernanceServiceGrpc
             log.info("anchorRag success task_id={} anchored={}", request.getTaskId(), anchored);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -152,8 +152,8 @@ public class HallucinationGrpcService extends HallucinationGovernanceServiceGrpc
                     request.getTaskId(), request.getAgentId(), request.getLayer(), saved.getMetricId());
             responseObserver.onNext(ack);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }

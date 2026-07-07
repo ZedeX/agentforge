@@ -108,8 +108,8 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
             ChatResponse response = doChat(request);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -311,8 +311,8 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
                 throw new BusinessException(ErrorCode.MODEL_GATEWAY_ERROR,
                         "流式调用失败: " + ex.getMessage(), ex);
             }
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -354,8 +354,8 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -378,8 +378,8 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }

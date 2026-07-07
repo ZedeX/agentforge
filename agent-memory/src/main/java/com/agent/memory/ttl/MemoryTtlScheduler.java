@@ -35,6 +35,9 @@ public class MemoryTtlScheduler {
             int processed = ttlManager.cleanupExpired("default");
             log.info("TTL 定时扫描完成 processed={}", processed);
         } catch (Exception e) {
+            // Intentionally swallowed: @Scheduled methods must not throw, or Spring
+            // will stop the scheduler. The next scheduled run will retry cleanup.
+            // ADR-006 compliant: documented reason for swallow.
             log.error("TTL 定时扫描异常", e);
         }
     }

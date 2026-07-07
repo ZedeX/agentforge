@@ -113,6 +113,8 @@ public class RateLimiter {
             }
             return acquired;
         } catch (Exception e) {
+            // Intentional degradation: Redis failure falls back to in-memory rate-limiting.
+            // ADR-006 compliant: catch + fallback is explicit degradation strategy, not a swallow.
             log.warn("Redis rate-limit failed, degrading to in-memory: tenant={}, tool={}, err={}",
                     tenant, toolId, e.getMessage());
             return tryAcquireInMemory(tenant, toolId, rate);

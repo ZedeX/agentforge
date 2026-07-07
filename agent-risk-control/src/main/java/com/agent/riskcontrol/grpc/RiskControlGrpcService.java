@@ -77,8 +77,8 @@ public class RiskControlGrpcService extends RiskControlServiceGrpc.RiskControlSe
 
             responseObserver.onNext(proto);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -118,8 +118,8 @@ public class RiskControlGrpcService extends RiskControlServiceGrpc.RiskControlSe
 
             responseObserver.onNext(proto);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -158,8 +158,8 @@ public class RiskControlGrpcService extends RiskControlServiceGrpc.RiskControlSe
 
             responseObserver.onNext(proto);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }

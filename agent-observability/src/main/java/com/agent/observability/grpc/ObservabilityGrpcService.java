@@ -55,8 +55,8 @@ public class ObservabilityGrpcService extends ObservabilityServiceGrpc.Observabi
                     request.getTraceId(), request.getServiceName(), pojoResponse.getTraces().size());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -73,8 +73,8 @@ public class ObservabilityGrpcService extends ObservabilityServiceGrpc.Observabi
                     request.getServiceName(), request.getMetricName(), pojoResponse.getDataPoints().size());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -91,8 +91,8 @@ public class ObservabilityGrpcService extends ObservabilityServiceGrpc.Observabi
                     pojoResponse.getServices().size(), pojoResponse.getOverallStatus());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }

@@ -191,13 +191,17 @@ class RiskControlGrpcServiceTest {
     @Test
     @DisplayName("Should_ThrowError_When_AuditLogFails: audit exception returns INTERNAL")
     void should_ThrowError_When_AuditLogFails() {
-        // given
+        // given: action must be non-empty to pass the validation guard,
+        // so the mock complianceAuditor.record() actually gets called.
         AuditLogRequest req = AuditLogRequest.newBuilder()
-                .setAction("")
+                .setAction("execute")
                 .setActorId("user-001")
+                .setResourceType("tool")
+                .setResourceId("tool-001")
+                .setResult("success")
                 .build();
         when(complianceAuditor.record(any(com.agent.riskcontrol.model.AuditLogRequest.class)))
-                .thenThrow(new com.agent.riskcontrol.exception.AuditException("Audit action must not be empty"));
+                .thenThrow(new com.agent.riskcontrol.exception.AuditException("Audit write failed"));
 
         // when
         CapturingObserver<AuditLogAck> observer = new CapturingObserver<>();

@@ -97,8 +97,8 @@ public class MemoryServiceGrpcImpl extends MemoryServiceGrpc.MemoryServiceImplBa
                     request.getAgentId(), memoryId);
             responseObserver.onNext(ack);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -155,8 +155,8 @@ public class MemoryServiceGrpcImpl extends MemoryServiceGrpc.MemoryServiceImplBa
                     request.getAgentId(), request.getQuery().length(), memories.size());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -194,8 +194,8 @@ public class MemoryServiceGrpcImpl extends MemoryServiceGrpc.MemoryServiceImplBa
                     request.getAgentId(), byTopic.size(), distilledCount, mergedCount);
             responseObserver.onNext(ack);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 
@@ -217,8 +217,8 @@ public class MemoryServiceGrpcImpl extends MemoryServiceGrpc.MemoryServiceImplBa
             log.info("getMemoryById success memoryId={}", request.getMemoryId());
             responseObserver.onNext(proto);
             responseObserver.onCompleted();
-        } catch (Throwable t) {
-            exceptionAdvice.translate(t, responseObserver);
+        } catch (Exception e) {
+            exceptionAdvice.translate(e, responseObserver);
         }
     }
 }
