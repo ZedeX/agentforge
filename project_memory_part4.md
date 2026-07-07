@@ -1,7 +1,9 @@
-# AgentForge 智能体平台 项目记忆（Part 4：Wave 33~37）
+# AgentForge 智能体平台 项目记忆（Part 4：Wave 33~40）
 
 > 拆分日期：2026-07-04 | 原文件总行数：1808 行 | 本 Part 覆盖：line 1362~1808
-> 内容范围：Wave 33~37（agent-memory T4/T7/T5/T10 + 文档对齐 + 最终收尾）
+> 内容范围：Wave 33~40（agent-memory T4/T7/T5/T10 + 文档对齐 + 最终收尾）
+
+> **⚠️ 历史快照说明**：本文件中每个 Wave 节内的「Plan 进度表」反映的是**该 Wave 结束时**的项目状态。其中的 ⏳/🔄/待做/待 v8 后续 等标记在后续 Wave 中已逐步完成。**当前最新状态请查看 [project_memory.md](./project_memory.md) 索引文件**。截至 Wave 47，全部 10 个 Plan 均已完成（10/10 ✅）。
 
 ## Wave 33: agent-memory T4 MemoryDistiller + gRPC 基础设施（2026-07-03）
 

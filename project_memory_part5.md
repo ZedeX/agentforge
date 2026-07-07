@@ -4,6 +4,8 @@
 > 内容范围：待办清零（5 横向微服务补全）+ 红蓝对抗安全审计（Wave 42~44）+ S-03/S-04/S-12 修复 + 项目清理 + 文档完善
 > 前序文件：[project_memory_part4.md](./project_memory_part4.md)（Wave 33~40）
 
+> **⚠️ 历史快照说明**：本文件中每个 Wave 节内的「进度表」反映的是**该 Wave 结束时**的项目状态。当前全部 10 个 Plan 均已完成（10/10 ✅），详见 [project_memory.md](./project_memory.md) 索引文件。
+
 ---
 
 ## Wave 41：待办清零——5 个横向微服务补全（2026-07-07）

@@ -3,6 +3,8 @@
 > 拆分日期：2026-07-04 | 原文件总行数：1808 行 | 本 Part 覆盖：line 489~857
 > 内容范围：Wave 22（agent-repo JPA）+ Wave 23（CostMeter JPA 集成）+ Wave 24~26（agent-knowledge JPA + gRPC）
 
+> **⚠️ 历史快照说明**：本文件中每个 Wave 节内的「Plan 进度表」反映的是**该 Wave 结束时**的项目状态。其中的 ⏳/🔄/待做/待 v8 后续 等标记在后续 Wave 中已逐步完成。**当前最新状态请查看 [project_memory.md](./project_memory.md) 索引文件**。截至 Wave 47，全部 10 个 Plan 均已完成（10/10 ✅）。
+
 ## Wave 22：agent-repo JPA 持久化 — T2-T4（2026-07-01）
 
 **时间**：2026-07-01 04:32 CST
