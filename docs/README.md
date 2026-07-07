@@ -2,12 +2,13 @@
 
 > 生成日期：2026-06-26  |  基于需求文档：[PRD.md](../PRD.md)  |  技术栈：Java 17 / Spring Cloud Alibaba / Milvus / MySQL / RocketMQ
 
-本目录包含 Agent 智能体平台系统的工程级设计文档，共 40 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 9 份编码计划 + 1 份前端控制台详设 + 13 份测试文档 + 2 份运营文档）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录（v1.1 + v1.2 增补）/ 独立审核框架与 v1~v7 共 7 轮审核报告。
+本目录包含 Agent 智能体平台系统的工程级设计文档，共 42 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 9 份编码计划 + 1 份前端控制台详设 + 13 份测试文档 + 2 份运营文档 + 1 份安全审计报告 + 1 份 PRD）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/2/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录（v1.1 + v1.2 增补）/ 独立审核框架与 v1~v7 共 7 轮审核报告。
 
 ### 🆕 运营文档
 
 | # | 文档 | 内容 | 面向角色 |
 |---|---|---|---|
+| — | [audits/red-blue-team-report-2026-07-07.md](./audits/red-blue-team-report-2026-07-07.md) | 红蓝对抗安全审计报告（STRIDE 威胁建模 + 4 维审计，21 条修复） | 安全 / SRE / 开发 |
 | — | [user-guide.md](./user-guide.md) | REST/gRPC API 使用指南、端到端示例、13 服务 API 速查表、FAQ | 运营 / 开发者 / 用户 |
 | — | [ops-guide.md](./ops-guide.md) | 部署架构、K8s/Docker 部署、配置管理、可观测、安全检查、故障排查、性能调优 | SRE / 运维 |
 
@@ -63,13 +64,13 @@
 | 15 | [plans/00-coding-plans-overview.md](./plans/00-coding-plans-overview.md) | - | 323 | 9 个 Plan 总览 + 依赖图 + 执行顺序 + 关键约定（v2.0 已对齐实际文件） | ✅ v2.0 |
 | 16 | [plans/01-agent-proto-and-common-plan.md](./plans/01-agent-proto-and-common-plan.md) | 8 | 2785 | agent-proto（8 .proto）+ agent-common（11 Java 类），47 测试用例 | ✅ 已完成 |
 | 17 | [plans/02-agent-gateway-session-plan.md](./plans/02-agent-gateway-session-plan.md) | 10 | 4339 | agent-gateway(8080) + agent-session(8082)，43 Java 类 | ✅ 已完成 |
-| 18 | [plans/03-agent-memory-plan.md](./plans/03-agent-memory-plan.md) | 10 | - | agent-memory(8088/9088)：MemoryService gRPC + 8 项核心能力 | 🔄 9/10（Wave 30~37，T10 已完成） |
-| 19 | [plans/04-task-orchestrator-planning-plan.md](./plans/04-task-orchestrator-planning-plan.md) | 13 | - | agent-task-orchestrator(8084) + agent-planning(8086) | 🔄 9/13（T5/T7/T11/T13 待做） |
-| 20 | [plans/05-agent-tool-engine-plan.md](./plans/05-agent-tool-engine-plan.md) | 12 | - | agent-tool-engine(8090/9090)：ToolEngine gRPC + 9 项核心能力 | ⏳ 待开发 |
-| 21 | [plans/06-agent-runtime-plan.md](./plans/06-agent-runtime-plan.md) | 10 | - | agent-runtime(8092/9092)：AgentRuntime gRPC + ReAct + Token 水位 | ⏳ 待开发 |
-| 22 | [plans/07-agent-model-gateway-plan.md](./plans/07-agent-model-gateway-plan.md) | 14 | - | agent-model-gateway(8094/9094)：4 RPC + 多供应商适配器 | 🔄 13/14（T14 集成测试待做） |
-| 23 | [plans/08-agent-repo-knowledge-plan.md](./plans/08-agent-repo-knowledge-plan.md) | 12 | - | agent-repo(8096) + agent-knowledge(8098) | 🔄 7/12（T10/T12 待做） |
-| 24 | [plans/09-infra-deployment-plan.md](./plans/09-infra-deployment-plan.md) | - | - | infra/k8s + docker + nacos + 可观测组件 | ⏳ 待开发 |
+| 18 | [plans/03-agent-memory-plan.md](./plans/03-agent-memory-plan.md) | 10 | - | agent-memory(8088/9088)：MemoryService gRPC + 8 项核心能力 | ✅ 10/10（Wave 30~39） |
+| 19 | [plans/04-task-orchestrator-planning-plan.md](./plans/04-task-orchestrator-planning-plan.md) | 13 | - | agent-task-orchestrator(8084) + agent-planning(8086) | ✅ 13/13 |
+| 20 | [plans/05-agent-tool-engine-plan.md](./plans/05-agent-tool-engine-plan.md) | 12 | - | agent-tool-engine(8090/9090)：ToolEngine gRPC + 9 项核心能力 | ✅ 12/12 |
+| 21 | [plans/06-agent-runtime-plan.md](./plans/06-agent-runtime-plan.md) | 10 | - | agent-runtime(8092/9092)：AgentRuntime gRPC + ReAct + Token 水位 | ✅ 10/10 |
+| 22 | [plans/07-agent-model-gateway-plan.md](./plans/07-agent-model-gateway-plan.md) | 14 | - | agent-model-gateway(8094/9094)：4 RPC + 多供应商适配器 | ✅ 14/14（Wave 18~29, 40） |
+| 23 | [plans/08-agent-repo-knowledge-plan.md](./plans/08-agent-repo-knowledge-plan.md) | 12 | - | agent-repo(8096) + agent-knowledge(8098) | ✅ 12/12（Wave 19~26, 40） |
+| 24 | [plans/09-infra-deployment-plan.md](./plans/09-infra-deployment-plan.md) | 13 | - | infra/k8s + docker + nacos + 可观测组件 | ✅ 13/13 |
 
 ### 七、前端控制台详设
 
@@ -100,9 +101,9 @@
 | 32 | [tests/tdd-audit-report-v6.md](./tests/tdd-audit-report-v6.md) | v6.0 | 第 6 轮复核报告（P6 主要整改后）：总分 81.5 → 86.0（B 通过），agent-task-orchestrator T5~T13 全实现 + 错误码触发路径覆盖 29 错误码 × 3 维度 + 测试命名/AssertJ/@DisplayName 三项整改（P6-3/4/5）+ P6-6 T6~T12 复杂度/规划/校验实现；含 P7 整改建议 7 项 | — |
 | 33 | [tests/tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md) | v7.5 | 第 7 轮复核报告（v6 + JaCoCo 实测校验 + P7-3/4/5/6/7 整改）：总分 86.0 → 89.2（B+ 通过），JaCoCo 实测业务代码 line 95.77% / branch 92.50% + P7-5 错误码端到端 23 用例 + P7-6 FIX 维度 D4 11.0→13.2 + P7-3 F8/F10/F11/F12 骨架 34 用例 + P7-4 F6/F7/F9 骨架 26 用例，**COV-03 一票否决项正式解除（12/12 节点组全覆盖）**；距 A-（90+）差 0.8 分，唯一路径 P7-1 CI 累计 10 次全绿 | — |
 
-> **测试统计**：14 份文档（含 v6/v7 审计报告 + v1.2 增补），覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **916+ 测试方法全绿**（v1.1：5 模块 407 + 骨架 60 + 端到端 23 = 490+；v1.2：v8 持久化深化期 Wave 18~37 新增 426 方法），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（29 错误码 ×3 维度）+ 100% 状态机非法流转覆盖（10 状态）。
+> **测试统计**：14 份文档（含 v6/v7 审计报告 + v1.2 增补），覆盖 213 单元 + 123 功能 + 13 E2E = 349 用例规划，已实现 **1580+ 测试方法全绿**（19 模块，0 Failures, 0 Errors），文档层面达成 100% F1~F12 决策节点覆盖（99 节点 ×2 分支 = 198 用例）+ 100% 错误码覆盖（29 错误码 ×3 维度）+ 100% 状态机非法流转覆盖（10 状态）。
 >
-> **第 7 轮审核结论（v7.5）**：v6 → v7 通过 JaCoCo 实测校验 + P7-3/4/5/6/7 整改，总分 86.0 → **89.2（B+ 通过）**。**COV-03 一票否决项正式解除**（P7-3 F8/F10/F11/F12 + P7-4 F6/F7/F9 骨架补齐，12/12 节点组全覆盖）；D4 FIX 维度 11.0 → 13.2（P7-6 整改）；D5 CI 维度 8.0 → 9.0（CI 实跑全绿，3 次失败 streak 终止）。**A- 等级已正式达成**（Wave 20 CI streak=10，详见 [tdd-red-green-records-v1.2.md](./tests/tdd-red-green-records-v1.2.md)）。当前 CI streak=39（截至 Wave 37）。详见 [tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
+> **第 7 轮审核结论（v7.5）**：v6 → v7 通过 JaCoCo 实测校验 + P7-3/4/5/6/7 整改，总分 86.0 → **89.2（B+ 通过）**。**COV-03 一票否决项正式解除**（P7-3 F8/F10/F11/F12 + P7-4 F6/F7/F9 骨架补齐，12/12 节点组全覆盖）；D4 FIX 维度 11.0 → 13.2（P7-6 整改）；D5 CI 维度 8.0 → 9.0（CI 实跑全绿，3 次失败 streak 终止）。**A- 等级已正式达成**（Wave 20 CI streak=10，详见 [tdd-red-green-records-v1.2.md](./tests/tdd-red-green-records-v1.2.md)）。当前 CI streak=48+（截至 Wave 46）。详见 [tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
 
 ### TDD 审核整改进度索引
 
@@ -305,7 +306,7 @@ mvn -B -ntp clean package -Pquick
 | PRD 交付物 | 对应文档 | 状态 |
 |---|---|---|
 | 1. 项目整体目录结构与技术栈选型说明 | doc 1 | ✅ |
-| 2. 各核心模块的核心代码实现 | 各模块详设（架构/接口/类签名）+ 后续 coding plan | ⏸ 设计完成，代码留待后续 |
+| 2. 各核心模块的核心代码实现 | 各模块详设 + 编码计划 Plan 01~10（全部已完成） | ✅ 10/10 Plan 已实现，1580+ 测试全绿 |
 | 3. 数据库表结构设计 | doc 2 | ✅ |
 | 4. 核心接口定义与 API 规范 | doc 3 | ✅ |
 | 5. 配置文件与部署说明 | doc 10 | ✅ |
@@ -314,7 +315,7 @@ mvn -B -ntp clean package -Pquick
 
 ## 后续计划（coding plan）
 
-基于 writing-plans 技能，按子系统拆分为独立编码计划。截至 v7.5：
+基于 writing-plans 技能，按子系统拆分为独立编码计划。截至 Wave 46：
 
 1. ✅ `agent-proto/` + `agent-common/` — [Plan 01](./plans/01-agent-proto-and-common-plan.md)（已实现，47 测试用例）
 2. ✅ `agent-gateway/` + `agent-session/` — [Plan 02](./plans/02-agent-gateway-session-plan.md)（已实现，43 Java 类）
