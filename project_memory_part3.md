@@ -69,12 +69,12 @@
 | T2-T3 Entity + Repository | ✅ | Wave 21 |
 | T4-T7 Adapters | ✅ | Wave 18-20 |
 | **T8 Chat gRPC 服务** | ✅ | **Wave 27 完成**（chat 8 步 + UT-MG-006/008） |
-| T9 StreamChat | ⏳ | Wave 28（需 reactor-core/Flux） |
-| T10 CountTokens + ListModels | ⏳ | 待 v8 后续 |
+| T9 StreamChat | ⏳ | Wave 28（需 reactor-core/Flux）（**✅ UPDATE: Wave 29 完成，见 Part 3 §Wave 29**） |
+| T10 CountTokens + ListModels | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 28 完成，见 Part 3 §Wave 28**） |
 | T11 PromptCache | ✅ | Wave 18 |
 | T12 CostMeter + JPA | ✅ | Wave 23 |
 | T13 ModelDegradationManager | ✅ | Wave 18 |
-| T14 集成测试 | ⏳ | 待 v8 后续 |
+| T14 集成测试 | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
 
 ### CI 连续全绿记录（streak 24）
 
@@ -151,12 +151,12 @@
 | T2-T3 Entity + Repository | ✅ | Wave 21 |
 | T4-T7 Adapters | ✅ | Wave 18-20 |
 | T8 Chat gRPC 服务 | ✅ | Wave 27 |
-| T9 StreamChat | ⏳ | Wave 29（需 reactor-core/Flux） |
+| T9 StreamChat | ⏳ | Wave 29（需 reactor-core/Flux）（**✅ UPDATE: Wave 29 完成，见 Part 3 §Wave 29**） |
 | **T10 CountTokens + ListModels** | ✅ | **Wave 28 完成**（3/4 RPC 已实现） |
 | T11 PromptCache | ✅ | Wave 18 |
 | T12 CostMeter + JPA | ✅ | Wave 23 |
 | T13 ModelDegradationManager | ✅ | Wave 18 |
-| T14 集成测试 | ⏳ | 待 v8 后续 |
+| T14 集成测试 | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
 
 ### CI 连续全绿记录（streak 26）
 
@@ -234,7 +234,7 @@
 | T11 PromptCache | ✅ | Wave 18 |
 | T12 CostMeter + JPA | ✅ | Wave 23 |
 | T13 ModelDegradationManager | ✅ | Wave 18 |
-| T14 集成测试 | ⏳ | 待 v8 后续（WireMock + 4 RPC 端到端） |
+| T14 集成测试 | ⏳ | 待 v8 后续（WireMock + 4 RPC 端到端）（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
 
 ### Plan 08 进展
 
@@ -246,8 +246,8 @@
 | T8 knowledge_base + knowledge_chunk JPA | ✅ | Wave 24 |
 | T9 DocumentIngestor + TokenCounter | ✅ | Wave 25 |
 | T11 KnowledgeBase gRPC 服务 | ✅ | Wave 26 |
-| T10 EmbeddingService + Milvus | ⏳ | 待 v8 后续（需 Milvus infra） |
-| T12 集成测试 | ⏳ | 待 v8 后续（需 Milvus + MySQL + Redis） |
+| T10 EmbeddingService + Milvus | ⏳ | 待 v8 后续（需 Milvus infra）（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
+| T12 集成测试 | ⏳ | 待 v8 后续（需 Milvus + MySQL + Redis）（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
 
 ### CI 连续全绿记录（streak 28）
 
@@ -333,14 +333,14 @@
 |---|---|---|
 | T1 基础设施（pom + yml + config） | ✅ | Wave 30 完成 |
 | T2 JPA Entity + Repository | ✅ | Wave 30 完成（MemoryRecord + MemoryExtractLog + 2 Repository + DDL） |
-| T3 MemoryExtractor 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
-| T4 MemoryDistiller 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
-| T5 EmbeddingClient | ⏳ | 骨架已有 |
-| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
-| T7 ImportanceScorer | ⏳ | 骨架已有 |
-| T8 MemoryTtlManager 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
-| T9 MemoryDeduper 业务实现 | ⏳ | 骨架已有，待对齐新字段 |
-| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+| T3 MemoryExtractor 业务实现 | ⏳ | 骨架已有，待对齐新字段（**✅ UPDATE: Wave 31 完成，见 Part 3 §Wave 31**） |
+| T4 MemoryDistiller 业务实现 | ⏳ | 骨架已有，待对齐新字段（**✅ UPDATE: Wave 33 完成，见 Part 4 §Wave 33**） |
+| T5 EmbeddingClient | ⏳ | 骨架已有（**✅ UPDATE: Wave 36 完成，见 Part 4 §Wave 36**） |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra（**✅ UPDATE: Wave 39 完成，见 Part 4 §Wave 39**） |
+| T7 ImportanceScorer | ⏳ | 骨架已有（**✅ UPDATE: Wave 34 完成，见 Part 4 §Wave 34**） |
+| T8 MemoryTtlManager 业务实现 | ⏳ | 骨架已有，待对齐新字段（**✅ UPDATE: Wave 32 完成，见 Part 3 §Wave 32**） |
+| T9 MemoryDeduper 业务实现 | ⏳ | 骨架已有，待对齐新字段（**✅ UPDATE: Wave 32 完成，见 Part 3 §Wave 32**） |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义（**✅ UPDATE: Wave 37 完成，见 Part 4 §Wave 37**） |
 
 ### 经验教训
 
@@ -404,13 +404,13 @@
 | T1 基础设施 | ✅ | Wave 30 |
 | T2 JPA Entity + Repository | ✅ | Wave 30 |
 | T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
-| T4 MemoryDistiller 业务实现 | ⏳ | 需 ModelGatewayClient gRPC stub |
-| T5 EmbeddingClient | ⏳ | 骨架已有 |
-| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
-| T7 ImportanceScorer | ⏳ | 骨架已有 |
-| T8 MemoryTtlManager 业务实现 | ⏳ | 骨架已有，已对齐 ARCHIVED |
-| T9 MemoryDeduper 业务实现 | ⏳ | 骨架已有，已对齐 recallCount |
-| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+| T4 MemoryDistiller 业务实现 | ⏳ | 需 ModelGatewayClient gRPC stub（**✅ UPDATE: Wave 33 完成，见 Part 4 §Wave 33**） |
+| T5 EmbeddingClient | ⏳ | 骨架已有（**✅ UPDATE: Wave 36 完成，见 Part 4 §Wave 36**） |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra（**✅ UPDATE: Wave 39 完成，见 Part 4 §Wave 39**） |
+| T7 ImportanceScorer | ⏳ | 骨架已有（**✅ UPDATE: Wave 34 完成，见 Part 4 §Wave 34**） |
+| T8 MemoryTtlManager 业务实现 | ⏳ | 骨架已有，已对齐 ARCHIVED（**✅ UPDATE: Wave 32 完成，见 Part 3 §Wave 32**） |
+| T9 MemoryDeduper 业务实现 | ⏳ | 骨架已有，已对齐 recallCount（**✅ UPDATE: Wave 32 完成，见 Part 3 §Wave 32**） |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义（**✅ UPDATE: Wave 37 完成，见 Part 4 §Wave 37**） |
 
 ### 经验教训
 
@@ -483,13 +483,13 @@
 | T1 基础设施 | ✅ | Wave 30 |
 | T2 JPA Entity + Repository | ✅ | Wave 30 |
 | T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
-| T4 MemoryDistiller 业务实现 | ⏳ | 需 ModelGatewayClient gRPC stub |
-| T5 EmbeddingClient | ⏳ | 骨架已有 |
-| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
-| T7 ImportanceScorer | ⏳ | 骨架已有 |
+| T4 MemoryDistiller 业务实现 | ⏳ | 需 ModelGatewayClient gRPC stub（**✅ UPDATE: Wave 33 完成，见 Part 4 §Wave 33**） |
+| T5 EmbeddingClient | ⏳ | 骨架已有（**✅ UPDATE: Wave 36 完成，见 Part 4 §Wave 36**） |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra（**✅ UPDATE: Wave 39 完成，见 Part 4 §Wave 39**） |
+| T7 ImportanceScorer | ⏳ | 骨架已有（**✅ UPDATE: Wave 34 完成，见 Part 4 §Wave 34**） |
 | T8 MemoryTtlManager 业务实现 | ✅ | Wave 32 完成（applyTtl 状态机 + cleanupExpired + Scheduler） |
 | T9 MemoryDeduper 业务实现 | ✅ | Wave 32 完成（dedup + DedupReport + repository-backed） |
-| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义（**✅ UPDATE: Wave 37 完成，见 Part 4 §Wave 37**） |
 
 ### 经验教训
 

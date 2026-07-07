@@ -64,12 +64,12 @@
 | T2 JPA Entity + Repository | ✅ | Wave 30 |
 | T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
 | T4 MemoryDistiller 业务实现 | ✅ | Wave 33 完成（gRPC Chat RPC + 源归档 + 聚合 importance） |
-| T5 EmbeddingClient | ⏳ | 骨架已有 |
-| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
-| T7 ImportanceScorer | ⏳ | 骨架已有 |
+| T5 EmbeddingClient | ⏳ | 骨架已有（**✅ UPDATE: Wave 36 完成，见 Part 4 §Wave 36**） |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra（**✅ UPDATE: Wave 39 完成，见 Part 4 §Wave 39**） |
+| T7 ImportanceScorer | ⏳ | 骨架已有（**✅ UPDATE: Wave 34 完成，见 Part 4 §Wave 34**） |
 | T8 MemoryTtlManager 业务实现 | ✅ | Wave 32 完成（applyTtl 状态机 + cleanupExpired + Scheduler） |
 | T9 MemoryDeduper 业务实现 | ✅ | Wave 32 完成（dedup + DedupReport + repository-backed） |
-| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义（**✅ UPDATE: Wave 37 完成，见 Part 4 §Wave 37**） |
 
 ### 经验教训
 
@@ -139,12 +139,12 @@
 | T2 JPA Entity + Repository | ✅ | Wave 30 |
 | T3 MemoryExtractor 业务实现 | ✅ | Wave 31 完成（REFLECTIVE + 过滤 + 自动分流） |
 | T4 MemoryDistiller 业务实现 | ✅ | Wave 33 完成（gRPC Chat RPC + 源归档 + 聚合 importance） |
-| T5 EmbeddingClient | ⏳ | 骨架已有（mock 实现，待 T5 接入 HTTP） |
-| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra |
+| T5 EmbeddingClient | ⏳ | 骨架已有（mock 实现，待 T5 接入 HTTP）（**✅ UPDATE: Wave 36 完成，见 Part 4 §Wave 36**） |
+| T6 MemoryVectorStore + Milvus | ⏳ | 需 Milvus infra（**✅ UPDATE: Wave 39 完成，见 Part 4 §Wave 39**） |
 | T7 ImportanceScorer | ✅ | Wave 34 完成（5 维度加权 + level 分级 + dimensions 明细） |
 | T8 MemoryTtlManager 业务实现 | ✅ | Wave 32 完成（applyTtl 状态机 + cleanupExpired + Scheduler） |
 | T9 MemoryDeduper 业务实现 | ✅ | Wave 32 完成（dedup + DedupReport + repository-backed） |
-| T10 MemoryService gRPC | ⏳ | 需 proto 定义 |
+| T10 MemoryService gRPC | ⏳ | 需 proto 定义（**✅ UPDATE: Wave 37 完成，见 Part 4 §Wave 37**） |
 
 ### 经验教训
 
@@ -224,9 +224,9 @@
 | Plan 03 模块 | DDL 脚本编写 | agent-memory | ✅ 对齐实际文件 |
 | Plan 09 模块 | repo+knowledge+quality | infra-deployment | ✅ 对齐实际文件 |
 | Plan 03 进度 | 待生成 | 7/10（T1-T4, T7-T9 ✅） | ✅ |
-| Plan 04 进度 | T5~T13 全实现 | 9/13（T5/T7/T11/T13 待做） | ✅ |
-| Plan 07 进度 | 待生成 | 13/14（T14 集成测试待做） | ✅ |
-| Plan 08 进度 | 待生成 | 7/12（T10/T12 待做） | ✅ |
+| Plan 04 进度 | T5~T13 全实现 | 9/13（T5/T7/T11/T13 待做）（**✅ UPDATE: Wave 39 确认 13/13 全部完成，见 Part 4 §Wave 39**） | ✅ |
+| Plan 07 进度 | 待生成 | 13/14（T14 集成测试待做）（**✅ UPDATE: Wave 40 完成 14/14，见 Part 4 §Wave 40**） | ✅ |
+| Plan 08 进度 | 待生成 | 7/12（T10/T12 待做）（**✅ UPDATE: Wave 40 完成 12/12，见 Part 4 §Wave 40**） | ✅ |
 | 测试方法总数 | 464+ | 834+（v1.1 490+ + v1.2 344） | ✅ |
 | CI streak | 5/10（进行中） | 34（A- 已达成） | ✅ |
 | A- 等级 | 差 0.8 分 | Wave 20 已达成 | ✅ |
@@ -613,7 +613,7 @@
 ### 下一波（Wave 41+）计划
 
 - **Plan 05 agent-tool-engine（0/12）**：解锁 Plan 06 agent-runtime 依赖；唯一未完成的 P1 计划。4 RPC（CallTool/RegisterTool/ListTools/GetToolMeta）+ 9 项核心能力（ToolRegistry/ToolGateway/RiskClassifier/ApprovalStore/SandboxBorrower/ToolCache/ToolCallAuditor/ToolSemanticRecaller/ResultCleaner）
-- **Plan 06 agent-runtime（0/10）**：依赖 task/memory/tool/model 全部完成（tool 待做）。4 RPC + 6 项核心能力（ReActLoop/ModelGatewayClient/ToolEngineClient/ReflexionEngine/StepStateSyncer/TokenWatermarkMonitor）
+- **Plan 06 agent-runtime（0/10）**：依赖 task/memory/tool/model 全部完成（tool 待做）。4 RPC + 6 项核心能力（ReActLoop/ModelGatewayClient/ToolEngineClient/ReflexionEngine/StepStateSyncer/TokenWatermarkMonitor）（**✅ UPDATE: Wave 42-46 完成 10/10，见 Part 5 §Wave 41-46**）
 - **Plan 09 infra 部署（0/?）**：13 个微服务的 Dockerfile + docker-compose + K8s + Nacos + 可观测组件
 
 ---

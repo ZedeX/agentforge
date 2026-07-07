@@ -456,13 +456,13 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 | T3 ModelRouteRule Entity + Repository | ✅ | Wave 21 |
 | T4 OpenAI Adapter | ✅ | Wave 18 骨架 |
 | T5-T7 Anthropic/Gemini/DeepSeek Adapter | ✅ | Wave 20 骨架（mock） |
-| T8 Chat gRPC | ⏳ | 待 v8 后续 |
-| T9 StreamChat gRPC | ⏳ | 待 v8 后续 |
+| T8 Chat gRPC | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 27 完成，见 Part 3 §Wave 27**） |
+| T9 StreamChat gRPC | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 29 完成，见 Part 3 §Wave 29**） |
 | T10 CountTokens | ✅ | Wave 18 骨架（TokenCounterImpl） |
 | T11 PromptCache | ✅ | Wave 18 骨架（PromptCacheImpl） |
-| T12 CostMeter + JPA | 🔄 | Entity+Repository 已有，CostMeterImpl → JPA 集成待做 |
+| T12 CostMeter + JPA | 🔄 | Entity+Repository 已有，CostMeterImpl → JPA 集成待做（**✅ UPDATE: Wave 23 完成，见 Part 2 §Wave 23**） |
 | T13 ModelDegradationManager | ✅ | Wave 18 骨架 |
-| T14 集成测试 | ⏳ | 待 v8 后续 |
+| T14 集成测试 | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
 
 ### 下一波（Wave 22）计划
 
@@ -512,11 +512,11 @@ A- 已封顶，下一阶段进入 **持久化深化期**（v8）：
 |---|---|---|
 | T1 agent-repo 骨架 | ✅ | Wave 18 完成 |
 | T2 AgentDefinition Entity + Repository | ✅ | Wave 22 |
-| T3 AgentVersion Entity + Repository | ✅ | Wave 22（AgentVersionService 待 v8 后续） |
-| T4 AgentRepo gRPC 服务（4 RPC） | ⏳ | 待 v8 后续 |
+| T3 AgentVersion Entity + Repository | ✅ | Wave 22（AgentVersionService **✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
+| T4 AgentRepo gRPC 服务（4 RPC） | ⏳ | 待 v8 后续（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
 | T5 Agent 绑定工具/知识库 JSON | ✅ | Wave 22（JsonListConverter 已实现 bound_tools/bound_knowledge_ids） |
-| T6 agent-repo 集成测试 | ⏳ | 待 v8 后续（Testcontainers MySQL） |
-| T7-T12 agent-knowledge 模块 | ⏳ | 待 v8 后续 |
+| T6 agent-repo 集成测试 | ⏳ | 待 v8 后续（Testcontainers MySQL）（**✅ UPDATE: Wave 40 完成，见 Part 4 §Wave 40**） |
+| T7-T12 agent-knowledge 模块 | ⏳ | 待 v8 后续（**✅ UPDATE: Waves 24-26 + Wave 40 完成，见 Part 2 §Wave 24-26 + Part 4 §Wave 40**） |
 
 ### CI 连续全绿记录（streak 15）
 
