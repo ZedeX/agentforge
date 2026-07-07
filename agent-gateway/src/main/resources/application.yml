@@ -46,9 +46,12 @@ session-service:
 
 gateway:
   jwt:
-    secret: "agent-platform-jwt-secret-key-please-change-in-production-32bytes"
+    secret: ${JWT_SECRET:}  # R-03: must be injected via env, no hardcoded default
     issuer: "agent-platform"
     ttl-minutes: 60
+  api-keys:  # R-01: API Key auth via config, no hardcoded backdoor
+    valid-keys: ${API_KEYS:}
+    key-to-tenant-id: ${API_KEY_TENANTS:}
   rate-limit:
     capacity: 20
     refill-tokens: 10

@@ -1,5 +1,6 @@
 package com.agent.gateway.filter;
 
+import com.agent.gateway.config.ApiKeyProperties;
 import com.agent.gateway.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -18,24 +19,37 @@ import java.util.List;
 
 /**
  * 鉴权过滤器：
- *  - 校验 Authorization: Bearer <jwt> 或 X-API-Key
+ *  - 校验 Authorization: Bearer &lt;jwt&gt; 或 X-API-Key
  *  - 白名单路径直接放行（如 GET /api/v1/health、POST /api/v1/sessions）
  *  - 校验通过后将 userId/tenantId 注入请求属性供下游使用
+ *
+ * <p>Security hardening (R-01, R-12, R-13):
+ *  - API Key 必须从 {@link ApiKeyProperties} 配置读取，不再硬编码
+ *  - API Key 绑定的 tenantId 从 keyToTenantId 映射取，不信任客户端 X-Tenant-Id header
+ *  - 删除了 isInternalGrpcCall 方法（R-12: 可被客户端伪造的头部信任是安全隐患）</p>
  */
 public class AuthFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(AuthFilter.class);
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final String VALID_API_KEY = "ak_test_valid_key_2026";
-    private static final String INTERNAL_GRPC_HEADER = "X-Internal-Source";
-    private static final String INTERNAL_GRPC_VALUE = "grpc";
 
     private final JwtUtil jwtUtil;
     private final Whitelist whitelist;
+    private final ApiKeyProperties apiKeyProperties;
 
+    /**
+     * @deprecated Use {@link #AuthFilter(JwtUtil, Whitelist, ApiKeyProperties)} instead.
+     *             This constructor exists for backward compatibility during migration.
+     */
+    @Deprecated
     public AuthFilter(JwtUtil jwtUtil, Whitelist whitelist) {
+        this(jwtUtil, whitelist, new ApiKeyProperties());
+    }
+
+    public AuthFilter(JwtUtil jwtUtil, Whitelist whitelist, ApiKeyProperties apiKeyProperties) {
         this.jwtUtil = jwtUtil;
         this.whitelist = whitelist;
+        this.apiKeyProperties = apiKeyProperties != null ? apiKeyProperties : new ApiKeyProperties();
     }
 
     @Override
@@ -68,16 +82,15 @@ public class AuthFilter extends OncePerRequestFilter {
                 return;
             }
         } else if (StringUtils.hasText(apiKey)) {
-            if (!VALID_API_KEY.equals(apiKey)) {
+            // R-01: API Key must be in configured valid keys, no hardcoded backdoor
+            if (!apiKeyProperties.getValidKeys().contains(apiKey)) {
                 log.warn("API-Key 无效 path={}", path);
                 reject(response);
                 return;
             }
+            // R-13: tenantId from key binding, NOT from client header
             userId = "system";
-            tenantId = request.getHeader("X-Tenant-Id");
-            if (!StringUtils.hasText(tenantId)) {
-                tenantId = "0";
-            }
+            tenantId = apiKeyProperties.getKeyToTenantId().getOrDefault(apiKey, "default");
         } else {
             log.warn("缺少鉴权凭证 path={}", path);
             reject(response);
@@ -87,30 +100,6 @@ public class AuthFilter extends OncePerRequestFilter {
         request.setAttribute("X-User-Id", userId);
         request.setAttribute("X-Tenant-Id", tenantId);
         filterChain.doFilter(request, response);
-    }
-
-    /**
-     * UT-F1-001: 判定请求是否来自内部 gRPC 链路。
-     *
-     * <p>判定规则：HTTP 请求头 {@code X-Internal-Source} 值为 {@code grpc}
-     * （大小写不敏感）时识别为内部 gRPC 调用。</p>
-     *
-     * <p>用途：当 gRPC 端口无法被 Servlet Filter 直接感知时（如通过 Envoy/gRPC-Web
-     * 网关桥接的 HTTP 请求），AuthFilter 据此跳过 JWT/API-Key 校验，
-     * 由上游 mTLS 终结身份认证；同时 TaskCreateRequest 会标记
-     * {@code internal=true}（由 ProtocolAdapter 设置）。</p>
-     *
-     * <p>测试用 mock：直接注入 header 验证判定逻辑，不依赖真实 mTLS 握手。</p>
-     *
-     * @param request HTTP 请求
-     * @return true 表示内部 gRPC 链路；false 表示普通 REST 调用
-     */
-    public boolean isInternalGrpcCall(HttpServletRequest request) {
-        if (request == null) {
-            return false;
-        }
-        String header = request.getHeader(INTERNAL_GRPC_HEADER);
-        return INTERNAL_GRPC_VALUE.equalsIgnoreCase(header);
     }
 
     private boolean isWhitelisted(String method, String path) {

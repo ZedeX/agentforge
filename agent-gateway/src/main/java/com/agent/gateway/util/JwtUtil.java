@@ -6,6 +6,8 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
+import org.springframework.util.Assert;
+
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -17,6 +19,9 @@ import java.util.List;
  * 关键 API 变更：
  *   - 旧版：Jwts.parser().setSigningKey(key).parseClaimsJws(token).getBody()
  *   - 0.12.x：Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload()
+ *
+ * <p>Security hardening (R-03): JWT secret must be configured via {@code JWT_SECRET} env var.
+ * Empty or null secret will cause fail-fast at construction time.</p>
  */
 public class JwtUtil {
 
@@ -24,6 +29,8 @@ public class JwtUtil {
     private final JwtProperties properties;
 
     public JwtUtil(JwtProperties properties) {
+        Assert.hasText(properties.getSecret(),
+            "JWT secret must be configured via JWT_SECRET env var (R-03: no hardcoded secret)");
         this.properties = properties;
         byte[] keyBytes = properties.getSecret().getBytes(StandardCharsets.UTF_8);
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
