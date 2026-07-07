@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/images/hero-banner.png" alt="AgentForge - Multi-Agent Orchestration Platform" width="100%">
-</p>
-
 <h1 align="center">AgentForge</h1>
 
 <p align="center">
