@@ -5,6 +5,7 @@ import com.agent.common.exception.BusinessException;
 import com.agent.common.exception.ErrorCode;
 import com.agent.orchestrator.model.TaskInstance;
 import com.agent.orchestrator.mq.event.SubtaskDoneEvent;
+import com.agent.orchestrator.repository.EventConsumeLogRepository;
 import com.agent.orchestrator.repository.TaskInstanceRepository;
 import com.agent.orchestrator.replanner.ReplanModeSelector;
 import com.agent.orchestrator.statemachine.TaskStateMachine;
@@ -53,6 +54,7 @@ class SubtaskDoneHandlerTest {
     @Mock private TaskInstanceRepository repository;
     @Mock private TaskStateMachine stateMachine;
     @Mock private ReplanModeSelector replanModeSelector;
+    @Mock private EventConsumeLogRepository eventConsumeLogRepository;
     @InjectMocks private SubtaskDoneHandler handler;
 
     /** 构造一个处于 SUBTASK_RUNNING 状态、成本/token 清零的 TaskInstance。 */
@@ -102,6 +104,7 @@ class SubtaskDoneHandlerTest {
     void should_SkipProcessing_When_EventAlreadyConsumed() {
         TaskInstance task = task("tk_001", 0L, 10000L, 0);
         when(repository.findByTaskId("tk_001")).thenReturn(Optional.of(task));
+        when(eventConsumeLogRepository.existsByEventId("ev_dup")).thenReturn(false, true);
         SubtaskDoneEvent event = doneEvent("ev_dup", "tk_001", "success", 100L, 50, null);
 
         handler.handle(event);  // 首次消费

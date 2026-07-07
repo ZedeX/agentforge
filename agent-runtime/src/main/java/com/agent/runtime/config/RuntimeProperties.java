@@ -24,6 +24,10 @@ public class RuntimeProperties {
     private Circuit circuit = new Circuit();
     /** 重试器参数 */
     private Retry retry = new Retry();
+    /** S-02: 隔离仓参数 */
+    private Bulkhead bulkhead = new Bulkhead();
+    /** S-02: 超时器参数 */
+    private TimeLimiter timeLimiter = new TimeLimiter();
 
     public ClientToggle getModelGatewayClient() { return modelGatewayClient; }
     public void setModelGatewayClient(ClientToggle modelGatewayClient) { this.modelGatewayClient = modelGatewayClient; }
@@ -45,6 +49,12 @@ public class RuntimeProperties {
 
     public Retry getRetry() { return retry; }
     public void setRetry(Retry retry) { this.retry = retry; }
+
+    public Bulkhead getBulkhead() { return bulkhead; }
+    public void setBulkhead(Bulkhead bulkhead) { this.bulkhead = bulkhead; }
+
+    public TimeLimiter getTimeLimiter() { return timeLimiter; }
+    public void setTimeLimiter(TimeLimiter timeLimiter) { this.timeLimiter = timeLimiter; }
 
     /** gRPC 客户端开关 */
     public static class ClientToggle {
@@ -137,5 +147,23 @@ public class RuntimeProperties {
 
         public double getMultiplier() { return multiplier; }
         public void setMultiplier(double v) { this.multiplier = v; }
+    }
+
+    /** S-02: 隔离仓参数 */
+    public static class Bulkhead {
+        /** 最大并发调用数（默认 20） */
+        private int maxConcurrent = 20;
+
+        public int getMaxConcurrent() { return maxConcurrent; }
+        public void setMaxConcurrent(int v) { this.maxConcurrent = v; }
+    }
+
+    /** S-02: 超时器参数 */
+    public static class TimeLimiter {
+        /** 超时时间（毫秒，默认 30000 = 30s） */
+        private long timeoutMs = 30000;
+
+        public long getTimeoutMs() { return timeoutMs; }
+        public void setTimeoutMs(long v) { this.timeoutMs = v; }
     }
 }

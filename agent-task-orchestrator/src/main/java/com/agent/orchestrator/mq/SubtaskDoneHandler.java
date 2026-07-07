@@ -1,7 +1,9 @@
 package com.agent.orchestrator.mq;
 
+import com.agent.orchestrator.entity.EventConsumeLog;
 import com.agent.orchestrator.mq.event.SubtaskDoneEvent;
 import com.agent.orchestrator.model.TaskInstance;
+import com.agent.orchestrator.repository.EventConsumeLogRepository;
 import com.agent.orchestrator.repository.TaskInstanceRepository;
 import com.agent.orchestrator.replanner.ReplanModeSelector;
 import com.agent.orchestrator.statemachine.TaskStateMachine;
@@ -9,19 +11,18 @@ import com.agent.common.constant.TaskStatus;
 import com.agent.common.exception.BusinessException;
 import com.agent.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 子任务完成回调处理器（对齐 doc 03-task-engine §7.4 伪代码）。
  *
  * <p>处理流程：</p>
  * <ol>
- *   <li>幂等校验（eventId 去重，内存 Set 简化；生产应查 event_consume_log 表）</li>
+ *   <li>幂等校验（eventId 去重，JPA event_consume_log 表 + 唯一约束，S-03 修复）</li>
  *   <li>更新节点状态 + outputs 落库</li>
  *   <li>成本累加（CostMonitor 逻辑内联）</li>
  *   <li>决策：success → 推进批次 / failed → 重规划或人工 / require_review → WAITING_HUMAN</li>
@@ -34,26 +35,36 @@ public class SubtaskDoneHandler {
     private final TaskInstanceRepository repository;
     private final TaskStateMachine stateMachine;
     private final ReplanModeSelector replanModeSelector;
-    /** 幂等去重集合（简化实现，生产环境用 Redis SETNX + event_consume_log 表）。 */
-    private final Set<String> consumedEventIds = ConcurrentHashMap.newKeySet();
+    private final EventConsumeLogRepository eventConsumeLogRepository;
 
     public SubtaskDoneHandler(TaskInstanceRepository repository,
                                TaskStateMachine stateMachine,
-                               ReplanModeSelector replanModeSelector) {
+                               ReplanModeSelector replanModeSelector,
+                               EventConsumeLogRepository eventConsumeLogRepository) {
         this.repository = repository;
         this.stateMachine = stateMachine;
         this.replanModeSelector = replanModeSelector;
+        this.eventConsumeLogRepository = eventConsumeLogRepository;
     }
 
     @Transactional
     public void handle(SubtaskDoneEvent event) {
-        // 1. 幂等校验
-        if (event.getEventId() != null && consumedEventIds.contains(event.getEventId())) {
-            log.warn("重复事件已消费，跳过 eventId={}", event.getEventId());
+        // 1. 幂等校验（JPA event_consume_log 表 + 唯一约束，S-03 修复）
+        String eventId = event.getEventId();
+        if (eventId == null) {
+            eventId = event.getTaskId() + ":" + event.getNodeId() + ":" + event.getStatus();
+        }
+        if (eventConsumeLogRepository.existsByEventId(eventId)) {
+            log.warn("重复事件已消费，跳过 eventId={}", eventId);
             return;
         }
-        if (event.getEventId() != null) {
-            consumedEventIds.add(event.getEventId());
+        try {
+            EventConsumeLog consumeLog = new EventConsumeLog();
+            consumeLog.setEventId(eventId);
+            eventConsumeLogRepository.save(consumeLog);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("并发重复事件插入冲突，跳过 eventId={}", eventId);
+            return;
         }
 
         TaskInstance task = repository.findByTaskId(event.getTaskId())

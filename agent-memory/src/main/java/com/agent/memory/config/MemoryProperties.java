@@ -90,6 +90,8 @@ public class MemoryProperties {
         private String distillScene = "summary";
         /** 蒸馏模型层级（light / middle / strong）。 */
         private String distillTier = "middle";
+        /** S-06: gRPC 调用超时时间（毫秒），防止慢依赖拖垮调用链。 */
+        private long timeoutMs = 30000;
     }
 
     /**

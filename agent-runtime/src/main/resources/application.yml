@@ -68,3 +68,9 @@ runtime:
     max-attempts: 3
     initial-backoff-ms: 200
     multiplier: 3.0
+  # S-02: 隔离仓（限制对下游服务的并发调用数）
+  bulkhead:
+    max-concurrent: 20
+  # S-02: 超时器（非 gRPC 路径的上限超时）
+  time-limiter:
+    timeout-ms: 30000

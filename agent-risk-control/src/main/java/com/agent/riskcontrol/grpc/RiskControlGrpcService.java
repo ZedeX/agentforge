@@ -47,6 +47,18 @@ public class RiskControlGrpcService extends RiskControlServiceGrpc.RiskControlSe
     @Override
     public void checkContent(CheckContentRequest request,
                              StreamObserver<CheckContentResponse> responseObserver) {
+        if (request.getContent() == null || request.getContent().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("content is required")
+                    .asRuntimeException());
+            return;
+        }
+        if (request.getContentType() == null || request.getContentType().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("contentType is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             log.info("checkContent request: contentType={} categoriesCount={}",
                     request.getContentType(), request.getCheckCategoriesCount());
@@ -75,6 +87,18 @@ public class RiskControlGrpcService extends RiskControlServiceGrpc.RiskControlSe
     @Override
     public void checkPermission(CheckPermissionRequest request,
                                 StreamObserver<CheckPermissionResponse> responseObserver) {
+        if (request.getUserId() == null || request.getUserId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("userId is required")
+                    .asRuntimeException());
+            return;
+        }
+        if (request.getAction() == null || request.getAction().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("action is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             log.info("checkPermission request: userId={} action={} resource={}/{}",
                     request.getUserId(), request.getAction(),
@@ -104,6 +128,18 @@ public class RiskControlGrpcService extends RiskControlServiceGrpc.RiskControlSe
     @Override
     public void auditLog(AuditLogRequest request,
                          StreamObserver<AuditLogAck> responseObserver) {
+        if (request.getActorId() == null || request.getActorId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("actorId is required")
+                    .asRuntimeException());
+            return;
+        }
+        if (request.getAction() == null || request.getAction().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("action is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             log.info("auditLog request: action={} actorId={} resource={}/{} result={}",
                     request.getAction(), request.getActorId(),

@@ -98,6 +98,12 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
 
     @Override
     public void chat(ChatRequest request, StreamObserver<ChatResponse> responseObserver) {
+        if (request.getCallId() == null || request.getCallId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("callId is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             ChatResponse response = doChat(request);
             responseObserver.onNext(response);
@@ -214,6 +220,12 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
      */
     @Override
     public void streamChat(ChatRequest request, StreamObserver<ChatChunk> responseObserver) {
+        if (request.getCallId() == null || request.getCallId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("callId is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             // Step 1: 解析 request
             Scene scene = mapper.toScene(request.getScene());
@@ -351,6 +363,12 @@ public class ModelGatewayGrpcService extends ModelGatewayGrpc.ModelGatewayImplBa
 
     @Override
     public void listModels(ListModelsRequest request, StreamObserver<ListModelsResponse> responseObserver) {
+        if (request.getTier() == null || request.getTier().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("tier is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             String tier = request.getTier();
             List<ModelInfo> models = modelCatalog.list(tier);

@@ -211,3 +211,35 @@
 ---
 
 **Wave 1~3 安全加固完成总结**：4 CRITICAL + 5 HIGH + 5 MED = 14 条全部修复。TDD 红绿循环验证。6 个 commits 推送至 main。
+
+---
+
+## 🔧 S-03 修复：RocketMQ 消费幂等（JPA event_consume_log 表方案）（2026-07-07）
+
+**任务**：修复 `SubtaskDoneHandler.java` 中 RocketMQ 消费者幂等机制的 4 个缺陷：内存 Set 跨 Pod 不共享 / 无界增长 OOM / 重启丢失 / 与业务写非事务。
+
+**方法**：TDD 红绿循环（test-driven-development skill）—— 先写失败测试 → 验证 RED → 实现修复 → 验证 GREEN。
+
+**交付**：
+- 新建 `EventConsumeLog` 实体（`entity/EventConsumeLog.java`）：`event_consume_log` 表，`event_id` 列唯一约束，`consumed_at` 时间戳
+- 新建 `EventConsumeLogRepository` 接口（`repository/EventConsumeLogRepository.java`）：`existsByEventId()` 快速路径检查
+- 修改 `SubtaskDoneHandler.java`：删除 `ConcurrentHashMap.newKeySet()` 内存 Set，注入 `EventConsumeLogRepository`，幂等逻辑改为 `existsByEventId` 检查 + `save` 插入 + `DataIntegrityViolationException` 竞争兜底
+- 修改 `SubtaskDoneHandlerTest.java`：适配新构造函数（+`@Mock EventConsumeLogRepository`），UT-MQ-001 改用 `thenReturn(false, true)` 模拟二次调用
+- 新建 `SubtaskDoneHandlerIdempotencyTest.java`（`@DataJpaTest` + H2 + `@Import(SubtaskDoneHandler.class)`）：3 个场景验证
+
+**TDD 红绿记录**：
+- RED：3 个测试全部失败（`eventConsumeLogRepository.count()` = 0，因为旧 handler 不写 event_consume_log 表）
+- GREEN：13 个测试全部通过（3 新幂等测试 + 10 既有单元测试），BUILD SUCCESS
+
+**幂等机制设计**：
+1. eventId 为 null 时，从 `taskId + ":" + nodeId + ":" + status` 生成去重键
+2. `existsByEventId(eventId)` 快速路径 → true 跳过
+3. `save(new EventConsumeLog(eventId))` 在同一 `@Transactional` 内与业务写原子提交
+4. `catch (DataIntegrityViolationException)` 处理多 Pod 并发竞争（唯一约束兜底）
+5. 业务逻辑抛异常时事务回滚，EventConsumeLog 插入一并回滚，事件可重试
+
+**关键经验**：
+96. `@DataJpaTest` 默认不扫描 `@Component`，需 `@Import(SubtaskDoneHandler.class)` 显式引入；`TaskStateMachine`/`ReplanModeSelector` 非 JPA 依赖用 `@MockBean` 替换
+97. `@DataJpaTest` + H2 需 `@TestPropertySource` 覆盖 `ddl-auto=validate→create-drop` 和 `dialect=MySQL8Dialect→H2Dialect`（主 application.yml 为 MySQL 配置）
+98. 同一事务内 `save` 后 `existsByEventId` 可见：Hibernate AUTO flush 模式在查询前自动刷新持久化上下文
+99. PowerShell 传递 `-Dproperty=value` 给 mvn.cmd 时会在 `=` 处拆分，应先 `mvn install -DskipTests` 安装依赖再单独 `mvn test -pl module` 避免 `-am` 传播 `-Dtest` 到上游模块

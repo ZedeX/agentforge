@@ -94,6 +94,12 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
     @Transactional
     public void submitTask(SubmitTaskRequest request,
                            StreamObserver<SubmitTaskResponse> responseObserver) {
+        if (request.getTaskId() == null || request.getTaskId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("taskId is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             // 1. 加载或创建任务实例（测试通过 mock findByTaskId 注入预配置实体）
             TaskInstance entity = repository.findByTaskId(request.getTaskId())
@@ -138,6 +144,12 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
     @Transactional
     public void getTaskStatus(GetTaskStatusRequest request,
                               StreamObserver<agentplatform.task.v1.TaskInstance> responseObserver) {
+        if (request.getTaskId() == null || request.getTaskId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("taskId is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             TaskInstance entity = repository.findByTaskId(request.getTaskId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND,
@@ -155,6 +167,12 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
     @Transactional
     public void cancelTask(CancelTaskRequest request,
                            StreamObserver<CancelAck> responseObserver) {
+        if (request.getTaskId() == null || request.getTaskId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("taskId is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             TaskInstance entity = repository.findByTaskId(request.getTaskId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND,
@@ -184,6 +202,18 @@ public class TaskOrchestratorGrpcService extends TaskOrchestratorGrpc.TaskOrches
     @Transactional
     public void reportSubtaskResult(SubtaskResult request,
                                     StreamObserver<ReportAck> responseObserver) {
+        if (request.getTaskId() == null || request.getTaskId().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("taskId is required")
+                    .asRuntimeException());
+            return;
+        }
+        if (request.getStatus() == null || request.getStatus().isEmpty()) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT
+                    .withDescription("status is required")
+                    .asRuntimeException());
+            return;
+        }
         try {
             TaskInstance entity = repository.findByTaskId(request.getTaskId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND,

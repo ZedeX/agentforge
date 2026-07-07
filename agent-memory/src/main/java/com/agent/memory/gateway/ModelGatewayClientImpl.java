@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Model Gateway gRPC client implementation (Plan 03 T4).
@@ -66,7 +67,10 @@ public class ModelGatewayClientImpl implements ModelGatewayClient {
                 .build();
 
         log.debug("调用模型网关蒸馏 callId={} scene={} tier={}", callId, scene, tier);
-        ChatResponse response = stub.chat(request);
+        // S-06: 加 deadline 防止慢依赖拖垮调用链
+        ChatResponse response = stub.withDeadlineAfter(
+                properties.getModelGateway().getTimeoutMs(), TimeUnit.MILLISECONDS)
+                .chat(request);
 
         String content = response.getContent();
         log.info("模型网关蒸馏返回 callId={} model={} inputTokens={} outputTokens={} contentLen={}",
