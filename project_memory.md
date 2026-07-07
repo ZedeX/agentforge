@@ -158,3 +158,51 @@
 **Skill 使用**：brainstorming（STRIDE+攻击链）、writing-plans+tdd（§8 回归测试计划红绿循环）、using-superpowers（agent 与人工读码冲突时以读码为准）；gsd 不适用一次性审计故未机械套用。
 
 **后续建议**：P0 五条（删后门 key / 删 riskLevel 绕过 / JWT 密钥出库 / K8s RBAC 收紧 / gRPC mTLS）优先修复，阻断攻击链 A/B/C。每条配 TDD 红绿回归测试见报告 §8。
+
+---
+
+## 🛡️ Wave 43 安全加固修复（2026-07-07）—— 基于 Wave 42 审计报告
+
+**任务**：系统性修复根除 Wave 42 发现的所有安全问题
+
+**方法**：3 Wave 分批修复（CRITICAL→HIGH→MED），TDD 红绿循环验证
+
+### Wave 1 完成（R-01 ~ R-05 CRITICAL）— commit b1312a7 ~ ad0e11e
+
+| ID | 修复 | 变更文件 |
+|---|---|---|
+| R-01 | 删除 AuthFilter 硬编码 API Key 后门 + ApiKeyProperties 租户绑定 | `AuthFilter.java`, `ApiKeyProperties.java` |
+| R-02 | ToolGatewayImpl riskLevel 永不降级（never-downgrade rule） | `ToolGatewayImpl.java` + 2 TDD tests |
+| R-03 | JWT secret 改 env 注入 + fail-fast Assert.hasText | `JwtUtil.java`, `application.yml` |
+| R-04 | K8s RBAC 拆分为 per-SA RoleBinding + OPA conftest 策略 | `01-serviceaccounts.yaml`, `rbac-conftest.rego` |
+| R-05 | gRPC mTLS 配置移至 application-mtls.yml profile | `application.yml` → `application-mtls.yml` |
+
+**关键修复**：GatewayApplicationContextTest 因 `grpc.server.security` 空默认值导致 Spring 上下文加载失败 → 移至 profile 解决。agent-gateway 47 测试全绿。
+
+### Wave 2 完成（R-06 ~ R-10 HIGH）— commit 85651a3
+
+| ID | 修复 | 变更文件 |
+|---|---|---|
+| R-06 | PermissionCheckerImpl 用 JWT claims role（via request），删除硬编码 USER_ROLES | `PermissionCheckerImpl.java`, `risk_control.proto` +role 字段, `CheckPermissionRequest.java`, `RiskControlMapper.java` + 11 TDD tests |
+| R-07 | DockerSandboxBorrower 加固：cap-drop ALL + user=nobody + no-new-privileges | `DockerSandboxBorrower.java` + 4 TDD tests |
+| R-08 | 12 个 K8s Deployment 加 securityContext（pod+container 级）+ actuator 端口收口 | 12 deployment YAMLs + `02-configmap-bootstrap.yaml` |
+| R-09 | GitHub Actions CI 安全扫描（gitleaks + trivy + CodeQL） | `.github/workflows/security-scan.yml`, `.github/codeql-config.yml` |
+| R-10 | 13 个 application.yml 硬编码 `password: root` → `${DB_PASSWORD:}` | 13 application.yml files |
+
+**关键修复**：
+- docker-java `Capability.ALL`（不是 ALL_CAPS）；`withUser()` 在 `CreateContainerCmd` 上而非 `HostConfig`
+- Spring `@ConfigurationProperties` Map 绑定空字符串失败 → `@PostConstruct initFromEnv()` 手动解析 API_KEY_TENANTS
+- grpc-spring-boot-starter `ClientAuth` 只有 REQUIRE/OFF（无 WANT）
+- Maven 未安装 → 通过 Scoop + proxy 修复安装（`scoop config proxy 127.0.0.1:1089`）
+
+### Wave 3 待做（R-11 ~ S-11 MED）
+
+| ID | 修复 | 涉及模块 |
+|---|---|---|
+| R-11 | 审计落库失败不再吞异常 | agent-risk-control |
+| S-08 | validateParams 改 JSON Schema 解析 | agent-tool-engine |
+| S-09 | checkpoint 序列化改 Jackson | agent-runtime |
+| S-11 | CostMeter 改 BigDecimal | agent-model-gateway |
+| S-05/S-07 | JVM 堆对齐 + server.shutdown=graceful | 全模块 application.yml |
+
+**测试验证**：agent-gateway 47 ✅ / agent-tool-engine 235 ✅(5 skipped) / agent-risk-control 18 ✅
