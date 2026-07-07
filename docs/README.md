@@ -2,7 +2,14 @@
 
 > 生成日期：2026-06-26  |  基于需求文档：[PRD.md](../PRD.md)  |  技术栈：Java 17 / Spring Cloud Alibaba / Milvus / MySQL / RocketMQ
 
-本目录包含 Agent 智能体平台系统的工程级设计文档，共 38 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 9 份编码计划 + 1 份前端控制台详设 + 13 份测试文档）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录（v1.1 + v1.2 增补）/ 独立审核框架与 v1~v7 共 7 轮审核报告。
+本目录包含 Agent 智能体平台系统的工程级设计文档，共 40 份（11 份主设计 + 1 份补遗 + 3 份详细逻辑流程图 + 9 份编码计划 + 1 份前端控制台详设 + 13 份测试文档 + 2 份运营文档）+ `infra/sql/` 16 个 DDL 初始化脚本，覆盖 PRD 第七章交付物 1/3/4/5/6/7，并对照 `detail-MRD.md` 完成遗漏补遗、决策逻辑层流程图详设、编码计划、前端控制台详设、基础设施 DDL 脚本，以及测试策略 / 用例 / Fixture / TDD 红绿循环记录（v1.1 + v1.2 增补）/ 独立审核框架与 v1~v7 共 7 轮审核报告。
+
+### 🆕 运营文档
+
+| # | 文档 | 内容 | 面向角色 |
+|---|---|---|---|
+| — | [user-guide.md](./user-guide.md) | REST/gRPC API 使用指南、端到端示例、13 服务 API 速查表、FAQ | 运营 / 开发者 / 用户 |
+| — | [ops-guide.md](./ops-guide.md) | 部署架构、K8s/Docker 部署、配置管理、可观测、安全检查、故障排查、性能调优 | SRE / 运维 |
 
 ## 文档导航
 
@@ -311,12 +318,13 @@ mvn -B -ntp clean package -Pquick
 
 1. ✅ `agent-proto/` + `agent-common/` — [Plan 01](./plans/01-agent-proto-and-common-plan.md)（已实现，47 测试用例）
 2. ✅ `agent-gateway/` + `agent-session/` — [Plan 02](./plans/02-agent-gateway-session-plan.md)（已实现，43 Java 类）
-3. ✅ `agent-task-orchestrator/` — [Plan 04](./plans/04-task-orchestrator-planning-plan.md)（已实现，T5~T13 全 13 task，含 gRPC + RocketMQ + 集成测试）
-4. 🔄 `agent-memory/` 编码 plan（9/10 task 已实现：T1-T5 + T7-T10，剩余 T6 Milvus，详见 [Plan 03](./plans/03-agent-memory-plan.md)）
-5. ⏸ `agent-tool-engine/` 编码 plan（骨架已建，业务实现待后续）
-6. ⏸ `agent-runtime/` 编码 plan（骨架已建，业务实现待后续）
-7. ⏸ `agent-model-gateway/` 编码 plan（骨架未建）
-8. ⏸ `agent-repo/` + `agent-knowledge/` + `agent-quality/` 编码 plan（quality 骨架已建，repo/knowledge 待后续）
-9. ⏸ 基础设施（K8s/Docker/Nacos）配置 plan
+3. ✅ `agent-memory/` — [Plan 03](./plans/03-agent-memory-plan.md)（已实现，10/10 task，224 测试用例）
+4. ✅ `agent-task-orchestrator/` — [Plan 04](./plans/04-task-orchestrator-planning-plan.md)（已实现，13/13 task）
+5. ✅ `agent-tool-engine/` — [Plan 05](./plans/05-agent-tool-engine-plan.md)（已实现，12/12 task，224 测试用例）
+6. ✅ `agent-runtime/` — [Plan 06](./plans/06-agent-runtime-plan.md)（已实现，10/10 task，163 测试用例）
+7. ✅ `agent-model-gateway/` — [Plan 07](./plans/07-agent-model-gateway-plan.md)（已实现，14/14 task）
+8. ✅ `agent-repo/` + `agent-knowledge/` — [Plan 08](./plans/08-agent-repo-knowledge-plan.md)（已实现，12/12 task）
+9. ✅ 基础设施（K8s/Docker/Nacos/Vault/可观测）— [Plan 09](./plans/09-infra-deployment-plan.md)（已实现，13/13 task，90+ 文件）
+10. ✅ S-04/S-12 补偿与异常治理 — [Plan 10](./plans/10-outbox-exception-plan.md)（已实现，6/6 task）
 
 每个编码计划保存至 `docs/plans/` 目录，采用 TDD 红绿循环逐步实现。已实现模块的测试覆盖详见 [tests/tdd-audit-report-v7.md](./tests/tdd-audit-report-v7.md)。
