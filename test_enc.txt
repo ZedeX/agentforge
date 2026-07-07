@@ -1,1 +1,0 @@
-测试中文 hello 0.8 ≥ threshold
