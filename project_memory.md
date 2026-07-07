@@ -343,3 +343,34 @@
 - 现有最接近的补偿模式：`SubtaskDoneHandler` 的 `event_consume_log` 幂等（S-03 修复成果，可复用）
 
 **下一步**：等待用户评审 PRD，评审通过后按 Phase 1~6 顺序 TDD 实现。文档状态：待评审。
+
+---
+
+## 🧹 Wave 46 项目清理 + Bug 修复（2026-07-08）
+
+**任务**：整体检查项目，修复遗留 bug，删除本地无用文件，提交 GitHub
+
+**修复**：
+- **listModels 空 tier 返回 INVALID_ARGUMENT bug**（commit `0753d5b`）：`ModelGatewayGrpcService.listModels()` 对空/null tier 拒绝返回 INVALID_ARGUMENT，但 `ModelCatalog.list()` 已正确处理空 tier 为"返回全部"。删除了多余的提前拒绝校验，委托 ModelCatalog 处理。此 bug 导致 `ModelGatewayGrpcServiceChatTest.should_ReturnAllModels_When_TierEmpty` 失败。
+- **删除 test_enc.txt**（commit `41eb3d8`）：编码测试文件不再需要，从 git 追踪中移除。
+
+**验证**：
+- 全项目 19 模块 `mvn test` 全绿（0 Failures, 0 Errors, 10 Skipped）
+- 先前标记为 flaky 的 FixturesShowcaseTest（9 tests）和 ResilienceDecoratorTest（11 tests）均通过
+
+**本地文件清理**（共删除 60+ 文件）：
+- 7 个临时测试脚本：run-*.bat, run-fix-test.bat 等
+- 41 个 .log 文件：wave29-build.log, mvn-verify*.log, agent-tool-engine-*.log, hs_err_pid*.log 等
+- 11 个 wave*/commit-msg 临时文件
+- tmp/ 目录（含 CI 日志）
+- docs/11-detail-flow/_mermaid-validate/.chrome-profile/（浏览器自动化残留）
+- docs/11-detail-flow/_mermaid-validate/node_modules/（npm 依赖）
+- agent-log-temp.md（170KB 日志）
+- target-test-log.txt
+
+**保留的文件**（有文档引用）：
+- detail-MRD.md（README.md 引用）
+- project_memory_part1~4.md（project_memory.md 引用）
+
+**关键经验**：
+106. `listModels` 空 tier 语义：API 设计中空/null 参数常表示"返回全部"，应委托给 catalog 层统一处理，而非在 gRPC 层提前拒绝。测试名 `should_ReturnAllModels_When_TierEmpty` 即为此语义的 spec
