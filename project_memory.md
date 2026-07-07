@@ -12,7 +12,7 @@
 | **Part 3** | [project_memory_part3.md](./project_memory_part3.md) | 858~1361 | Wave 27~32（gRPC + agent-memory） | Wave 27~29（model-gateway gRPC 闭合）<br/>Wave 30~32（agent-memory T1-T3 + T8-T9） |
 | **Part 4** | [project_memory_part4.md](./project_memory_part4.md) | 1362~ | Wave 33~40（agent-memory 收尾 + 全 Plan 推进） | Wave 33~37（MemoryDistiller→MemoryService gRPC）<br/>Wave 38（project_memory.md 拆分）<br/>Wave 39（Plan 03/04 闭合 + Milvus T6）<br/>Wave 40（Plan 07/08 闭合 + 集成测试三连击） |
 
-## 📊 项目总体进度（截至 Wave 40）
+## 📊 项目总体进度（截至 Wave 46）
 
 ### Plan 进度汇总
 
@@ -22,15 +22,18 @@
 | 02 | agent-gateway + agent-session | 10/10 ✅ | Wave 5~11 | - |
 | 03 | agent-memory | **10/10** ✅ | Wave 30~39 | - |
 | 04 | task-orchestrator + planning | **13/13** ✅ | P6 Wave 1~2 | - |
-| 05 | agent-tool-engine | 0/12 ⏳ | - | - |
-| 06 | agent-runtime | 0/10 ⏳ | - | - |
+| 05 | agent-tool-engine | **12/12** ✅ | Wave 42~46 | 224 tests |
+| 06 | agent-runtime | **10/10** ✅ | Wave 42~46 | 163 tests |
 | 07 | agent-model-gateway | **14/14** ✅ | Wave 18~29, 40 | - |
 | 08 | agent-repo + agent-knowledge | **12/12** ✅ | Wave 19~26, 40 | - |
-| 09 | infra 部署 | 0/? ⏳ | - | - |
+| 09 | infra 部署 | **13/13** ✅ | Wave 42~46 | 90 文件 |
+| 10 | S-04/S-12 补偿+异常 | **6/6** ✅ | Wave 45 | - |
+
+**🎉 全部 10 个计划已完成，项目开发阶段结束。**
 
 ### 测试统计
 
-- **累计测试方法**：1140+ 全绿（agent-model-gateway 116 / agent-repo 120 / agent-knowledge 153 / agent-memory 189 / 其他 562）
+- **累计测试方法**：1580+ 全绿（19 模块，0 Failures, 0 Errors）
 - **JaCoCo 覆盖率**：agent-memory line 89% / branch 79%（阈值 80%/70%）
 - **TDD 审核等级**：v7.5 = 89.2 / B+ 通过
 
@@ -39,7 +42,8 @@
 - Wave 20：streak=10 → **A- 等级正式达成**
 - Wave 38：streak=40（含 docs commit）
 - Wave 39：streak=41
-- Wave 40：streak=**42**（待 push 后确认）
+- Wave 40：streak=**42**
+- Wave 46：streak=**48+**
 
 ## 🔗 相关文档
 
@@ -124,11 +128,13 @@
 
 ---
 
-## 🚀 下一波（Wave 42+）计划
+## 🚀 后续待办（开发阶段结束后）
 
-- **Plan 05 agent-tool-engine（0/12）**：解锁 Plan 06 agent-runtime 依赖；唯一未完成的 P1 计划。4 RPC + 9 项核心能力（ToolRegistry/ToolGateway/RiskClassifier/ApprovalStore/SandboxBorrower/ToolCache/ToolCallAuditor/ToolSemanticRecaller/ResultCleaner）
-- **Plan 06 agent-runtime（0/10）**：依赖 task/memory/tool/model 全部完成（tool 待做）
-- **Plan 09 infra 部署（0/?）**：13 个微服务的 Dockerfile + docker-compose + K8s + Nacos + 可观测组件
+- **CI 环境**：配置 Docker 并运行 25 个 Testcontainers 用例
+- **性能验证**：CI 用完整 fork 模式重跑 JMH 基准测试
+- **K8s 集群部署**：13 个服务部署 + 3 个 Gatling 模拟场景
+- **覆盖率报告**：JaCoCo 覆盖率报告生成并验证阈值
+- **告警配置**：性能基线自动化告警配置
 
 ---
 
